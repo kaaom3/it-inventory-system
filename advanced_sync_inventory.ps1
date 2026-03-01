@@ -1,0 +1,246 @@
+# ===================================================================
+# PowerShell Script to Collect and Send Computer Inventory Data
+# Version 23.0 - Compatible with Custom Menu System
+# ===================================================================
+
+# --- CONFIGURATION (จุดที่ต้องแก้ไข) ---
+# 1. ใส่ IP Address ของเครื่อง Server (เครื่องที่รัน node index.js)
+#    - ถ้ารันสคริปต์นี้บนเครื่องเดียวกับ Server ให้ใช้ "127.0.0.1"
+#    - ถ้ารันจากเครื่องอื่นในวง LAN ให้ใส่ IP ของเครื่อง Server เช่น "192.168.1.50"
+$serverIp = "192.168.108.80" 
+
+# 2. พอร์ตของ Server (ปกติคือ 3000 ตามโค้ด index.js)
+$port = "3000"
+
+# 3. URL เต็ม (ไม่ต้องแก้ถ้า 1 และ 2 ถูกต้อง)
+$apiUrl = "http://$($serverIp):$($port)/api/inventory/sync"
+
+# 4. API Key (ต้องตรงกับตัวแปร API_SECRET_KEY ในไฟล์ index.js)
+$apiKey = "KAAOM321A" 
+
+# 5. ระบุสถานที่ของเครื่องนี้ (จะไปโผล่ในฟิลด์ Location)
+$location = "Office_Building_A" 
+
+# ไฟล์ Log สำหรับตรวจสอบการทำงาน
+$logFilePath = "C:\Temp\inventory_log.txt"
+
+# --- FUNCTIONS ---
+function Write-Log {
+    param ([string]$Message)
+    $timestamp = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
+    $logMessage = "[$timestamp] $Message"
+    try {
+        if (-not (Test-Path (Split-Path $logFilePath -Parent))) {
+            New-Item -ItemType Directory -Path (Split-Path $logFilePath -Parent) -Force | Out-Null
+        }
+        Add-Content -Path $logFilePath -Value $logMessage -ErrorAction Stop
+    } catch {}
+    Write-Host $logMessage 
+}
+
+# ฟังก์ชันทำความสะอาดข้อมูล ลบตัวอักษรขยะและ Null Bytes
+function Clean-Data {
+    param ([string]$InputString)
+    if ([string]::IsNullOrWhiteSpace($InputString)) { return "N/A" }
+    # ลบ Null Character และช่องว่างหัวท้าย
+    $cleaned = $InputString -replace [char]0, '' -replace '', ''
+    return $cleaned.Trim()
+}
+
+function Convert-PnpIdTo-ManufacturerName {
+    param ([string]$PnpId)
+    $pnpLookup = @{
+        "AAC"="Acer"; "ACR"="Acer"; "AOC"="AOC"; "APP"="Apple"; "AUO"="AU Optronics";
+        "BEN"="BenQ"; "CMO"="Chi Mei"; "DEL"="Dell"; "HEI"="Heier"; "HPN"="HP-Compaq";
+        "HPQ"="HP"; "HWP"="HP"; "IVM"="IBM"; "LEN"="Lenovo"; "LGD"="LG Display";
+        "LPL"="LG Philips"; "NEC"="NEC"; "PHL"="Philips"; "SAM"="Samsung"; "SEC"="Samsung";
+        "SNY"="Sony"; "TOS"="Toshiba"; "TSB"="Toshiba"; "VIZ"="Vizio"; "VSC"="ViewSonic"
+    }
+    if ($pnpLookup.ContainsKey($PnpId)) { return $pnpLookup[$PnpId] } else { return $PnpId }
+}
+
+# --- SCRIPT BODY ---
+Write-Log "========== Script Run Started (v23.0) =========="
+Write-Log "Target Server: $apiUrl"
+
+try {
+    # Test Connection
+    Write-Log "Testing connection to server..."
+    $testConnection = Test-NetConnection -ComputerName $serverIp -Port $port -InformationLevel Quiet
+    if (-not $testConnection) {
+        throw "Cannot connect to server at $serverIp on port $port. Please check Firewall or IP address."
+    }
+
+    # 1. Collect Basic Info
+    $computerSystem = Get-CimInstance -ClassName Win32_ComputerSystem
+    $osInfo = Get-CimInstance -ClassName Win32_OperatingSystem
+    $cpuInfo = Get-CimInstance -ClassName Win32_Processor
+    $biosInfo = Get-CimInstance -ClassName Win32_BIOS
+    $ramGB = [math]::Round($computerSystem.TotalPhysicalMemory / 1GB, 2)
+    $computerName = $env:COMPUTERNAME
+    
+    # Logic หา Username ปัจจุบัน
+    $userName = ($computerSystem.UserName -split '\\')[-1]
+    if (-not $userName) { $userName = $env:USERNAME } # Fallback
+    
+    $cleanSerial = Clean-Data $biosInfo.SerialNumber
+    $cleanModel = Clean-Data $computerSystem.Model
+    $cleanManuf = Clean-Data $computerSystem.Manufacturer
+    
+    Write-Log "Collected info for: $computerName (User: $userName)"
+    
+    # 2. Disk Size
+    $diskSizeString = (Get-CimInstance -ClassName Win32_LogicalDisk -Filter "DriveType=3" | ForEach-Object {
+        "$($_.DeviceID) $([math]::Round($_.Size / 1GB, 0)) GB"
+    }) -join ', '
+    if (-not $diskSizeString) { $diskSizeString = "N/A" }
+    
+    # 3. IP Address
+    $localIp = (Get-CimInstance Win32_NetworkAdapterConfiguration | Where-Object { $_.IPEnabled -and $_.DefaultIPGateway }).IPAddress[0]
+    if (-not $localIp) { $localIp = "N/A" }
+
+    # 4. Computer Type Detection
+    $computerType = "Unknown"
+    if ($computerName -like '*POS*') {
+        $computerType = "POS"
+    } else {
+        try {
+            $chassisTypes = (Get-CimInstance -ClassName Win32_SystemEnclosure).ChassisTypes
+            if ($chassisTypes -contains 3..7 -or $chassisTypes -contains 13 -or $chassisTypes -contains 15 -or $chassisTypes -contains 24) { $computerType = "Desktop" } 
+            elseif ($chassisTypes -contains 8..12 -or $chassisTypes -contains 14) { $computerType = "Laptop" } 
+            elseif ($chassisTypes -contains 30..32) { $computerType = "Tablet" } 
+            elseif ($chassisTypes -contains 17..23) { $computerType = "Server" }
+        } catch {}
+
+        if ($computerType -eq "Unknown") {
+            try {
+                switch ($computerSystem.PCSystemType) {
+                    1 { $computerType = "Desktop" } 2 { $computerType = "Laptop" } 3 { $computerType = "Desktop" }
+                    4 { $computerType = "Server" } 5 { $computerType = "Server" } 6 { $computerType = "Desktop" }
+                    7 { $computerType = "Server" } 8 { $computerType = "Tablet" }
+                }
+            } catch {}
+        }
+    }
+    
+    # 5. Monitor Info
+    $monitorList = @()
+    try {
+        $monitorsWmi = Get-WmiObject -Namespace root\wmi -Class WmiMonitorID
+        $monitorParams = Get-WmiObject -Namespace root\wmi -Class WmiMonitorConnectionParams -ErrorAction SilentlyContinue
+
+        if ($monitorsWmi) {
+             if ($monitorsWmi -isnot [array]) { $monitorsWmi = @($monitorsWmi) }
+             foreach ($monitor in $monitorsWmi) {
+                $isInternal = $false
+                if (($computerType -eq "Laptop" -or $computerType -eq "Tablet") -and $monitorParams) {
+                    $conn = $monitorParams | Where-Object { $_.InstanceName -eq $monitor.InstanceName }
+                    if ($conn) {
+                        $tech = $conn.VideoOutputTechnology
+                        if ($tech -eq 0 -or $tech -eq 7 -or $tech -eq 11 -or $tech -eq -2147483648) { $isInternal = $true }
+                    }
+                }
+
+                if (-not $isInternal) {
+                    $manuf = (Convert-PnpIdTo-ManufacturerName -PnpId (($monitor.ManufacturerName | Where-Object { $_ -ne 0 } | % {[char]$_}) -join '').Trim())
+                    $mod = (($monitor.UserFriendlyName | Where-Object { $_ -ne 0 } | % {[char]$_}) -join '').Trim()
+                    $ser = (($monitor.SerialNumberID | Where-Object { $_ -ne 0 } | % {[char]$_}) -join '').Trim()
+                    
+                    if ((Clean-Data $ser)) {
+                        $monitorList += [PSCustomObject]@{ manufacturer = (Clean-Data $manuf); model = (Clean-Data $mod); serial = (Clean-Data $ser) }
+                    }
+                }
+            }
+        }
+    } catch { Write-Log "Monitor info warning: $_" }
+    
+    # 6. Software
+    $softwareList = Get-ItemProperty "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\*", "HKLM:\SOFTWARE\Wow6432Node\Microsoft\Windows\CurrentVersion\Uninstall\*" | 
+        Where-Object { $_.DisplayName -and !$_.SystemComponent } | 
+        Select-Object @{N="name";E={Clean-Data $_.DisplayName}}, @{N="version";E={Clean-Data $_.DisplayVersion}}
+
+    # 7. Accessories (Keyboard/Mouse)
+    $accessoryList = @()
+    try {
+        Get-CimInstance -ClassName Win32_Keyboard | ForEach-Object {
+            $desc = $_.Description; $devId = $_.DeviceID
+            if ($devId -notlike "ACPI*" -and $desc -notlike "*PS/2*" -and $devId -notlike "USB*") {
+                $accessoryList += [PSCustomObject]@{ AccessoryType = "Keyboard"; Model = (Clean-Data "$desc [External]"); SerialNumber = (Clean-Data $devId); Manufacturer = "Generic" }
+            }
+        }
+        Get-CimInstance -ClassName Win32_PointingDevice | ForEach-Object {
+            $desc = $_.Description; $devId = $_.DeviceID; $manuf = $_.Manufacturer
+            if ($devId -notlike "ACPI*" -and $desc -notlike "*TouchPad*" -and $desc -notlike "*PS/2*" -and $devId -notlike "USB*") {
+                $accessoryList += [PSCustomObject]@{ AccessoryType = "Mouse"; Model = (Clean-Data "$desc [External]"); SerialNumber = (Clean-Data $devId); Manufacturer = (Clean-Data $manuf) }
+            }
+        }
+    } catch { Write-Log "Accessory info warning: $_" }
+    
+    # 8. Printers
+    $printerList = @()
+    try {
+        Get-CimInstance -ClassName Win32_Printer | ? { ($_.Name -notlike "Microsoft*" -and $_.Name -notlike "*OneNote*" -and $_.Name -notlike "*PDF*" -and $_.Name -notlike "*XPS*") -and ($_.PortName -like "USB*") } | % {
+            $p = $_
+            $pnpDevice = $null
+            try { $pnpDevice = Get-CimInstance -ClassName Win32_PnPEntity | ? { $_.Name -eq $p.DeviceID } | Select -First 1 } catch {}
+            
+            $printerList += [PSCustomObject]@{
+                Name = Clean-Data $p.Name
+                Manufacturer = if($pnpDevice){Clean-Data $pnpDevice.Manufacturer}else{"Unknown"}
+                Model = if($pnpDevice){Clean-Data $pnpDevice.Caption}else{Clean-Data $p.Name}
+                DriverName = Clean-Data $p.DriverName
+                PortName = Clean-Data $p.PortName
+                SerialNumber = if($pnpDevice){Clean-Data $pnpDevice.DeviceID}else{"N/A"}
+            }
+        }
+    } catch {}
+
+    # --- Construct Payload ---
+    $inventoryData = [PSCustomObject]@{
+        computerName = $computerName
+        manufacturer = $cleanManuf
+        model = $cleanModel
+        serialNumber = $cleanSerial
+        type = $computerType
+        location = $location
+        userName = $userName
+        cpu = Clean-Data $cpuInfo.Name
+        ramGB = $ramGB
+        diskSizeGB = $diskSizeString
+        os = Clean-Data $osInfo.Caption
+        ipAddress = $localIp
+        monitors = $monitorList
+        software = $softwareList
+        accessories = $accessoryList
+        printers = $printerList
+        # Warranty date is usually not available via WMI, manual entry later via Web UI
+        warrantyStartDate = ""
+        warrantyEndDate = ""
+    }
+
+    # --- Send Data ---
+    $jsonData = $inventoryData | ConvertTo-Json -Depth 5
+    Write-Log "Sending inventory data to $apiUrl..."
+    
+    $headers = @{ "Content-Type" = "application/json"; "x-api-key" = $apiKey }
+    
+    try {
+        $response = Invoke-RestMethod -Uri $apiUrl -Method Post -Body $jsonData -Headers $headers -ErrorAction Stop
+        
+        if ($response.status -eq "success") { 
+            Write-Log "SUCCESS! Data synced." 
+            Write-Host "Sync Complete!" -ForegroundColor Green
+        } else { 
+            Write-Log "SERVER ERROR: $($response.message)" 
+            Write-Host "Server Error: $($response.message)" -ForegroundColor Yellow
+        }
+    } catch {
+        Write-Log "REQUEST FAILED: $($_.Exception.Message)"
+        Write-Host "Request Failed: $($_.Exception.Message)" -ForegroundColor Red
+    }
+
+} catch {
+    Write-Log "CRITICAL ERROR: $($_.Exception.Message)"
+    Write-Host "Critical Error: $($_.Exception.Message)" -ForegroundColor Red
+}
+Write-Log "========== Finished =========="

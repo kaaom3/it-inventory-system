@@ -1,0 +1,16 @@
+{
+  "name": "cloned-inventory-backend",
+  "version": "1.0.0",
+  "description": "Backend server for the IT Inventory Management System using Node.js, Express, and MongoDB.",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js"
+  },
+  "dependencies": {
+    "bcryptjs": "^2.4.3",
+    "cors": "^2.8.5",
+    "express": "^4.19.2",
+    "jsonwebtoken": "^9.0.2",
+    "mongodb": "^6.7.0"
+  }
+}

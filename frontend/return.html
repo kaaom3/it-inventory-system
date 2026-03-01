@@ -1,0 +1,196 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Return Device</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+    <style>
+        body { font-family: 'Inter', sans-serif; }
+    </style>
+</head>
+<body class="bg-gray-100 dark:bg-gray-900 flex flex-col items-center min-h-screen transition-colors duration-300">
+    
+    <!-- Header with Theme Toggle -->
+    <header class="w-full bg-white dark:bg-gray-800 shadow-sm p-4 flex items-center justify-between mb-8">
+        <div class="flex items-center space-x-3">
+            <i class="fas fa-undo-alt text-2xl text-indigo-600"></i>
+            <h1 class="text-xl font-bold text-gray-800 dark:text-white">Device Return</h1>
+        </div>
+        <button id="theme-toggle" class="p-2 rounded-full hover:bg-gray-100 dark:hover:bg-gray-700 focus:outline-none">
+            <i id="theme-toggle-dark-icon" class="fas fa-moon text-gray-500 dark:text-gray-400"></i>
+            <i id="theme-toggle-light-icon" class="fas fa-sun text-gray-500 dark:text-gray-400 hidden"></i>
+        </button>
+    </header>
+
+    <div class="w-full max-w-2xl bg-white dark:bg-gray-800 p-8 rounded-xl shadow-lg mx-4">
+        <div id="loading" class="text-center text-gray-500 dark:text-gray-400">
+            <i class="fas fa-spinner fa-spin text-3xl mb-4"></i>
+            <p>Loading return information...</p>
+        </div>
+        
+        <div id="content" class="hidden">
+            <h2 class="text-2xl font-bold text-gray-800 dark:text-white mb-4">Return Items</h2>
+            <div id="returnDetails" class="text-sm mb-6 p-4 bg-gray-50 dark:bg-gray-700/50 rounded-lg border dark:border-gray-700"></div>
+            
+            <h3 class="text-lg font-semibold text-gray-700 dark:text-gray-200 mb-3">Items in this loan:</h3>
+            <div id="return-items-list" class="space-y-3"></div>
+            <div id="return-actions" class="mt-6 flex justify-end space-x-3"></div>
+        </div>
+        
+        <div id="not-found" class="hidden text-center">
+             <i class="fas fa-exclamation-circle text-5xl text-red-500 mb-4"></i>
+             <h2 class="text-2xl font-bold text-red-500 mb-4">Loan Not Found</h2>
+             <p class="text-gray-600 dark:text-gray-400">The provided Loan ID could not be found. Please check the QR code and try again.</p>
+        </div>
+    </div>
+
+    <script type="module">
+        const API_BASE_URL = 'http://localhost:3000';
+
+        const collectionConfigs = {
+            Computers: { nameField: 'ComputerName', icon: 'fa-laptop' },
+            Network: { nameField: 'DeviceName', icon: 'fa-network-wired' },
+            Mobile: { nameField: 'DeviceName', icon: 'fa-mobile-alt' },
+            Storage: { nameField: 'ItemName', icon: 'fa-hdd' },
+            Projector: { nameField: 'DeviceName', icon: 'fa-video' },
+            Monitors: { nameField: 'Model', icon: 'fa-desktop' },
+            Audio: { nameField: 'ItemName', icon: 'fa-volume-up' },
+            Accessory: { nameField: 'Model', icon: 'fa-keyboard' },
+            SpareParts: { nameField: 'PartName', icon: 'fa-microchip' }
+        };
+
+        window.processReturn = async (transactionId) => {
+            if (!confirm('Confirm return of this item?')) return;
+            try {
+                const response = await fetch(`${API_BASE_URL}/api/loans/return`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ transactionIds: [transactionId] })
+                });
+                
+                if (!response.ok) throw new Error('Failed to return item.');
+                alert('Item returned successfully!');
+                location.reload();
+            } catch (error) {
+                alert(error.message);
+            }
+        };
+
+        window.processReturnAll = async (transactionIdsToReturn) => {
+            const loanGroupId = new URLSearchParams(window.location.search).get('id');
+            if (!confirm(`Are you sure you want to return all remaining items for loan ${loanGroupId}?`)) return;
+            try {
+                const response = await fetch(`${API_BASE_URL}/api/loans/return`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ transactionIds: transactionIdsToReturn })
+                });
+                
+                if (!response.ok) throw new Error('Failed to return items.');
+                alert('All items returned successfully!');
+                location.reload();
+            } catch (error) {
+                alert(error.message);
+            }
+        };
+
+        window.addEventListener('load', async () => {
+            const loadingDiv = document.getElementById('loading');
+            const contentDiv = document.getElementById('content');
+            const notFoundDiv = document.getElementById('not-found');
+            
+            // --- Theme Toggle Logic ---
+            const themeToggleBtn = document.getElementById('theme-toggle');
+            function applyTheme(theme) {
+                const isDark = theme === 'dark';
+                document.documentElement.classList.toggle('dark', isDark);
+                themeToggleBtn.querySelector('#theme-toggle-dark-icon').classList.toggle('hidden', isDark);
+                themeToggleBtn.querySelector('#theme-toggle-light-icon').classList.toggle('hidden', !isDark);
+            }
+            themeToggleBtn.addEventListener('click', () => {
+                const newTheme = document.documentElement.classList.contains('dark') ? 'light' : 'dark';
+                localStorage.setItem('color-theme', newTheme);
+                applyTheme(newTheme);
+            });
+            const savedTheme = localStorage.getItem('color-theme') || (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
+            applyTheme(savedTheme);
+            // ---------------------------
+
+            try {
+                const loanGroupId = new URLSearchParams(window.location.search).get('id');
+                if (!loanGroupId) throw new Error('No Loan ID provided');
+
+                const response = await fetch(`${API_BASE_URL}/api/loans/group/${loanGroupId}`);
+                if (!response.ok) throw new Error('Loan not found');
+                const { loanItems, devices } = await response.json();
+
+                loadingDiv.style.display = 'none';
+
+                if (loanItems && loanItems.length > 0) {
+                    const firstItem = loanItems[0];
+                    document.getElementById('returnDetails').innerHTML = `
+                        <div class="flex justify-between items-center">
+                            <p class="text-gray-600 dark:text-gray-300"><strong>Borrower:</strong> ${firstItem.BorrowerName}</p>
+                            <p class="text-gray-500 dark:text-gray-400 text-xs">ID: ${loanGroupId}</p>
+                        </div>
+                    `;
+                    
+                    const itemsList = document.getElementById('return-items-list');
+                    let hasItemsToReturn = false;
+                    const transactionIdsToReturn = [];
+
+                    for (const item of loanItems) {
+                        const config = collectionConfigs[item.DeviceType] || { nameField: 'Name', icon: 'fa-cube' };
+                        const deviceDoc = devices.find(d => d.DeviceSerial === item.DeviceSerial);
+                        const deviceName = deviceDoc ? deviceDoc.Name : item.DeviceSerial;
+                        
+                        const isReturned = item.Status === 'Returned';
+                        if (!isReturned) {
+                            hasItemsToReturn = true;
+                            transactionIdsToReturn.push(item._id);
+                        }
+
+                        let statusHtml = isReturned 
+                            ? `<span class="text-sm text-green-600 dark:text-green-400 font-medium inline-flex items-center"><i class="fas fa-check-circle mr-1.5"></i>Returned</span>` 
+                            : `<button onclick="processReturn('${item._id}')" class="text-sm bg-blue-500 text-white font-semibold py-1 px-4 rounded-full hover:bg-blue-600 transition-colors">Return</button>`;
+                        
+                        itemsList.innerHTML += `
+                            <div class="bg-gray-50 dark:bg-gray-700/50 p-3 rounded-lg flex items-center justify-between">
+                                <div class="flex items-center space-x-3">
+                                    <i class="fas ${config.icon} text-xl text-gray-400"></i>
+                                    <div>
+                                        <p class="font-semibold text-gray-800 dark:text-gray-200">${deviceName}</p>
+                                        <p class="text-xs text-gray-500 dark:text-gray-400">SN: ${item.DeviceSerial}</p>
+                                    </div>
+                                </div>
+                                ${statusHtml}
+                            </div>
+                        `;
+                    }
+
+                    const actionsDiv = document.getElementById('return-actions');
+                    if (hasItemsToReturn) {
+                        actionsDiv.innerHTML = `
+                            <button onclick='processReturnAll(${JSON.stringify(transactionIdsToReturn)})' class="w-full bg-indigo-600 text-white font-bold py-3 px-4 rounded-lg hover:bg-indigo-700 transition-colors flex items-center justify-center space-x-2">
+                                <i class="fas fa-undo-alt"></i><span>Return All Remaining Items</span>
+                            </button>
+                        `;
+                    } else {
+                        actionsDiv.innerHTML = `<p class="text-center text-green-600 font-semibold w-full">All items have been returned. Thank you!</p>`;
+                    }
+                    contentDiv.style.display = 'block';
+                } else {
+                    notFoundDiv.style.display = 'block';
+                }
+            } catch (error) {
+                console.error("Initialization Failed:", error);
+                loadingDiv.style.display = 'none';
+                notFoundDiv.style.display = 'block';
+            }
+        });
+    </script>
+</body>
+</html>

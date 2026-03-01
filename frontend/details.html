@@ -1,0 +1,160 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Asset Details | IT Inventory</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+        body { font-family: 'Inter', sans-serif; }
+    </style>
+</head>
+<body class="bg-gray-100 min-h-screen p-4 md:p-8 flex justify-center items-start">
+    <div class="max-w-3xl w-full bg-white rounded-2xl shadow-xl overflow-hidden mt-4" id="app-content">
+        
+        <!-- Header -->
+        <div class="bg-indigo-600 p-6 text-white flex items-center space-x-3">
+            <i class="fas fa-cube text-3xl"></i>
+            <div>
+                <h1 class="text-2xl font-bold">Asset Details</h1>
+                <p class="text-indigo-200 text-sm">IT Inventory System</p>
+            </div>
+        </div>
+
+        <div class="p-6 md:p-8">
+            <!-- Loading State -->
+            <div class="text-center py-12" id="loading">
+                <i class="fas fa-spinner fa-spin text-4xl text-indigo-500 mb-4"></i>
+                <p class="text-gray-500 font-medium">กำลังค้นหาข้อมูลอุปกรณ์...</p>
+            </div>
+
+            <!-- Error State -->
+            <div id="error-state" class="hidden text-center py-12">
+                <i class="fas fa-exclamation-triangle text-5xl text-red-500 mb-4"></i>
+                <h2 class="text-2xl font-bold text-gray-800 mb-2">ไม่พบข้อมูล</h2>
+                <p class="text-gray-600" id="error-msg">อุปกรณ์ที่คุณค้นหาอาจถูกลบหรือไม่มีอยู่ในระบบ</p>
+                <button onclick="window.history.back()" class="mt-6 px-6 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 font-medium transition">
+                    ย้อนกลับ
+                </button>
+            </div>
+
+            <!-- Details State -->
+            <div id="detail-state" class="hidden">
+                <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-8 gap-4 border-b border-gray-100 pb-6">
+                    <div>
+                        <h2 class="text-3xl font-bold text-gray-900" id="asset-title">Unknown Asset</h2>
+                        <div class="flex items-center mt-2 space-x-2 text-sm text-gray-500">
+                            <i class="fas fa-tag"></i>
+                            <span class="uppercase tracking-wider font-semibold bg-gray-100 px-2 py-1 rounded" id="asset-category">CATEGORY</span>
+                        </div>
+                    </div>
+                    <span id="asset-status" class="px-4 py-1.5 inline-flex text-sm font-bold rounded-full bg-gray-100 text-gray-800 shadow-sm border border-gray-200">
+                        Status
+                    </span>
+                </div>
+
+                <h3 class="text-lg font-bold text-gray-800 mb-4 flex items-center"><i class="fas fa-list-ul mr-2 text-indigo-500"></i> ข้อมูลทั่วไป (Specifications)</h3>
+                
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4" id="fields-container">
+                    <!-- Fields injected by JS -->
+                </div>
+
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // เช็คว่าถ้าเปิดจาก IP หรือ Localhost ให้ใช้ Hostname ปัจจุบัน เพื่อให้มือถือดึง API ได้ถูกเครื่อง
+        const currentHost = window.location.hostname;
+        const API_BASE_URL = currentHost ? `http://${currentHost}:3000` : 'http://127.0.0.1:3000';
+
+        document.addEventListener('DOMContentLoaded', async () => {
+            const urlParams = new URLSearchParams(window.location.search);
+            const sn = urlParams.get('sn');
+
+            if (!sn) {
+                showError('ไม่พบพารามิเตอร์หมายเลขซีเรียล (SN) ใน URL');
+                return;
+            }
+
+            try {
+                const response = await fetch(`${API_BASE_URL}/api/inventory/find/${sn}`);
+                if (!response.ok) throw new Error('ไม่พบข้อมูลอุปกรณ์นี้ในระบบฐานข้อมูล');
+                
+                const data = await response.json();
+                renderDetails(data.item, data.collectionName);
+            } catch (err) {
+                showError(err.message);
+            }
+        });
+
+        function showError(msg) {
+            document.getElementById('loading').classList.add('hidden');
+            document.getElementById('error-state').classList.remove('hidden');
+            document.getElementById('error-msg').textContent = msg;
+        }
+
+        function renderDetails(item, collectionName) {
+            document.getElementById('loading').classList.add('hidden');
+            document.getElementById('detail-state').classList.remove('hidden');
+
+            // Set Title & Category
+            const title = item.ComputerName || item.DeviceName || item.ItemName || item.Name || item.PartName || item.Model || 'Unknown Asset';
+            document.getElementById('asset-title').textContent = title;
+            document.getElementById('asset-category').textContent = collectionName;
+
+            // Set Status Badge Color
+            const statusBadge = document.getElementById('asset-status');
+            const status = item.Status || 'Unknown';
+            statusBadge.textContent = status;
+            
+            let color = 'gray';
+            if (status === 'Active') color = 'green';
+            else if (status === 'On Loan') color = 'yellow';
+            else if (status === 'Repair') color = 'orange';
+            else if (status === 'Storage') color = 'blue';
+            else if (status === 'Damaged') color = 'red';
+
+            statusBadge.className = `px-4 py-1.5 inline-flex text-sm font-bold rounded-full bg-${color}-100 text-${color}-800 shadow-sm border border-${color}-200`;
+
+            // Build Fields
+            let html = '';
+            
+            // Prioritize specific fields to show first
+            const prioritize = ['SerialNumber', 'MonitorSerial', 'Manufacturer', 'Model', 'UserName', 'Location', 'IPAddress', 'MacAddress'];
+            const allKeys = Object.keys(item).filter(k => k !== '_id' && k !== 'id' && k !== 'Status' && k !== 'lastSeenOnline');
+            
+            // Sort keys: prioritized first, then others
+            allKeys.sort((a, b) => {
+                let idxA = prioritize.indexOf(a);
+                let idxB = prioritize.indexOf(b);
+                if (idxA === -1) idxA = 999;
+                if (idxB === -1) idxB = 999;
+                return idxA - idxB;
+            });
+
+            allKeys.forEach(key => {
+                const value = item[key];
+                if (value === null || value === undefined || value === '') return;
+
+                let displayValue = value;
+                // Format Timestamp/Dates if necessary
+                if (typeof value === 'string' && value.match(/^\d{4}-\d{2}-\d{2}T/)) {
+                    displayValue = new Date(value).toLocaleString('th-TH');
+                }
+
+                html += `
+                    <div class="bg-gray-50 p-4 rounded-xl border border-gray-100 hover:shadow-md transition-shadow">
+                        <p class="text-xs text-gray-500 font-bold uppercase tracking-wider mb-1">${key.replace(/([A-Z])/g, ' $1').trim()}</p>
+                        <p class="text-sm font-semibold text-gray-900 break-words">${displayValue}</p>
+                    </div>
+                `;
+            });
+
+            document.getElementById('fields-container').innerHTML = html;
+        }
+    </script>
+</body>
+</html>

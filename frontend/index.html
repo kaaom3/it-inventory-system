@@ -1,0 +1,432 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <base target="_top">
+  <title>Inventory Dashboard (Professional)</title>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  
+  <!-- Tailwind CSS & Config for Dark Mode -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+    }
+  </script>
+  
+  <!-- Fonts & Icons -->
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+  
+  <!-- Libraries -->
+  <script src="https://cdn.jsdelivr.net/npm/qrcode@1.4.4/build/qrcode.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
+  
+  <!-- Custom Styles -->
+  <link rel="stylesheet" href="style.css">
+</head>
+<body class="bg-gray-50 dark:bg-gray-900 text-gray-800 dark:text-gray-200 transition-colors duration-300">
+
+  <!-- Loading Screen before Auth is verified -->
+  <div id="auth-loading" class="flex items-center justify-center h-screen">
+      <div class="flex flex-col items-center">
+          <i class="fas fa-spinner fa-spin text-4xl text-indigo-500 mb-4"></i>
+          <p class="text-gray-500 dark:text-gray-400 text-lg">Authenticating...</p>
+      </div>
+  </div>
+
+  <!-- Main App Container -->
+  <div id="app-container" class="hidden">
+    <div class="relative min-h-screen md:flex">
+        
+      <!-- Mobile Menu Button -->
+      <div class="md:hidden flex justify-between items-center bg-white dark:bg-gray-800 p-4 border-b dark:border-gray-700">
+          <div class="flex items-center space-x-3">
+              <i class="fas fa-cubes text-2xl text-indigo-600"></i>
+              <h1 class="text-xl font-bold text-gray-800 dark:text-white">Inventory</h1>
+          </div>
+          <button id="mobile-menu-button" class="text-gray-500 dark:text-gray-400 focus:outline-none" onclick="document.getElementById('sidebar').classList.toggle('-translate-x-full'); document.getElementById('sidebar-overlay').classList.toggle('hidden');">
+              <i class="fas fa-bars text-2xl"></i>
+          </button>
+      </div>
+
+      <!-- Sidebar Navigation -->
+      <nav id="sidebar" class="w-64 bg-white dark:bg-gray-800 border-r dark:border-gray-700 p-5 flex flex-col flex-shrink-0 fixed inset-y-0 left-0 transform -translate-x-full md:relative md:translate-x-0 z-30 transition-transform duration-300">
+          <div class="flex items-center justify-between mb-6">
+              <div class="flex items-center space-x-3">
+                  <i class="fas fa-cubes text-2xl text-indigo-600"></i>
+                  <h1 class="text-xl font-bold text-gray-800 dark:text-white">Inventory</h1>
+              </div>
+          </div>
+          
+          <!-- DYNAMIC MENU CONTAINER: main.js will render menus here -->
+          <ul id="sidebar-menu-container" class="space-y-1 overflow-y-auto max-h-[calc(100vh-180px)] pb-4 scrollbar-thin">
+              <!-- Content injected by main.js -->
+          </ul>
+
+          <div class="mt-auto pt-4 border-t dark:border-gray-700">
+              <!-- User Info & Theme Toggle Row -->
+              <div class="flex items-center justify-between px-2 mb-3">
+                  <div id="userInfo" class="text-xs text-gray-500 dark:text-gray-400 truncate max-w-[140px]"></div>
+                  
+                  <!-- Theme Toggle Button -->
+                  <button id="theme-toggle" class="p-2 rounded-lg text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 focus:outline-none transition-colors" title="Toggle Dark/Light Mode">
+                      <i id="theme-toggle-dark-icon" class="fas fa-moon w-4 h-4"></i>
+                      <i id="theme-toggle-light-icon" class="fas fa-sun w-4 h-4 hidden text-yellow-400"></i>
+                  </button>
+              </div>
+
+              <a href="#" onclick="logout(); return false;" class="nav-link flex items-center space-x-3 px-4 py-2.5 rounded-lg text-red-500 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/50">
+                  <i class="fas fa-sign-out-alt w-5 text-center"></i>
+                  <span>Logout</span>
+              </a>
+          </div>
+      </nav>
+      
+      <!-- Overlay for mobile sidebar -->
+      <div id="sidebar-overlay" class="hidden md:hidden fixed inset-0 bg-black opacity-50 z-20" onclick="document.getElementById('sidebar').classList.add('-translate-x-full'); this.classList.add('hidden');"></div>
+
+      <!-- Main Content Area -->
+      <main id="main-content" class="flex-1 p-4 md:p-10 overflow-y-auto max-h-screen">
+        <div id="loading-state" class="text-center py-12">
+            <i class="fas fa-circle-notch fa-spin text-4xl text-indigo-500 mb-4"></i>
+            <p>Connecting to server...</p>
+        </div>
+
+        <!-- ========================================== -->
+        <!-- DASHBOARD PAGE                             -->
+        <!-- ========================================== -->
+        <div id="dashboard-page" class="page-content">
+          <div class="flex flex-col md:flex-row justify-between items-start md:items-center mb-6">
+              <div>
+                  <h2 class="text-2xl md:text-3xl font-bold text-gray-900 dark:text-white">Overview Dashboard</h2>
+                  <p class="text-sm text-gray-500 dark:text-gray-400 mt-1">Real-time update of your inventory assets.</p>
+              </div>
+              <div class="flex flex-wrap items-center gap-2 w-full md:w-auto mt-4 md:mt-0">
+                  <button onclick="updateDashboard()" class="w-full sm:w-auto bg-indigo-100 text-indigo-700 font-semibold py-2 px-4 rounded-lg hover:bg-indigo-200 transition-colors dark:bg-indigo-900 dark:text-indigo-200">
+                      <i class="fas fa-sync-alt mr-2"></i>Refresh
+                  </button>
+              </div>
+          </div>
+          
+          <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-6">
+               <div class="bg-gradient-to-r from-blue-500 to-blue-600 rounded-xl shadow-lg p-5 text-white"><div class="flex justify-between items-center"><div><p class="text-blue-100 text-sm font-medium">Total Assets</p><h3 class="text-3xl font-bold mt-1" id="stat-total-devices">0</h3></div><div class="bg-white/20 p-3 rounded-lg"><i class="fas fa-cubes text-2xl"></i></div></div></div>
+               <div class="bg-gradient-to-r from-yellow-400 to-orange-500 rounded-xl shadow-lg p-5 text-white"><div class="flex justify-between items-center"><div><p class="text-yellow-100 text-sm font-medium">On Loan</p><h3 class="text-3xl font-bold mt-1" id="stat-total-onloan">0</h3></div><div class="bg-white/20 p-3 rounded-lg"><i class="fas fa-hand-holding-box text-2xl"></i></div></div></div>
+               <div class="bg-white dark:bg-gray-800 rounded-xl shadow p-5 border-l-4 border-green-500"><div class="flex justify-between items-center"><div><p class="text-gray-500 dark:text-gray-400 text-sm font-medium">In Storage</p><h3 class="text-3xl font-bold mt-1 text-gray-800 dark:text-white" id="stat-total-storage">0</h3></div><div class="bg-green-50 dark:bg-green-900/30 p-3 rounded-lg text-green-600"><i class="fas fa-box-open text-2xl"></i></div></div></div>
+               <div class="bg-white dark:bg-gray-800 rounded-xl shadow p-5 border-l-4 border-red-500"><div class="flex justify-between items-center"><div><p class="text-gray-500 dark:text-gray-400 text-sm font-medium">Maintenance/Broken</p><h3 class="text-3xl font-bold mt-1 text-gray-800 dark:text-white" id="stat-total-repair-damaged">0</h3></div><div class="bg-red-50 dark:bg-red-900/30 p-3 rounded-lg text-red-600"><i class="fas fa-tools text-2xl"></i></div></div></div>
+          </div>
+
+          <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
+              <div class="lg:col-span-2 bg-white dark:bg-gray-800 p-6 rounded-xl shadow-sm"><h3 class="font-semibold text-lg mb-4 text-gray-900 dark:text-white">Assets by Category</h3><div class="h-64"><canvas id="categoryChart"></canvas></div></div>
+              <div class="lg:col-span-1 bg-white dark:bg-gray-800 p-6 rounded-xl shadow-sm"><h3 class="font-semibold text-lg mb-4 text-gray-900 dark:text-white">Status Overview</h3><div class="h-64 flex justify-center"><canvas id="statusChart"></canvas></div></div>
+          </div>
+          
+          <!-- Category Overview Grid for Custom Menus -->
+          <h3 class="font-semibold text-lg mb-4 text-gray-900 dark:text-white">Category Overview</h3>
+          <div id="category-overview-grid" class="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-4 mb-6"></div>
+        </div>
+
+        <!-- ========================================== -->
+        <!-- DYNAMIC PAGES CONTAINER (For Custom Menus) -->
+        <!-- ========================================== -->
+        <div id="dynamic-pages-container"></div>
+        
+        <!-- ========================================== -->
+        <!-- STATIC MANAGEMENT PAGES                    -->
+        <!-- ========================================== -->
+        <div id="loanhistory-page" class="page-content">
+             <div class="flex justify-between items-center mb-6"><h2 class="text-2xl md:text-3xl font-bold text-gray-900 dark:text-white">Loan History</h2></div>
+             <div class="mb-4"><input type="text" id="loanHistorySearchInput" onkeyup="filterLoanHistory(this.value)" placeholder="Search..." class="w-full px-4 py-2 border rounded-lg dark:bg-gray-700 dark:border-gray-600 dark:text-white dark:placeholder-gray-400"></div>
+             <div id="LoanHistoryContainer" class="space-y-3"></div>
+        </div>
+        <div id="maintenance-page" class="page-content">
+             <div class="flex justify-between items-center mb-6"><h2 class="text-2xl md:text-3xl font-bold text-gray-900 dark:text-white">Maintenance History</h2></div>
+             <div class="mb-4"><input type="text" id="maintenanceSearchInput" onkeyup="filterMaintenanceHistory(this.value)" placeholder="Search..." class="w-full px-4 py-2 border rounded-lg dark:bg-gray-700 dark:border-gray-600 dark:text-white dark:placeholder-gray-400"></div>
+             <div id="MaintenanceContainer" class="space-y-4"></div>
+        </div>
+        <div id="assetsbyuser-page" class="page-content">
+             <div class="flex justify-between items-center mb-6"><h2 class="text-2xl md:text-3xl font-bold text-gray-900 dark:text-white">Assets by User</h2></div>
+             <div class="mb-4"><input type="text" id="assetsByUserSearchInput" onkeyup="filterAssetsByUser(this.value)" placeholder="Search User..." class="w-full px-4 py-2 border rounded-lg dark:bg-gray-700 dark:border-gray-600 dark:text-white dark:placeholder-gray-400"></div>
+             <div id="AssetsByUserContainer" class="space-y-4"></div>
+        </div>
+        <div id="handover-page" class="page-content">
+             <div class="flex justify-between items-center mb-4"><h2 class="text-2xl md:text-3xl font-bold text-gray-900 dark:text-white">Handover / Return</h2></div>
+             <div class="border-b border-gray-200 dark:border-gray-700 mb-6">
+                <nav class="-mb-px flex space-x-6" id="handover-tabs">
+                    <button onclick="switchHandoverTab('handover', this)" class="tab-button active whitespace-nowrap py-3 px-1 border-b-2 font-medium text-sm">Handover</button>
+                    <button onclick="switchHandoverTab('return', this)" class="tab-button whitespace-nowrap py-3 px-1 border-b-2 font-medium text-sm text-gray-500 dark:text-gray-400">Return</button>
+                </nav>
+            </div>
+            <div id="handover-tab-content" class="tab-content active"></div>
+            <div id="return-tab-content" class="tab-content"></div>
+        </div>
+        <div id="staffmanagement-page" class="page-content"></div>
+        <div id="adminmanagement-page" class="page-content"></div>
+      </main>
+    </div>
+  </div>
+
+  <!-- ==================== MODALS ==================== -->
+  
+  <!-- Add/Edit Custom Menu Modal -->
+  <div id="addMenuModal" class="modal pointer-events-none fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50 opacity-0">
+    <div class="modal-content bg-white dark:bg-gray-800 rounded-lg shadow-xl p-6 w-full max-w-2xl max-h-[90vh] overflow-y-auto">
+        <div class="flex justify-between items-center mb-4">
+            <h3 id="addMenuModalTitle" class="text-xl font-semibold text-gray-800 dark:text-white">Create Custom Menu</h3>
+            <button type="button" onclick="hideModal('addMenuModal')" class="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200">&times;</button>
+        </div>
+        <form id="addMenuForm" class="space-y-4">
+            <input type="hidden" id="editMenuMode" value="create">
+            
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Menu Name (English ID)</label>
+                    <input type="text" id="newMenuId" required placeholder="e.g. CCTV" class="block w-full px-3 py-2 border rounded-md dark:bg-gray-700 dark:border-gray-600 dark:text-white">
+                    <p class="text-xs text-gray-500 mt-1">Used for database collection name.</p>
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Display Name</label>
+                    <input type="text" id="newMenuDisplay" required placeholder="e.g. กล้องวงจรปิด" class="block w-full px-3 py-2 border rounded-md dark:bg-gray-700 dark:border-gray-600 dark:text-white">
+                </div>
+            </div>
+            
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Icon</label>
+                    <select id="newMenuIcon" class="block w-full px-3 py-2 border rounded-md dark:bg-gray-700 dark:border-gray-600 dark:text-white">
+                        <option value="fa-box">📦 Box (Default)</option>
+                        <option value="fa-camera">📷 Camera</option>
+                        <option value="fa-car">🚗 Vehicle</option>
+                        <option value="fa-chair">🪑 Furniture</option>
+                        <option value="fa-plug">🔌 Cables/Plugs</option>
+                        <option value="fa-tools">🔧 Tools</option>
+                        <option value="fa-tablet-alt">📱 Device</option>
+                        <option value="fa-server">🖥️ Server</option>
+                        <option value="fa-wifi">📡 Wifi/Antenna</option>
+                        <option value="fa-print">🖨️ Printer</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Parent Menu (Nesting)</label>
+                    <select id="newMenuParent" class="block w-full px-3 py-2 border rounded-md dark:bg-gray-700 dark:border-gray-600 dark:text-white">
+                        <option value="">(None - Root Level)</option>
+                        <!-- Options populated by JS -->
+                    </select>
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Order (Sort)</label>
+                    <input type="number" id="newMenuOrder" value="0" class="block w-full px-3 py-2 border rounded-md dark:bg-gray-700 dark:border-gray-600 dark:text-white">
+                </div>
+            </div>
+
+            <!-- Column Selection -->
+            <div class="border-t dark:border-gray-700 pt-4 mt-4">
+                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">Select Data Columns (Fields)</label>
+                <div id="column-selector-container" class="grid grid-cols-2 md:grid-cols-3 gap-3 max-h-60 overflow-y-auto p-2 bg-gray-50 dark:bg-gray-700/30 rounded-lg border dark:border-gray-700">
+                    <!-- Checkboxes populated by JS -->
+                </div>
+            </div>
+
+            <div class="mt-6 flex justify-end space-x-4">
+                <button type="button" onclick="hideModal('addMenuModal')" class="px-6 py-2 bg-gray-200 dark:bg-gray-600 text-gray-700 dark:text-gray-200 rounded-lg hover:bg-gray-300 dark:hover:bg-gray-500">Cancel</button>
+                <button type="button" onclick="saveCustomMenu()" class="px-6 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700">Save Menu</button>
+            </div>
+        </form>
+    </div>
+  </div>
+
+  <!-- Standard Add/Edit Item Modal -->
+  <div id="editModal" class="modal pointer-events-none fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50 opacity-0">
+    <div class="modal-content bg-white dark:bg-gray-800 rounded-lg shadow-xl p-8 w-full max-w-3xl">
+        <div class="flex justify-between items-center mb-4">
+            <h3 id="editModalTitle" class="text-xl font-semibold text-gray-800 dark:text-white"></h3>
+            <button type="button" onclick="hideModal('editModal')" class="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200">&times;</button>
+        </div>
+        
+        <div class="border-b border-gray-200 dark:border-gray-700 mb-4">
+            <nav class="-mb-px flex space-x-6" id="modal-tabs">
+                <button onclick="switchModalTab('details', this)" class="tab-button active whitespace-nowrap py-3 px-1 border-b-2 font-medium text-sm">Details</button>
+                <button onclick="switchModalTab('maintenance', this)" class="tab-button whitespace-nowrap py-3 px-1 border-b-2 font-medium text-sm text-gray-500 dark:text-gray-400">Maintenance History</button>
+            </nav>
+        </div>
+        
+        <div>
+            <div id="details-tab" class="tab-content active">
+                <form id="editForm" class="space-y-6 max-h-[55vh] overflow-y-auto pr-4"></form>
+                <div class="mt-6 flex justify-end">
+                    <button type="button" onclick="saveData()" class="px-6 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 shadow-md">Save Details</button>
+                </div>
+            </div>
+            
+            <div id="maintenance-tab" class="tab-content">
+                <div class="max-h-[55vh] overflow-y-auto pr-4">
+                    <div class="bg-gray-50 dark:bg-gray-700/50 p-4 rounded-lg mb-4">
+                        <h4 class="font-semibold mb-2 text-gray-800 dark:text-white">Add New Maintenance Log</h4>
+                        <form id="maintenanceLogForm" class="space-y-3">
+                            <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+                                <input type="date" id="newLogDate" class="w-full px-3 py-2 border rounded-md dark:bg-gray-800 dark:border-gray-600 dark:text-white" required>
+                                <input type="number" id="newLogCost" placeholder="Cost (optional)" class="w-full px-3 py-2 border rounded-md dark:bg-gray-800 dark:border-gray-600 dark:text-white">
+                            </div>
+                            <textarea id="newLogDescription" placeholder="Description of work..." rows="3" class="w-full px-3 py-2 border rounded-md dark:bg-gray-800 dark:border-gray-600 dark:text-white" required></textarea>
+                            <input type="text" id="newLogTechnician" placeholder="Technician" class="w-full px-3 py-2 border rounded-md dark:bg-gray-800 dark:border-gray-600 dark:text-white">
+                            <button type="button" onclick="addMaintenanceLog()" class="w-full bg-green-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-green-700">Add Log Entry</button>
+                        </form>
+                    </div>
+                    <div id="maintenanceLogList" class="space-y-3"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+  </div>
+
+  <!-- Bulk Edit Modal -->
+  <div id="bulkEditModal" class="modal pointer-events-none fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50 opacity-0">
+    <div class="modal-content bg-white dark:bg-gray-800 rounded-lg shadow-xl p-6 w-full max-w-md">
+        <div class="flex justify-between items-center mb-4">
+            <h3 class="text-xl font-semibold text-gray-800 dark:text-white">Bulk Edit Items</h3>
+            <button type="button" onclick="hideModal('bulkEditModal')" class="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200">&times;</button>
+        </div>
+        <form id="bulkEditForm" class="space-y-4">
+            <input type="hidden" id="bulkEditCollection">
+            <div class="bg-indigo-50 dark:bg-indigo-900/30 text-indigo-800 dark:text-indigo-200 p-3 rounded-lg text-sm mb-4">
+                You are editing <span id="bulkEditCount" class="font-bold">0</span> selected item(s).
+                <br>Leave fields blank if you do not want to change them.
+            </div>
+            <div>
+                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Status</label>
+                <select id="bulkEditStatus" class="w-full px-3 py-2 border rounded-md dark:bg-gray-700 dark:border-gray-600 dark:text-white focus:ring-indigo-500">
+                    <option value="">-- Do not change --</option>
+                    <option value="Active">Active</option>
+                    <option value="On Loan">On Loan</option>
+                    <option value="Repair">Repair</option>
+                    <option value="Storage">Storage</option>
+                    <option value="Damaged">Damaged</option>
+                    <option value="Disposed">Disposed</option>
+                </select>
+            </div>
+            <div>
+                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Location / Room</label>
+                <input type="text" id="bulkEditLocation" placeholder="-- Do not change --" class="w-full px-3 py-2 border rounded-md dark:bg-gray-700 dark:border-gray-600 dark:text-white">
+            </div>
+            <div>
+                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Assigned User</label>
+                <input type="text" id="bulkEditUser" placeholder="-- Do not change --" class="w-full px-3 py-2 border rounded-md dark:bg-gray-700 dark:border-gray-600 dark:text-white">
+            </div>
+            <div class="mt-6 flex justify-end space-x-4">
+                <button type="button" onclick="hideModal('bulkEditModal')" class="px-6 py-2 bg-gray-200 dark:bg-gray-600 text-gray-700 dark:text-gray-200 rounded-lg hover:bg-gray-300 dark:hover:bg-gray-500">Cancel</button>
+                <button type="button" onclick="saveBulkEdit()" class="px-6 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700">Update Selected</button>
+            </div>
+        </form>
+    </div>
+  </div>
+
+  <!-- CSV Import Modal -->
+  <div id="importModal" class="modal pointer-events-none fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50 opacity-0">
+      <div class="modal-content bg-white dark:bg-gray-800 rounded-lg shadow-xl p-8 w-full max-w-md">
+          <div class="flex justify-between items-center mb-4">
+              <h3 id="importModalTitle" class="text-xl font-semibold text-gray-800 dark:text-white">Import CSV</h3>
+              <button type="button" onclick="hideModal('importModal')" class="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200">&times;</button>
+          </div>
+          <div class="space-y-4">
+              <p class="text-sm text-gray-500 dark:text-gray-400">Please upload CSV. Top row must match: <span id="importHeadersExample" class="font-mono text-xs bg-gray-100 dark:bg-gray-700 px-1 rounded"></span></p>
+              <input type="file" id="csvFileInput" accept=".csv" class="block w-full text-sm text-gray-500 dark:text-gray-400 file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:text-sm file:font-semibold file:bg-indigo-50 file:text-indigo-700 hover:file:bg-indigo-100 dark:file:bg-gray-700 dark:file:text-indigo-400">
+              
+              <div id="csvEncodingDiv" class="mt-4 mb-2">
+                  <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Encoding</label>
+                  <select id="csvEncoding" class="w-full px-3 py-2 border rounded-md dark:bg-gray-700 dark:border-gray-600 dark:text-white focus:ring-indigo-500">
+                      <option value="UTF-8">UTF-8</option>
+                      <option value="windows-874">TIS-620 / Windows-874</option>
+                  </select>
+              </div>
+              
+              <button type="button" onclick="downloadCsvTemplate()" class="mt-2 w-full bg-blue-50 text-blue-600 py-2 px-4 rounded-lg border border-dashed border-blue-300 hover:bg-blue-100 dark:bg-blue-900/30 dark:border-blue-800 dark:text-blue-400 dark:hover:bg-blue-900/50 transition-colors">
+                  <i class="fas fa-file-excel mr-2"></i>Download Template
+              </button>
+          </div>
+          <div class="mt-6 flex justify-end space-x-4">
+              <button type="button" onclick="hideModal('importModal')" class="px-6 py-2 bg-gray-200 dark:bg-gray-600 text-gray-700 dark:text-gray-200 rounded-lg hover:bg-gray-300 dark:hover:bg-gray-500">Cancel</button>
+              <button type="button" onclick="processCsvImport()" class="px-6 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700">Import</button>
+          </div>
+      </div>
+  </div>
+
+  <!-- Notification Modal -->
+  <div id="notificationModal" class="modal pointer-events-none fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50 opacity-0">
+      <div class="modal-content bg-white dark:bg-gray-800 rounded-lg shadow-xl p-8 w-full max-w-sm text-center">
+          <div id="modalIcon"></div>
+          <h3 id="modalTitle" class="text-xl font-semibold mt-4 text-gray-800 dark:text-white"></h3>
+          <p id="modalMessage" class="text-gray-600 dark:text-gray-300 mt-2"></p>
+          <div class="mt-6">
+              <button onclick="hideModal('notificationModal')" class="px-6 py-2 bg-indigo-600 text-white rounded-lg w-full hover:bg-indigo-700">Close</button>
+          </div>
+      </div>
+  </div>
+
+  <!-- QR Code Modal -->
+  <div id="qrModal" class="modal pointer-events-none fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50 opacity-0">
+      <div class="modal-content bg-white dark:bg-gray-800 rounded-lg shadow-xl p-8 text-center border dark:border-gray-700">
+          <h3 id="qrModalTitle" class="text-xl font-semibold mb-4 text-gray-800 dark:text-white"></h3>
+          <canvas id="qrCanvas" class="mx-auto rounded-lg border border-gray-200 dark:border-gray-600"></canvas>
+          <button onclick="hideModal('qrModal')" class="mt-6 px-6 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700">Close</button>
+      </div>
+  </div>
+
+  <!-- Staff Management Edit Modal -->
+  <div id="editStaffModal" class="modal pointer-events-none fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50 opacity-0">
+      <div class="modal-content bg-white dark:bg-gray-800 rounded-lg shadow-xl p-8 w-full max-w-md">
+          <h3 id="editStaffModalTitle" class="text-xl font-semibold mb-6 text-gray-800 dark:text-white">Edit Staff Member</h3>
+          <form id="editStaffForm" class="space-y-4">
+              <input type="hidden" id="editStaffId">
+              <div>
+                  <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">Username</label>
+                  <input type="text" id="editStaffUserName" required class="mt-1 block w-full px-3 py-2 border rounded-md dark:bg-gray-700 dark:border-gray-600 dark:text-white focus:ring-indigo-500">
+              </div>
+              <div>
+                  <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">First Name</label>
+                  <input type="text" id="editStaffFirstName" class="mt-1 block w-full px-3 py-2 border rounded-md dark:bg-gray-700 dark:border-gray-600 dark:text-white focus:ring-indigo-500">
+              </div>
+              <div>
+                  <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">Last Name</label>
+                  <input type="text" id="editStaffLastName" class="mt-1 block w-full px-3 py-2 border rounded-md dark:bg-gray-700 dark:border-gray-600 dark:text-white focus:ring-indigo-500">
+              </div>
+              <div>
+                  <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">Department</label>
+                  <input type="text" id="editStaffDepartment" class="mt-1 block w-full px-3 py-2 border rounded-md dark:bg-gray-700 dark:border-gray-600 dark:text-white focus:ring-indigo-500">
+              </div>
+          </form>
+          <div class="mt-6 flex justify-end space-x-4">
+              <button type="button" onclick="hideModal('editStaffModal')" class="px-6 py-2 bg-gray-200 dark:bg-gray-600 text-gray-700 dark:text-gray-200 rounded-lg hover:bg-gray-300 dark:hover:bg-gray-500">Cancel</button>
+              <button type="button" onclick="saveStaffChanges()" class="px-6 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700">Save</button>
+          </div>
+      </div>
+  </div>
+
+  <!-- Admin Management Add Modal -->
+  <div id="addUserModal" class="modal pointer-events-none fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50 opacity-0">
+      <div class="modal-content bg-white dark:bg-gray-800 rounded-lg shadow-xl p-8 w-full max-w-md">
+          <h3 class="text-xl font-semibold mb-6 text-gray-800 dark:text-white">Add New Admin</h3>
+          <form id="addUserForm">
+              <div class="mb-4">
+                  <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">Email Address</label>
+                  <input type="email" id="newUserEmail" required class="mt-1 block w-full px-3 py-2 border rounded-md dark:bg-gray-700 dark:border-gray-600 dark:text-white focus:ring-indigo-500">
+              </div>
+              <div class="mb-4">
+                  <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">Password</label>
+                  <input type="password" id="newUserPassword" required class="mt-1 block w-full px-3 py-2 border rounded-md dark:bg-gray-700 dark:border-gray-600 dark:text-white focus:ring-indigo-500">
+              </div>
+              <div id="addUserError" class="text-red-500 text-sm text-center h-5 mb-4"></div>
+              <div class="mt-6 flex justify-end space-x-4">
+                  <button type="button" onclick="hideModal('addUserModal')" class="px-6 py-2 bg-gray-200 dark:bg-gray-600 text-gray-700 dark:text-gray-200 rounded-lg hover:bg-gray-300 dark:hover:bg-gray-500">Cancel</button>
+                  <button type="submit" class="px-6 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700">Create Admin</button>
+              </div>
+          </form>
+      </div>
+  </div>
+
+  <!-- Main JavaScript File -->
+  <script type="module" src="main.js"></script>
+</body>
+</html>
