@@ -4,14 +4,31 @@ const cors = require('cors');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const ping = require('ping');
+const path = require('path'); // 🌟 นำเข้า path สำหรับจัดการตำแหน่งไฟล์
 
 const app = express();
 app.use(cors());
 app.use(express.json({ limit: '50mb' })); // ขยาย limit เผื่อไฟล์ CSV มีขนาดใหญ่
-app.use(express.static(__dirname));
+
+// ===================================================================
+// 🌟 1. ตั้งค่าให้อ่านไฟล์ Frontend จากโฟลเดอร์ที่ถูกต้อง
+// ===================================================================
+// คำสั่งนี้บอกให้ server ถอยกลับไป 1 โฟลเดอร์ (..) แล้วเข้าไปที่โฟลเดอร์ frontend
+const frontendPath = path.join(__dirname, '../frontend');
+
+// อนุญาตให้อ่านไฟล์ Static (HTML, CSS, JS) ในโฟลเดอร์ frontend
+app.use(express.static(frontendPath));
+
+// เมื่อผู้ใช้เข้า URL หลัก (http://localhost:3000) ให้ส่งหน้า index.html ไปแสดง
+app.get('/', (req, res) => {
+    res.sendFile(path.join(frontendPath, 'index.html'));
+});
+
 // --- Configuration ---
-// ใช้ 127.0.0.1 เพื่อความเสถียร
-const mongoUri = "mongodb://127.0.0.1:27017";
+
+// 🌟 เปลี่ยน Connection String เป็น MongoDB Atlas ของคุณ
+const mongoUri = "mongodb+srv://kaaom3:Kaaom321A@cluster0.fx7nlup.mongodb.net/inventoryDB_Cloned?appName=Cluster0"; 
+
 const dbName = "inventoryDB_Cloned"; 
 const jwtSecret = "your_super_secret_key_change_this"; 
 const API_SECRET_KEY = "KAAOM321A"; 
