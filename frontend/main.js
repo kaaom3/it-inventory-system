@@ -2,7 +2,7 @@
 // Frontend Logic for IT Inventory System (Full Complete Version)
 // ===================================================================
 
-const API_BASE_URL = 'http://127.0.0.1:3000';
+const API_BASE_URL = window.location.origin;
 
 // --- Definition of Available Fields for Custom Menus ---
 // มีการเพิ่ม 'group' เพื่อใช้จัดหมวดหมู่ใน Popup หน้าแก้ไขข้อมูล

@@ -2,7 +2,7 @@
 <html>
 <head>
     <base target="_top">
-    <title>Login - Inventory System (Cloned)</title>
+    <title>Login - Inventory System</title>
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -42,7 +42,8 @@
     </div>
 
     <script type="module">
-        const API_BASE_URL = 'http://localhost:3000'; // **สำคัญ: แก้ไข URL นี้หาก Backend ของคุณอยู่ที่อื่น**
+        // 🌟 แก้ไข: ให้ระบบดึง URL ของเซิร์ฟเวอร์แบบอัตโนมัติ (รองรับ Render.com)
+        const API_BASE_URL = window.location.origin;
 
         const loginForm = document.getElementById('loginForm');
         const emailInput = document.getElementById('email');
@@ -87,4 +88,3 @@
     </script>
 </body>
 </html>
-
