@@ -1,19 +1,17 @@
 # ===================================================================
 # PowerShell Script to Collect and Send Computer Inventory Data
-# Version 23.0 - Compatible with Custom Menu System
+# Version 24.0 - Cloud Sync + Heartbeat Monitor
 # ===================================================================
 
-# --- CONFIGURATION (จุดที่ต้องแก้ไข) ---
-# 1. ใส่ IP Address ของเครื่อง Server (เครื่องที่รัน node index.js)
-#    - ถ้ารันสคริปต์นี้บนเครื่องเดียวกับ Server ให้ใช้ "127.0.0.1"
-#    - ถ้ารันจากเครื่องอื่นในวง LAN ให้ใส่ IP ของเครื่อง Server เช่น "192.168.1.50"
-$serverIp = "192.168.108.80" 
+# --- CONFIGURATION (ตั้งค่าสำหรับ Cloud) ---
+# 1. URL ของเว็บ Render.com (ไม่ต้องมี https://)
+$serverIp = "it-inventory-system-ncd9.onrender.com" 
 
-# 2. พอร์ตของ Server (ปกติคือ 3000 ตามโค้ด index.js)
-$port = "3000"
+# 2. URL สำหรับส่งข้อมูลสเปคเครื่อง (ทำครั้งแรก)
+$apiUrl = "https://$($serverIp)/api/inventory/sync"
 
-# 3. URL เต็ม (ไม่ต้องแก้ถ้า 1 และ 2 ถูกต้อง)
-$apiUrl = "http://$($serverIp):$($port)/api/inventory/sync"
+# 3. URL สำหรับส่งสัญญาณ Heartbeat (ทำทุกๆ 5 นาที)
+$heartbeatUrl = "https://$($serverIp)/api/heartbeat"
 
 # 4. API Key (ต้องตรงกับตัวแปร API_SECRET_KEY ในไฟล์ index.js)
 $apiKey = "KAAOM321A" 
@@ -59,16 +57,18 @@ function Convert-PnpIdTo-ManufacturerName {
     if ($pnpLookup.ContainsKey($PnpId)) { return $pnpLookup[$PnpId] } else { return $PnpId }
 }
 
-# --- SCRIPT BODY ---
-Write-Log "========== Script Run Started (v23.0) =========="
+# ===================================================================
+# PART 1: INVENTORY SYNC (รวบรวมข้อมูลสเปคคอมพิวเตอร์)
+# ===================================================================
+Write-Log "========== Script Run Started (v24.0) =========="
 Write-Log "Target Server: $apiUrl"
 
 try {
-    # Test Connection
+    # Test Connection to Cloud
     Write-Log "Testing connection to server..."
-    $testConnection = Test-NetConnection -ComputerName $serverIp -Port $port -InformationLevel Quiet
+    $testConnection = Test-NetConnection -ComputerName $serverIp -Port 443 -InformationLevel Quiet
     if (-not $testConnection) {
-        throw "Cannot connect to server at $serverIp on port $port. Please check Firewall or IP address."
+        throw "Cannot connect to server at $serverIp. Please check internet connection."
     }
 
     # 1. Collect Basic Info
@@ -213,7 +213,6 @@ try {
         software = $softwareList
         accessories = $accessoryList
         printers = $printerList
-        # Warranty date is usually not available via WMI, manual entry later via Web UI
         warrantyStartDate = ""
         warrantyEndDate = ""
     }
@@ -228,7 +227,7 @@ try {
         $response = Invoke-RestMethod -Uri $apiUrl -Method Post -Body $jsonData -Headers $headers -ErrorAction Stop
         
         if ($response.status -eq "success") { 
-            Write-Log "SUCCESS! Data synced." 
+            Write-Log "SUCCESS! Full Data synced." 
             Write-Host "Sync Complete!" -ForegroundColor Green
         } else { 
             Write-Log "SERVER ERROR: $($response.message)" 
@@ -243,4 +242,32 @@ try {
     Write-Log "CRITICAL ERROR: $($_.Exception.Message)"
     Write-Host "Critical Error: $($_.Exception.Message)" -ForegroundColor Red
 }
-Write-Log "========== Finished =========="
+
+Write-Log "========== Full Sync Finished =========="
+
+
+# ===================================================================
+# PART 2: HEARTBEAT MONITOR (ส่งสัญญาณออนไลน์ทุกๆ 5 นาที)
+# ===================================================================
+Write-Log "Starting Heartbeat Service. This window will remain open in background."
+Write-Host "Entering Heartbeat Mode. Press Ctrl+C to stop." -ForegroundColor Cyan
+
+while ($true) {
+    try {
+        # สร้างข้อมูลแบบย่อส่งไปอัปเดตสถานะ Online
+        $heartbeatBody = @{
+            hostname = $env:COMPUTERNAME
+            collectionName = "Computers"
+        } | ConvertTo-Json -Compress
+
+        Invoke-RestMethod -Uri $heartbeatUrl -Method Post -Body $heartbeatBody -ContentType "application/json" -ErrorAction Stop
+        Write-Log "Heartbeat sent successfully."
+        Write-Host "[$((Get-Date).ToString('HH:mm:ss'))] Online status sent." -ForegroundColor Green
+    } catch {
+        Write-Log "Heartbeat failed: $($_.Exception.Message)"
+        Write-Host "[$((Get-Date).ToString('HH:mm:ss'))] Heartbeat failed." -ForegroundColor Red
+    }
+    
+    # รอ 5 นาที (300 วินาที) ก่อนส่งรอบถัดไป
+    Start-Sleep -Seconds 300
+}

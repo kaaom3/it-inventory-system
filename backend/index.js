@@ -549,7 +549,23 @@ app.get('/api/inventory/find/:serial', async (req, res) => {
         res.status(404).json({ message: 'Device not found' });
     } catch (e) { res.status(500).json({ error: e.message }); }
 });
+// API สำหรับรับสัญญาณชีพจร (Heartbeat) จากคอมพิวเตอร์พนักงาน
+app.post('/api/heartbeat', async (req, res) => {
+    if (!db) return res.status(500).json({ message: "Database not connected" });
+    try {
+        const { hostname, collectionName = 'Computers' } = req.body;
+        if (!hostname) return res.status(400).json({ message: "Hostname required" });
 
+        let query = collectionName === 'Computers' ? { ComputerName: hostname } : { IPAddress: hostname };
+        await db.collection(collectionName).updateOne(
+            query,
+            { $set: { lastSeenOnline: new Date() } }
+        );
+        res.status(200).json({ status: "success" });
+    } catch (error) {
+        res.status(500).json({ message: error.message });
+    }
+});
 // --- Loans ---
 
 app.post('/api/loans/submit', async (req, res) => {
