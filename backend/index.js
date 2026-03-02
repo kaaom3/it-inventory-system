@@ -37,9 +37,32 @@ let db;
 
 // --- Connect to MongoDB ---
 MongoClient.connect(mongoUri)
-  .then(client => {
+  .then(async client => {
     console.log("Successfully connected to MongoDB!");
     db = client.db(dbName);
+
+    // 🌟 ระบบสร้าง Admin แรกอัตโนมัติ (ถ้าฐานข้อมูลยังไม่มี Admin เลย)
+    try {
+        const adminCount = await db.collection('admins').countDocuments();
+        if (adminCount === 0) {
+            const defaultEmail = "admin@inventory.com";
+            const defaultPassword = "password123";
+            const hashed = await bcrypt.hash(defaultPassword, 10);
+            await db.collection('admins').insertOne({ 
+                email: defaultEmail, 
+                password: hashed, 
+                createdAt: new Date() 
+            });
+            console.log("==========================================");
+            console.log("🌟 DEFAULT ADMIN CREATED AUTOMATICALLY 🌟");
+            console.log(`Email:    ${defaultEmail}`);
+            console.log(`Password: ${defaultPassword}`);
+            console.log("Please login and create your own admin account.");
+            console.log("==========================================");
+        }
+    } catch (e) {
+        console.error("Error creating default admin:", e);
+    }
   })
   .catch(error => {
     console.error("Failed to connect to MongoDB", error);
@@ -606,7 +629,7 @@ app.post('/api/loans/return', async (req, res) => {
     }
 });
 
-const PORT = 3000;
+const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
-  console.log(`Cloned project server running on http://127.0.0.1:${PORT}`);
+  console.log(`Cloned project server running on port ${PORT}`);
 });
