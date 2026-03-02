@@ -1,8 +1,10 @@
 // ===================================================================
 // Frontend Logic for IT Inventory System (Full Complete Version)
+// Merged with: Render.com Cloud URL + Disposal Evidence System
 // ===================================================================
 
-const API_BASE_URL = window.location.origin;
+// 🌟 ล็อก URL ไปที่เซิร์ฟเวอร์บน Cloud ของคุณ 100%
+const API_BASE_URL = 'https://it-inventory-system-ncd9.onrender.com';
 
 // --- Definition of Available Fields for Custom Menus ---
 // มีการเพิ่ม 'group' เพื่อใช้จัดหมวดหมู่ใน Popup หน้าแก้ไขข้อมูล
@@ -78,6 +80,70 @@ let selectedItems = {};
 
 // --- Default Collection Configs ---
 let collectionConfigs = {};
+
+// ==========================================
+// --- DISPOSAL SYSTEM HELPERS (NEW) ---
+// ==========================================
+async function convertFileToBase64(file) {
+    return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.readAsDataURL(file);
+        reader.onload = () => resolve(reader.result);
+        reader.onerror = error => reject(error);
+    });
+}
+
+window.viewDisposalEvidence = function(base64Data) {
+    if (!base64Data) return alert("ไม่พบเอกสารแนบในระบบ");
+    if (base64Data.startsWith('data:application/pdf')) {
+        const newWindow = window.open();
+        newWindow.document.write(`<iframe src="${base64Data}" frameborder="0" style="border:0; top:0px; left:0px; bottom:0px; right:0px; width:100%; height:100%;" allowfullscreen></iframe>`);
+    } else {
+        const newWindow = window.open();
+        newWindow.document.write(`<div style="display:flex; justify-content:center; align-items:center; min-height:100vh; background:#333;"><img src="${base64Data}" style="max-width:100%; max-height:100vh; box-shadow:0 0 20px rgba(0,0,0,0.5);" /></div>`);
+    }
+};
+
+window.renderDisposedAssets = function() {
+    const tbody = document.getElementById('disposedTableBody');
+    if (!tbody) return;
+    let html = '';
+    let disposedCount = 0;
+
+    for (const [collection, items] of Object.entries(allData)) {
+        if (['Staff', 'CustomMenus', 'TransactionHistory', 'admins', 'LoanHistory', 'Maintenance Log'].includes(collection)) continue;
+        const disposedItems = items.filter(i => i.Status === 'Disposed');
+        
+        disposedItems.forEach(item => {
+            disposedCount++;
+            const config = collectionConfigs[collection];
+            const nameField = config ? config.nameField : 'SerialNumber';
+            const name = item[nameField] || item.ComputerName || item.ItemName || 'Unknown Device';
+            const serial = item.SerialNumber || item.MonitorSerial || 'N/A';
+            const date = item.DisposalDate ? new Date(item.DisposalDate).toLocaleDateString('th-TH') : '-';
+            
+            let evidenceBtn = '<span class="text-gray-400 text-xs italic">ไม่มีเอกสาร</span>';
+            if (item.DisposalEvidence) {
+                evidenceBtn = `<button onclick="window.viewDisposalEvidence(this.getAttribute('data-file'))" data-file="${item.DisposalEvidence}" class="px-3 py-1 bg-red-100 text-red-700 hover:bg-red-200 rounded-md text-xs font-bold shadow-sm transition"><i class="fas fa-file-pdf mr-1"></i> ดูเอกสาร</button>`;
+            }
+
+            html += `
+                <tr class="hover:bg-red-50 dark:hover:bg-red-900/10 transition-colors">
+                    <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 dark:text-gray-100">
+                        <i class="fas fa-box text-red-400 mr-2"></i> ${name}
+                        <div class="text-xs text-gray-500 font-normal ml-6 mt-1">From: ${collection}</div>
+                    </td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-600 dark:text-gray-400">${serial}</td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-600 dark:text-gray-400">${date}</td>
+                    <td class="px-6 py-4 whitespace-nowrap text-center">${evidenceBtn}</td>
+                </tr>
+            `;
+        });
+    }
+
+    if (disposedCount === 0) html = `<tr><td colspan="4" class="px-6 py-10 text-center text-gray-500">ยังไม่มีรายการอุปกรณ์ที่ถูกแทงจำหน่าย</td></tr>`;
+    tbody.innerHTML = html;
+};
 
 // --- API Helper ---
 async function apiRequest(endpoint, method = 'GET', body = null) {
@@ -252,7 +318,6 @@ function initPrintStyles() {
                 border: none !important;
                 box-shadow: none !important;
             }
-            /* Hide UI elements within print area when printing */
             .no-print { display: none !important; }
         }
     `;
@@ -319,7 +384,7 @@ async function runPeriodicPing() {
 }
 
 // ==========================================
-// --- FORMAT TIME AGO (NEW) ---
+// --- FORMAT TIME AGO ---
 // ==========================================
 window.formatTimeAgo = (dateString) => {
     if (!dateString) return "ไม่ทราบ";
@@ -385,6 +450,10 @@ function renderSidebarDynamic() {
 
     const rootNodes = [dashboardNode];
     rootNodes.push({ type: 'header', label: 'Assets' });
+    
+    // 🌟 เพิ่มเมนู Disposed Assets เข้าไปในกลุ่ม Assets
+    assetChildren.push({ id: 'DisposedAssets', name: 'Disposed Assets', icon: 'fa-trash-alt', isSystem: true, clickAction: "loadPage('DisposedAssets', this)" });
+    
     rootNodes.push(...assetChildren.map(c => ({...c, clickAction: `loadPage('${c.id}', this)`})), ...customNodes.filter(n => !n.parentId));
     
     rootNodes.push({ type: 'header', label: 'Management' });
@@ -409,10 +478,13 @@ function renderSidebarDynamic() {
         const editBtn = node.allowEdit ? `<button onclick="openEditMenuModal('${node.id}', event)" class="ml-2 text-xs text-gray-400 hover:text-blue-500 opacity-0 group-hover:opacity-100 transition-opacity"><i class="fas fa-edit"></i></button>` : '';
         const deleteBtn = node.allowDelete ? `<button onclick="deleteCustomMenu('${node.id}', event)" class="ml-2 text-xs text-gray-400 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity"><i class="fas fa-trash"></i></button>` : '';
 
+        // Highlight red for disposed menu
+        let textColor = node.id === 'DisposedAssets' ? 'text-red-500 dark:text-red-400' : 'text-gray-600 dark:text-gray-300';
+
         if (hasChildren) {
             return `<li><details class="group nav-group"><summary class="nav-link flex items-center justify-between px-4 py-2.5 rounded-lg text-gray-600 dark:text-gray-300 cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700"><div class="flex items-center space-x-3"><i class="fas ${node.icon} w-5 text-center"></i><span>${node.name}</span></div><div class="flex items-center">${editBtn}${deleteBtn}<i class="fas fa-chevron-right text-xs transform group-open:rotate-90 transition-transform ml-2"></i></div></summary><ul class="pl-4 pt-1 space-y-1 border-l-2 border-gray-100 dark:border-gray-700 ml-6">${node.children.map(createMenuHTML).join('')}</ul></details></li>`;
         }
-        return `<li><a href="#" id="nav-${node.id}" onclick="${node.clickAction}; return false;" class="nav-link flex items-center space-x-3 px-4 py-2.5 rounded-lg text-gray-600 dark:text-gray-300 group"><i class="fas ${node.icon} w-5 text-center"></i><span class="flex-1">${node.name}</span>${editBtn}${deleteBtn}</a></li>`;
+        return `<li><a href="#" id="nav-${node.id}" onclick="${node.clickAction}; return false;" class="nav-link flex items-center space-x-3 px-4 py-2.5 rounded-lg ${textColor} group hover:bg-gray-100 dark:hover:bg-gray-700"><i class="fas ${node.icon} w-5 text-center"></i><span class="flex-1">${node.name}</span>${editBtn}${deleteBtn}</a></li>`;
     }
 
     rootNodes.forEach(node => { if (node.type === 'header' || !node.parentId) container.insertAdjacentHTML('beforeend', createMenuHTML(node)); });
@@ -667,6 +739,7 @@ function loadPage(pageName, navElement) {
         else if (pageName === 'Handover') buildHandoverReturnPage();
         else if (pageName === 'StaffManagement') buildStaffManagementPage();
         else if (pageName === 'AdminManagement') buildAdminManagementPage();
+        else if (pageName === 'DisposedAssets') renderDisposedAssets(); // 🌟 หน้าเฉพาะ Disposed Assets
         else if (collectionConfigs[pageName]) {
             const state = paginationState[pageName];
             state.filterText = '';
@@ -798,7 +871,10 @@ function buildTable(collectionName) {
     const state = paginationState[collectionName];
     const fullData = allData[collectionName] || [];
     const config = collectionConfigs[collectionName];
-    let filteredData = fullData;
+    
+    // 🌟 นำข้อมูลสถานะ "Disposed" ออกไป เพื่อไม่ให้ปนในตารางหลัก
+    let filteredData = fullData.filter(i => i.Status !== 'Disposed');
+    
     if (state.statusFilter) filteredData = filteredData.filter(i => i.Status === state.statusFilter);
     if (state.categoryFilter && config.categoryFilterField) filteredData = filteredData.filter(item => item[config.categoryFilterField] === state.categoryFilter);
     if (state.filterText) filteredData = filteredData.filter(i => JSON.stringify(Object.values(i)).toUpperCase().includes(state.filterText.toUpperCase()));
@@ -840,9 +916,9 @@ function buildTable(collectionName) {
                      const lastSeen = item.lastSeenOnline;
                      if (lastSeen) {
                         const diffMins = (new Date() - new Date(lastSeen)) / 60000;
-                        // ปรับจาก 70 นาที เป็น 3 นาที
-                        if (diffMins < 3) {
-                            val = `<div class="flex items-center space-x-2"><div class="h-2.5 w-2.5 rounded-full bg-green-500 shadow-[0_0_5px_#22c55e]"></div><span class="font-medium text-green-600 dark:text-green-400">Online</span></div>`;
+                        // ถ้าเจอภายใน 15 นาที ถือว่า Online
+                        if (diffMins <= 15) {
+                            val = `<div class="flex items-center space-x-2"><div class="h-2.5 w-2.5 rounded-full bg-green-500 shadow-[0_0_5px_#22c55e] animate-pulse"></div><span class="font-medium text-green-600 dark:text-green-400">Online</span></div>`;
                         } else {
                             val = `<div class="flex flex-col"><div class="flex items-center space-x-2"><div class="h-2.5 w-2.5 rounded-full bg-gray-400"></div><span class="text-gray-500">Offline</span></div><span class="text-[10px] text-gray-400 mt-0.5" title="${new Date(lastSeen).toLocaleString('th-TH')}">ล่าสุด: ${window.formatTimeAgo(lastSeen)}</span></div>`;
                         }
@@ -918,17 +994,17 @@ function openModal(mode, collectionName, id = null) {
             
             formHtml += `<div class="col-span-1"><label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">${fieldDef.label}</label>`;
             if (dropdown) {
-                formHtml += `<select name="${fieldId}" class="mt-1 block w-full px-3 py-2 border rounded-md dark:bg-gray-700 dark:border-gray-600 dark:text-white"><option value="">-- Select --</option>${dropdown.map(opt => `<option value="${opt}" ${val === opt ? 'selected' : ''}>${opt}</option>`).join('')}</select>`;
+                formHtml += `<select name="${fieldId}" id="edit-${fieldId}" class="mt-1 block w-full px-3 py-2 border rounded-md dark:bg-gray-700 dark:border-gray-600 dark:text-white"><option value="">-- Select --</option>${dropdown.map(opt => `<option value="${opt}" ${val === opt ? 'selected' : ''}>${opt}</option>`).join('')}</select>`;
             } else if (fieldDef.type === 'date') {
                 const d = new Date(val);
                 if(!isNaN(d) && val) val = d.toISOString().split('T')[0];
-                formHtml += `<input type="date" name="${fieldId}" value="${val}" class="mt-1 block w-full px-3 py-2 border rounded-md dark:bg-gray-700 dark:border-gray-600 dark:text-white">`;
+                formHtml += `<input type="date" name="${fieldId}" id="edit-${fieldId}" value="${val}" class="mt-1 block w-full px-3 py-2 border rounded-md dark:bg-gray-700 dark:border-gray-600 dark:text-white">`;
             } else if (fieldDef.type === 'number') {
-                formHtml += `<input type="number" name="${fieldId}" value="${val}" class="mt-1 block w-full px-3 py-2 border rounded-md dark:bg-gray-700 dark:border-gray-600 dark:text-white">`;
+                formHtml += `<input type="number" name="${fieldId}" id="edit-${fieldId}" value="${val}" class="mt-1 block w-full px-3 py-2 border rounded-md dark:bg-gray-700 dark:border-gray-600 dark:text-white">`;
             } else if (fieldDef.type === 'textarea') {
-                formHtml += `<textarea name="${fieldId}" rows="3" class="mt-1 block w-full px-3 py-2 border rounded-md dark:bg-gray-700 dark:border-gray-600 dark:text-white">${val}</textarea>`;
+                formHtml += `<textarea name="${fieldId}" id="edit-${fieldId}" rows="3" class="mt-1 block w-full px-3 py-2 border rounded-md dark:bg-gray-700 dark:border-gray-600 dark:text-white">${val}</textarea>`;
             } else {
-                formHtml += `<input type="text" name="${fieldId}" value="${val}" class="mt-1 block w-full px-3 py-2 border rounded-md dark:bg-gray-700 dark:border-gray-600 dark:text-white">`;
+                formHtml += `<input type="text" name="${fieldId}" id="edit-${fieldId}" value="${val}" class="mt-1 block w-full px-3 py-2 border rounded-md dark:bg-gray-700 dark:border-gray-600 dark:text-white">`;
             }
             formHtml += `</div>`;
         });
@@ -936,16 +1012,83 @@ function openModal(mode, collectionName, id = null) {
     }
     
     form.innerHTML = formHtml;
+    
+    // 🌟 จัดการกล่องอัปโหลดเอกสารแทงจำหน่าย (Disposal)
+    const disposalSection = document.getElementById('disposal-evidence-section');
+    const existingEvidenceBox = document.getElementById('existingEvidenceBox');
+    const fileInput = document.getElementById('disposalFileInput');
+    const hiddenBase64 = document.getElementById('hiddenEvidenceBase64');
+    
+    if (fileInput) fileInput.value = '';
+    if (hiddenBase64) hiddenBase64.value = '';
+    
+    if (itemData.Status === 'Disposed') {
+        if(disposalSection) disposalSection.classList.remove('hidden');
+        if (itemData.DisposalEvidence && existingEvidenceBox && hiddenBase64) {
+            existingEvidenceBox.classList.remove('hidden');
+            hiddenBase64.value = itemData.DisposalEvidence;
+        } else if (existingEvidenceBox) {
+            existingEvidenceBox.classList.add('hidden');
+        }
+    } else {
+        if(disposalSection) disposalSection.classList.add('hidden');
+        if(existingEvidenceBox) existingEvidenceBox.classList.add('hidden');
+    }
+
     const tabBtn = document.querySelector('#modal-tabs .tab-button');
     if (tabBtn) switchModalTab('details', tabBtn);
     buildMaintenanceLogInModal(itemData);
     document.getElementById('editModal').classList.remove('opacity-0', 'pointer-events-none');
 }
 
+// ดักจับการเปลี่ยน Status เพื่อโชว์กล่องแทงจำหน่าย
+document.addEventListener('change', (e) => {
+    if (e.target && e.target.id === 'edit-Status') {
+        const disposalSection = document.getElementById('disposal-evidence-section');
+        if (!disposalSection) return;
+        if (e.target.value === 'Disposed') {
+            disposalSection.classList.remove('hidden');
+            disposalSection.classList.add('animate-pulse');
+            setTimeout(() => disposalSection.classList.remove('animate-pulse'), 1000);
+        } else {
+            disposalSection.classList.add('hidden');
+        }
+    }
+});
+
 async function saveData() {
     const formData = new FormData(document.getElementById('editForm'));
     const data = Object.fromEntries(formData.entries());
     const { mode, collection, id } = currentEdit;
+
+    // 🌟 ตรวจสอบและยัดไฟล์แทงจำหน่ายเข้า Database
+    const statusInput = document.getElementById('edit-Status');
+    const fileInput = document.getElementById('disposalFileInput');
+    const hiddenBase64 = document.getElementById('hiddenEvidenceBase64');
+
+    if (statusInput && statusInput.value === 'Disposed') {
+        if (fileInput && fileInput.files.length > 0) {
+            const file = fileInput.files[0];
+            if (file.size > 2 * 1024 * 1024) return alert("ไฟล์เอกสารต้องมีขนาดไม่เกิน 2MB");
+            try {
+                data.DisposalEvidence = await convertFileToBase64(file);
+                data.DisposalDate = new Date().toISOString();
+            } catch (err) {
+                return alert("เกิดข้อผิดพลาดในการอ่านไฟล์");
+            }
+        } 
+        else if (hiddenBase64 && hiddenBase64.value) {
+            data.DisposalEvidence = hiddenBase64.value;
+        } 
+        else {
+            if (!confirm("คุณกำลังเปลี่ยนสถานะเป็น 'Disposed' แต่ไม่ได้แนบเอกสาร ต้องการดำเนินการต่อหรือไม่?")) return;
+            data.DisposalDate = new Date().toISOString();
+        }
+    } else if (statusInput && statusInput.value !== 'Disposed') {
+        data.DisposalEvidence = null;
+        data.DisposalDate = null;
+    }
+
     try {
         if (mode === 'edit') await apiRequest(`/api/inventory/${collection}/${id}`, 'PUT', data);
         else await apiRequest(`/api/inventory/${collection}`, 'POST', data);
@@ -1475,14 +1618,12 @@ window.toggleAllLabelItems = (isChecked) => {
     updateLabelPreview();
 };
 
-// Create inner HTML for a single item portion
 function generateLabelHTML(item, isSplit, canvasId) {
-    if (!item) return `<div class="w-full ${isSplit ? 'h-1/2' : 'h-full'}"></div>`; // Empty filler
+    if (!item) return `<div class="w-full ${isSplit ? 'h-1/2' : 'h-full'}"></div>`; 
 
     const checkedFields = Array.from(document.querySelectorAll('.label-field-cb:checked')).map(cb => cb.value);
     let textHtml = '';
     
-    // Dynamic sizing depending on split and field count
     let fontSizeClass = isSplit ? 'text-[6pt] leading-[7pt]' : 'text-[7pt] leading-[8pt]';
     if(checkedFields.length <= 2) fontSizeClass = isSplit ? 'text-[8pt] leading-[9pt] font-bold' : 'text-[10pt] leading-[11pt] font-bold';
     else if(checkedFields.length <= 4) fontSizeClass = isSplit ? 'text-[7pt] leading-[8pt]' : 'text-[8pt] leading-[9pt]';
@@ -1524,10 +1665,9 @@ window.updateLabelPreview = () => {
     const itemsData = currentLabelItems.map(id => allData[currentLabelCategory].find(i => i.id === id)).filter(Boolean);
 
     if (isSplit) {
-        // Group by 2
         for (let i = 0; i < itemsData.length; i += 2) {
             const item1 = itemsData[i];
-            const item2 = itemsData[i+1]; // might be undefined if odd number of items
+            const item2 = itemsData[i+1]; 
             
             previewHtml += `
                 <div class="label-page preview-border relative box-border bg-white text-black flex flex-col overflow-hidden" style="width: ${w}mm; height: ${h}mm; border: 1px solid #ccc; box-shadow: 0 1px 3px rgba(0,0,0,0.1);">
@@ -1538,7 +1678,6 @@ window.updateLabelPreview = () => {
             `;
         }
     } else {
-        // 1 item per label
         itemsData.forEach(item => {
             previewHtml += `
                 <div class="label-page preview-border relative box-border bg-white text-black flex overflow-hidden" style="width: ${w}mm; height: ${h}mm; border: 1px solid #ccc; box-shadow: 0 1px 3px rgba(0,0,0,0.1);">
@@ -1550,7 +1689,6 @@ window.updateLabelPreview = () => {
 
     printArea.innerHTML = previewHtml;
 
-    // Render QR Codes after DOM is built
     const canvases = printArea.querySelectorAll('.qr-render-target');
     canvases.forEach(canvas => {
         const serial = canvas.dataset.serial;
@@ -1565,7 +1703,6 @@ window.printLabel = () => {
         return;
     }
 
-    // Set page dimension for printer dynamically
     const w = document.getElementById('labelWidth').value || 50;
     const h = document.getElementById('labelHeight').value || 30;
     
@@ -1579,10 +1716,6 @@ window.printLabel = () => {
 
     window.print();
 };
-
-// --- Helpers for Filtering ---
-window.filterStaffList = (input, listId) => { const term = input.value.toUpperCase(); document.querySelectorAll(`#${listId} .staff-item`).forEach(el => el.style.display = el.textContent.toUpperCase().includes(term) ? '' : 'none'); };
-window.filterDeviceList = (input, listId) => { const term = input.value.toUpperCase(); document.querySelectorAll(`#${listId} .device-item`).forEach(el => el.style.display = el.textContent.toUpperCase().includes(term) ? '' : 'none'); };
 
 // ==========================================
 // --- EXPORTS ---
