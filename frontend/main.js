@@ -406,8 +406,7 @@ function renderSidebarDynamic() {
         { id: 'Monitors', name: 'Monitors', icon: 'fa-desktop', isSystem: true, clickAction: "window.loadPage('Monitors', this)" },
         { id: 'Accessory', name: 'Accessories', icon: 'fa-keyboard', isSystem: true, clickAction: "window.loadPage('Accessory', this)" },
         { id: 'Printers', name: 'Printers', icon: 'fa-print', isSystem: true, clickAction: "window.loadPage('Printers', this)" },
-        { id: 'Network', name: 'Network', icon: 'fa-network-wired', isSystem: true, clickAction: "window.loadPage('Network', this)" },
-        { id: 'DisposedAssets', name: 'Disposed Assets', icon: 'fa-trash-alt', isSystem: true, clickAction: "window.loadPage('DisposedAssets', this)" }
+        { id: 'Network', name: 'Network', icon: 'fa-network-wired', isSystem: true, clickAction: "window.loadPage('Network', this)" }
     ];
     
     const managementChildren = [
@@ -423,7 +422,8 @@ function renderSidebarDynamic() {
             children: [
                 { id: 'LoanHistory', name: 'Loan History', icon: 'fa-history', isSystem: true, clickAction: "window.loadPage('LoanHistory', this)" },
                 { id: 'Maintenance', name: 'Maintenance History', icon: 'fa-tools', isSystem: true, clickAction: "window.loadPage('Maintenance', this)" },
-                { id: 'AssetsByUser', name: 'Assets by User', icon: 'fa-user-tag', isSystem: true, clickAction: "window.loadPage('AssetsByUser', this)" }
+                { id: 'AssetsByUser', name: 'Assets by User', icon: 'fa-user-tag', isSystem: true, clickAction: "window.loadPage('AssetsByUser', this)" },
+                { id: 'DisposedAssets', name: 'Disposed Assets', icon: 'fa-trash-alt', isSystem: true, clickAction: "window.loadPage('DisposedAssets', this)" }
             ]
         },
         { 
