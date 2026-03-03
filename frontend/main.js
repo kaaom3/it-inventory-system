@@ -148,7 +148,7 @@ async function apiRequest(endpoint, method = 'GET', body = null) {
     }
 }
 
-// --- Data Refresh & Config Builder (🌟 แก้ไขการจับคู่ข้อมูล) ---
+// --- Data Refresh & Config Builder ---
 async function refreshAllData() {
     try {
         // รับค่ามาแบบตรงๆ เพื่อป้องกันข้อมูลโครงสร้างเปลี่ยน
@@ -198,7 +198,6 @@ async function refreshAllData() {
             };
         });
 
-        // 🌟 ดึง Collections ที่มีในฐานข้อมูลแต่ไม่มีใน Config ใส่ให้อัตโนมัติ (กันหน้าขาว)
         const skipKeys = ['Staff', 'CustomMenus', 'TransactionHistory', 'LoanHistory', 'Maintenance Log', 'admins'];
         Object.keys(allData).forEach(key => {
             if (!skipKeys.includes(key) && Array.isArray(allData[key]) && !collectionConfigs[key]) {
@@ -263,7 +262,7 @@ window.renderDisposedAssets = function() {
 
     for (const [collection, items] of Object.entries(allData)) {
         if (['Staff', 'CustomMenus', 'TransactionHistory', 'admins', 'LoanHistory', 'Maintenance Log'].includes(collection)) continue;
-        if (!Array.isArray(items)) continue; // ป้องกันบั๊กถ้า items ไม่ใช่ Array
+        if (!Array.isArray(items)) continue; 
         
         const disposedItems = items.filter(i => i.Status === 'Disposed');
         disposedItems.forEach(item => {
@@ -441,7 +440,6 @@ function renderSidebarDynamic() {
             id: m.name, name: m.displayName, icon: m.icon, isSystem: false, parentId: m.parentId, clickAction: `window.loadPage('${m.name}', this)`, allowDelete: true, allowEdit: true, order: m.order
         }));
 
-    // เพิ่มหมวดหมู่ที่ตรวจพบใหม่เข้าไปในเมนูซ้ายอัตโนมัติ
     const existingSidebarIds = ['Computers', 'Monitors', 'Accessory', 'Printers', 'Network'];
     const customIds = customNodes.map(n => n.id);
     const allKnown = [...existingSidebarIds, ...customIds];
@@ -587,7 +585,7 @@ window.loadPage = function(pageName, navElement) {
         else if (pageName === 'AdminManagement') window.buildAdminManagementPage();
         else if (pageName === 'DisposedAssets') window.renderDisposedAssets();
         else if (pageName === 'Settings') window.renderSettings();
-        else if (pageName === 'LabelPrinter') window.buildLabelPrinterPage(); // โชว์หน้าปริ้น
+        else if (pageName === 'LabelPrinter') window.buildLabelPrinterPage();
         else if (collectionConfigs[pageName]) {
             if (paginationState[pageName]) {
                 paginationState[pageName].filterText = '';
@@ -1100,6 +1098,37 @@ window.updateDashboard = function() {
         document.getElementById('stat-storage').innerText = allItems.filter(i=>i.Status==='Storage').length;
         document.getElementById('stat-issues').innerText = allItems.filter(i=>['Repair','Damaged','Disposed'].includes(i.Status)).length;
     }
+    
+    // 🌟 กู้คืนระบบกล่องสรุปอุปกรณ์ (Category Overview Grid) ที่คลิกได้
+    let overviewGrid = document.getElementById('category-overview-grid');
+    if (!overviewGrid) {
+        const topStatsGrid = document.querySelector('#dashboard-page .grid');
+        if (topStatsGrid) {
+            overviewGrid = document.createElement('div');
+            overviewGrid.id = 'category-overview-grid';
+            overviewGrid.className = 'grid grid-cols-2 md:grid-cols-4 xl:grid-cols-6 gap-4 mb-6';
+            topStatsGrid.parentNode.insertBefore(overviewGrid, topStatsGrid.nextSibling);
+        }
+    }
+    if (overviewGrid) {
+        overviewGrid.innerHTML = '';
+        Object.keys(collectionConfigs).forEach(colName => {
+            const config = collectionConfigs[colName];
+            const items = allData[colName] || [];
+            const displayName = config.displayName || colName;
+            overviewGrid.innerHTML += `
+                <div class="bg-white dark:bg-gray-800 p-4 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700 flex items-center space-x-3 cursor-pointer hover:bg-indigo-50 dark:hover:bg-gray-700 transition-colors transform hover:-translate-y-1" onclick="window.loadPage('${colName}')">
+                    <div class="bg-indigo-100 dark:bg-indigo-900/50 w-10 h-10 rounded-full flex items-center justify-center shrink-0">
+                        <i class="fas ${config.icon || 'fa-box'} text-indigo-600 dark:text-indigo-400"></i>
+                    </div>
+                    <div class="overflow-hidden">
+                        <p class="text-xs text-gray-500 dark:text-gray-400 truncate">${displayName}</p>
+                        <p class="text-lg font-bold text-gray-800 dark:text-white">${items.length}</p>
+                    </div>
+                </div>`;
+        });
+    }
+
     const statusCounts = {}; allItems.forEach(i => { statusCounts[i.Status] = (statusCounts[i.Status] || 0) + 1; });
     window.renderStatusChart(statusCounts);
     
@@ -1110,7 +1139,6 @@ window.updateDashboard = function() {
     }
     window.renderCategoryChart(categoryCounts);
 
-    // 🌟 กู้คืนระบบแสดงประวัติรายการล่าสุด (Recent Transactions)
     const activityContainer = document.getElementById('recent-activity-list');
     if (activityContainer) {
         const transactions = allData['TransactionHistory'] || [];
