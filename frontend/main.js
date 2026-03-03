@@ -1,6 +1,6 @@
 // ===================================================================
 // Frontend Logic for IT Inventory System (Full Complete Version)
-// Merged with: Render.com Cloud URL + Disposal Evidence + New Card UI Modal
+// Merged with: Render.com Cloud URL + Disposal Evidence + Fixed Data Mapping
 // ===================================================================
 
 // 🌟 ล็อก URL ไปที่เซิร์ฟเวอร์บน Cloud ของคุณ 100%
@@ -55,13 +55,7 @@ const AVAILABLE_FIELDS = [
 ];
 
 // --- Global State Variables ---
-let allData = { 
-    Computers: [], Monitors: [], Audio: [], Accessory: [], Printers: [], 
-    Network: [], Mobile: [], Storage: [], Projector: [], SpareParts: [], 
-    LoanHistory: [], Software: [], Location: [], 'Maintenance Log': [], 
-    TransactionHistory: [], Staff: [], CustomMenus: [] 
-};
-
+let allData = {};
 let currentEdit = { mode: null, collection: null, id: null };
 let currentStaffEdit = { mode: null, id: null };
 let statusChart = null;
@@ -96,7 +90,6 @@ document.addEventListener('DOMContentLoaded', () => {
 async function initializeAppLogic() {
     const success = await refreshAllData();
     if (success) {
-        // ซ่อน Loading สลับไปโชว์ Container หลัก
         const loadingState = document.getElementById('loading-state');
         const appContainer = document.getElementById('app-container');
         
@@ -106,7 +99,6 @@ async function initializeAppLogic() {
         renderSidebarDynamic(); 
         generateDynamicPages();
         window.updateDashboard();
-        
         window.loadPage('Dashboard');
         
         runPeriodicPing();
@@ -156,16 +148,11 @@ async function apiRequest(endpoint, method = 'GET', body = null) {
     }
 }
 
-// --- Data Refresh & Config Builder ---
+// --- Data Refresh & Config Builder (🌟 แก้ไขการจับคู่ข้อมูล) ---
 async function refreshAllData() {
     try {
-        const data = await apiRequest('/api/inventory/all');
-        
-        for (const key in data) {
-            if (Array.isArray(data[key])) {
-                allData[key] = data[key].map(item => ({...item, id: item._id }));
-            }
-        }
+        // รับค่ามาแบบตรงๆ เพื่อป้องกันข้อมูลโครงสร้างเปลี่ยน
+        allData = await apiRequest('/api/inventory/all');
         
         const defaultConfigs = {
             Computers: { displayName: 'Computers', headers: ['Last Seen', 'ComputerName', 'SerialNumber', 'UserName', 'Status'], formFields: ['ComputerName', 'Manufacturer', 'Model', 'Type', 'SerialNumber', 'CPU', 'RAM_GB', 'DiskSize_GB', 'OS', 'IPAddress', 'MacAddress', 'UserName', 'Location', 'PurchaseDate', 'WarrantyEndDate', 'Status', 'Description'], nameField: 'ComputerName', serialField: 'SerialNumber', icon: 'fa-laptop', dropdowns: { Status: ['Active', 'On Loan', 'Repair', 'Storage', 'Damaged', 'Disposed'], Type: ['Desktop', 'Laptop', 'MacBook', 'Tablet', 'POS', 'Server', 'Other'] }, isCustom: false },
@@ -176,13 +163,10 @@ async function refreshAllData() {
         };
         
         collectionConfigs = { ...defaultConfigs };
-
-        const customMenus = data.CustomMenus || [];
-        allData.CustomMenus = customMenus;
+        const customMenus = allData.CustomMenus || [];
 
         customMenus.forEach(menu => {
             if (!menu.fields || !Array.isArray(menu.fields) || menu.fields.length === 0) return;
-
             const headerFields = menu.fields.slice(0, 5).map(f => f.id);
             if (!headerFields.includes('Status')) {
                  if (headerFields.length >= 5) headerFields[4] = 'Status';
@@ -191,9 +175,7 @@ async function refreshAllData() {
 
             const hasIP = menu.fields.some(f => f.id === 'IPAddress');
             const isComputer = menu.name === 'Computers';
-            if ((hasIP || isComputer) && !headerFields.includes('Last Seen')) {
-                headerFields.unshift('Last Seen');
-            }
+            if ((hasIP || isComputer) && !headerFields.includes('Last Seen')) headerFields.unshift('Last Seen');
 
             const nameFieldObj = menu.fields.find(f => ['ComputerName', 'DeviceName', 'ItemName', 'PartName', 'Name', 'SoftwareName', 'Model'].includes(f.id));
             const nameField = nameFieldObj ? nameFieldObj.id : menu.fields[0].id;
@@ -216,13 +198,28 @@ async function refreshAllData() {
             };
         });
 
+        // 🌟 ดึง Collections ที่มีในฐานข้อมูลแต่ไม่มีใน Config ใส่ให้อัตโนมัติ (กันหน้าขาว)
+        const skipKeys = ['Staff', 'CustomMenus', 'TransactionHistory', 'LoanHistory', 'Maintenance Log', 'admins'];
+        Object.keys(allData).forEach(key => {
+            if (!skipKeys.includes(key) && Array.isArray(allData[key]) && !collectionConfigs[key]) {
+                collectionConfigs[key] = {
+                    displayName: key,
+                    headers: ['SerialNumber', 'Status'],
+                    formFields: ['SerialNumber', 'Status', 'Description'],
+                    nameField: 'SerialNumber',
+                    serialField: 'SerialNumber',
+                    icon: 'fa-box',
+                    dropdowns: { Status: ['Active', 'On Loan', 'Repair', 'Storage', 'Damaged', 'Disposed'] },
+                    isCustom: false
+                };
+            }
+        });
+
         Object.keys(collectionConfigs).forEach(collectionName => {
             if (!paginationState[collectionName]) {
                 paginationState[collectionName] = { currentPage: 1, rowsPerPage: 10, filterText: '', categoryFilter: null, statusFilter: '' };
             }
-            if (!selectedItems[collectionName]) {
-                selectedItems[collectionName] = [];
-            }
+            if (!selectedItems[collectionName]) selectedItems[collectionName] = [];
         });
 
         return true;
@@ -266,8 +263,9 @@ window.renderDisposedAssets = function() {
 
     for (const [collection, items] of Object.entries(allData)) {
         if (['Staff', 'CustomMenus', 'TransactionHistory', 'admins', 'LoanHistory', 'Maintenance Log'].includes(collection)) continue;
-        const disposedItems = items.filter(i => i.Status === 'Disposed');
+        if (!Array.isArray(items)) continue; // ป้องกันบั๊กถ้า items ไม่ใช่ Array
         
+        const disposedItems = items.filter(i => i.Status === 'Disposed');
         disposedItems.forEach(item => {
             disposedCount++;
             const config = collectionConfigs[collection];
@@ -443,6 +441,16 @@ function renderSidebarDynamic() {
             id: m.name, name: m.displayName, icon: m.icon, isSystem: false, parentId: m.parentId, clickAction: `window.loadPage('${m.name}', this)`, allowDelete: true, allowEdit: true, order: m.order
         }));
 
+    // เพิ่มหมวดหมู่ที่ตรวจพบใหม่เข้าไปในเมนูซ้ายอัตโนมัติ
+    const existingSidebarIds = ['Computers', 'Monitors', 'Accessory', 'Printers', 'Network'];
+    const customIds = customNodes.map(n => n.id);
+    const allKnown = [...existingSidebarIds, ...customIds];
+    Object.keys(collectionConfigs).forEach(key => {
+        if (!allKnown.includes(key)) {
+            customNodes.push({ id: key, name: collectionConfigs[key].displayName, icon: 'fa-box', isSystem: false, parentId: null, clickAction: `window.loadPage('${key}', this)`, allowDelete: false, allowEdit: true, order: 99 });
+        }
+    });
+
     const rootNodes = [dashboardNode];
     rootNodes.push({ type: 'header', label: 'Assets' });
     
@@ -533,7 +541,7 @@ function generateDynamicPages() {
 }
 
 // ==========================================
-// --- PAGE LOAD & SWITCHING (FIXED) ---
+// --- PAGE LOAD & SWITCHING ---
 // ==========================================
 window.loadPage = function(pageName, navElement) {
     document.querySelectorAll('.nav-link').forEach(l => {
@@ -558,7 +566,6 @@ window.loadPage = function(pageName, navElement) {
     const pageId = `${pageName.toLowerCase()}-page`;
     let pageDiv = document.getElementById(pageId);
     
-    // สร้างหน้า Printer ถ้าหาไม่เจอ
     if (pageName === 'LabelPrinter' && !pageDiv) {
         pageDiv = document.createElement('div'); 
         pageDiv.id = pageId; 
@@ -580,10 +587,7 @@ window.loadPage = function(pageName, navElement) {
         else if (pageName === 'AdminManagement') window.buildAdminManagementPage();
         else if (pageName === 'DisposedAssets') window.renderDisposedAssets();
         else if (pageName === 'Settings') window.renderSettings();
-        // 🌟 แก้ไข: เรียกฟังก์ชันวาดหน้า Label Printer ตรงนี้
-        else if (pageName === 'LabelPrinter') {
-            if (pageDiv.innerHTML.trim() === '') window.buildLabelPrinterPage();
-        }
+        else if (pageName === 'LabelPrinter') window.buildLabelPrinterPage(); // โชว์หน้าปริ้น
         else if (collectionConfigs[pageName]) {
             if (paginationState[pageName]) {
                 paginationState[pageName].filterText = '';
@@ -874,10 +878,11 @@ window.buildTable = function(collectionName) {
     else {
         let allCurrentPageSelected = true;
         paginatedData.forEach(item => {
-            const isChecked = (selectedItems[collectionName] || []).includes(item.id);
+            const id = item._id || item.id;
+            const isChecked = (selectedItems[collectionName] || []).includes(id);
             if (!isChecked) allCurrentPageSelected = false;
 
-            html += `<tr class="hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"><td class="px-4 py-3 text-center"><input type="checkbox" value="${item.id}" onclick="window.toggleSelectItem('${collectionName}', this)" class="${collectionName}-row-cb rounded text-indigo-600 focus:ring-indigo-500 cursor-pointer" ${isChecked ? 'checked' : ''}></td>`;
+            html += `<tr class="hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"><td class="px-4 py-3 text-center"><input type="checkbox" value="${id}" onclick="window.toggleSelectItem('${collectionName}', this)" class="${collectionName}-row-cb rounded text-indigo-600 focus:ring-indigo-500 cursor-pointer" ${isChecked ? 'checked' : ''}></td>`;
 
             config.headers.forEach(header => {
                 let val = item[header] || '';
@@ -895,7 +900,7 @@ window.buildTable = function(collectionName) {
                 }
                 html += `<td class="px-6 py-4 text-sm text-gray-700 dark:text-gray-200 whitespace-nowrap max-w-xs truncate" title="${String(val).replace(/<[^>]*>?/gm, '')}">${val}</td>`;
             });
-            html += `<td class="px-6 py-4 text-sm font-medium space-x-3 whitespace-nowrap"><button onclick="window.openModal('edit', '${collectionName}', '${item.id}')" class="text-indigo-600 hover:text-indigo-900 dark:text-indigo-400 dark:hover:text-indigo-300"><i class="fas fa-edit"></i></button><button onclick="window.deleteItem('${collectionName}', '${item.id}')" class="text-red-600 hover:text-red-900 dark:text-red-400 dark:hover:text-red-300"><i class="fas fa-trash"></i></button><button onclick="window.showQrModal('${item[config.serialField]}', '${item[config.nameField]}')" class="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"><i class="fas fa-qrcode"></i></button></td></tr>`;
+            html += `<td class="px-6 py-4 text-sm font-medium space-x-3 whitespace-nowrap"><button onclick="window.openModal('edit', '${collectionName}', '${id}')" class="text-indigo-600 hover:text-indigo-900 dark:text-indigo-400 dark:hover:text-indigo-300"><i class="fas fa-edit"></i></button><button onclick="window.deleteItem('${collectionName}', '${id}')" class="text-red-600 hover:text-red-900 dark:text-red-400 dark:hover:text-red-300"><i class="fas fa-trash"></i></button><button onclick="window.showQrModal('${item[config.serialField] || id}', '${item[config.nameField] || 'Asset'}')" class="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"><i class="fas fa-qrcode"></i></button></td></tr>`;
         });
         setTimeout(() => { const selectAllCb = document.getElementById(`selectAll_${collectionName}`); if (selectAllCb) selectAllCb.checked = paginatedData.length > 0 && allCurrentPageSelected; }, 10);
     }
@@ -923,9 +928,8 @@ window.openModal = function(mode, collectionName, id = null) {
     if (!form) return;
     form.innerHTML = '';
     const config = collectionConfigs[collectionName];
-    const itemData = (mode === 'edit' && allData[collectionName]) ? allData[collectionName].find(i => i.id === id) || {} : {};
+    const itemData = (mode === 'edit' && allData[collectionName]) ? allData[collectionName].find(i => i._id === id || i.id === id) || {} : {};
     
-    // Header แบบใหม่ (เข้ากับ index.html ดีไซน์ล่าสุด)
     const actionText = mode === 'edit' ? 'Edit' : 'Add New';
     const actionIcon = mode === 'edit' ? 'fa-edit' : 'fa-plus-circle';
     document.getElementById('editModalTitle').innerHTML = `
@@ -955,7 +959,6 @@ window.openModal = function(mode, collectionName, id = null) {
 
     let formHtml = '';
     
-    // วาดกล่อง Card ของฟอร์มตามกลุ่มข้อมูล
     for (const [groupName, fields] of Object.entries(groups)) {
         if (fields.length === 0) continue;
         const iconClass = groupIcons[groupName] || 'fa-folder';
@@ -998,7 +1001,6 @@ window.openModal = function(mode, collectionName, id = null) {
     
     form.innerHTML = formHtml;
     
-    // ส่วนแสดงผลกล่องแนบไฟล์ตอนแทงจำหน่าย (Disposed)
     const disposalSection = document.getElementById('disposal-evidence-section');
     const existingEvidenceBox = document.getElementById('existingEvidenceBox');
     const fileInput = document.getElementById('disposalFileInput');
@@ -1019,7 +1021,6 @@ window.openModal = function(mode, collectionName, id = null) {
     if (tabBtn) window.switchModalTab('details', tabBtn);
     window.buildMaintenanceLogInModal(itemData);
     
-    // เปิดหน้าต่าง Modal (พร้อม Animation Scale จาก index.html)
     const modal = document.getElementById('editModal');
     modal.classList.remove('opacity-0', 'pointer-events-none');
     if (modal.querySelector('.modal-content')) {
@@ -1028,7 +1029,6 @@ window.openModal = function(mode, collectionName, id = null) {
     }
 };
 
-// Toggle ระบบแทงจำหน่ายแบบ Real-time
 document.addEventListener('change', (e) => {
     if (e.target && e.target.id === 'edit-Status') {
         const disposalSection = document.getElementById('disposal-evidence-section');
@@ -1082,6 +1082,70 @@ window.deleteItem = async function(collectionName, id) {
 };
 
 // ==========================================
+// --- Dashboard ---
+// ==========================================
+window.updateDashboard = function() {
+    let total = 0, active = 0, storage = 0, issues = 0;
+    const skipKeys = ['Staff', 'CustomMenus', 'TransactionHistory', 'LoanHistory', 'Maintenance Log', 'admins'];
+    const allItems = [];
+
+    for (const [key, items] of Object.entries(allData)) {
+        if (skipKeys.includes(key)) continue;
+        if (Array.isArray(items)) allItems.push(...items);
+    }
+
+    if(document.getElementById('stat-total')) {
+        document.getElementById('stat-total').innerText = allItems.length;
+        document.getElementById('stat-active').innerText = allItems.filter(i=>i.Status==='Active' || i.Status==='On Loan').length;
+        document.getElementById('stat-storage').innerText = allItems.filter(i=>i.Status==='Storage').length;
+        document.getElementById('stat-issues').innerText = allItems.filter(i=>['Repair','Damaged','Disposed'].includes(i.Status)).length;
+    }
+    const statusCounts = {}; allItems.forEach(i => { statusCounts[i.Status] = (statusCounts[i.Status] || 0) + 1; });
+    window.renderStatusChart(statusCounts);
+    
+    const categoryCounts = {}; 
+    for (const [key, items] of Object.entries(allData)) {
+        if (skipKeys.includes(key)) continue;
+        if (Array.isArray(items)) categoryCounts[key] = items.length;
+    }
+    window.renderCategoryChart(categoryCounts);
+};
+
+window.renderStatusChart = function(data) {
+    const ctx = document.getElementById('statusChart');
+    if(!ctx) return;
+    if(statusChart) { statusChart.data.labels = Object.keys(data); statusChart.data.datasets[0].data = Object.values(data); statusChart.update(); }
+    else { statusChart = new Chart(ctx, { type: 'doughnut', data: { labels: Object.keys(data), datasets: [{ data: Object.values(data), backgroundColor: ['#22c55e', '#eab308', '#f97316', '#3b82f6', '#ef4444', '#9ca3af'] }] }, options: { responsive: true, maintainAspectRatio: false } }); }
+};
+
+window.renderCategoryChart = function(data) {
+    const ctx = document.getElementById('categoryChart');
+    if(!ctx) return;
+    if(categoryChart) { categoryChart.data.labels = Object.keys(data); categoryChart.data.datasets[0].data = Object.values(data); categoryChart.update(); }
+    else { categoryChart = new Chart(ctx, { type: 'bar', data: { labels: Object.keys(data), datasets: [{ label: 'Assets', data: Object.values(data), backgroundColor: '#6366f1' }] }, options: { responsive: true, maintainAspectRatio: false } }); }
+};
+
+// --- Modals ---
+window.hideModal = function(id) { 
+    const modal = document.getElementById(id);
+    modal.classList.add('opacity-0', 'pointer-events-none'); 
+    if (modal.querySelector('.modal-content')) {
+        modal.querySelector('.modal-content').classList.remove('scale-100');
+        modal.querySelector('.modal-content').classList.add('scale-95');
+    }
+};
+
+function showNotificationModal(type, title, msg) {
+    document.getElementById('modalTitle').textContent = title;
+    document.getElementById('modalMessage').textContent = msg;
+    const icon = document.getElementById('modalIcon');
+    if(type === 'success') icon.innerHTML = '<i class="fas fa-check-circle text-4xl text-green-500"></i>';
+    else if(type === 'warning') icon.innerHTML = '<i class="fas fa-exclamation-triangle text-4xl text-yellow-500"></i>';
+    else icon.innerHTML = '<i class="fas fa-info-circle text-4xl text-blue-500"></i>';
+    document.getElementById('notificationModal').classList.remove('opacity-0', 'pointer-events-none');
+}
+
+// ==========================================
 // --- Management Logic (Handover, Staff, Admin, Maintenance) ---
 // ==========================================
 window.buildHandoverReturnPage = function() {
@@ -1125,7 +1189,7 @@ window.selectStaff = function(name, listId, labelId, isReturn) {
         else {
             returnList.innerHTML = userDevices.map(d => {
                 const config = collectionConfigs[d.collection];
-                return `<div class="p-2 bg-white dark:bg-gray-800 rounded border flex items-center space-x-3"><input type="checkbox" class="return-checkbox rounded" value="${d.id}" data-col="${d.collection}"><div><p class="font-semibold text-sm">${d[config.nameField]}</p><p class="text-xs text-gray-400">${d[config.serialField]}</p></div></div>`;
+                return `<div class="p-2 bg-white dark:bg-gray-800 rounded border flex items-center space-x-3"><input type="checkbox" class="return-checkbox rounded" value="${d._id || d.id}" data-col="${d.collection}"><div><p class="font-semibold text-sm">${d[config.nameField]}</p><p class="text-xs text-gray-400">${d[config.serialField]}</p></div></div>`;
             }).join('');
             document.querySelectorAll('.return-checkbox').forEach(cb => cb.addEventListener('change', () => document.getElementById('confirmReturnBtn').disabled = !document.querySelector('.return-checkbox:checked')));
         }
@@ -1139,13 +1203,13 @@ window.populateHandoverDeviceList = function() {
     if (available.length === 0) { list.innerHTML = `<p class="text-center text-gray-400 p-4">No devices in storage.</p>`; return; }
     list.innerHTML = available.map(d => {
         const config = collectionConfigs[d.collection];
-        return `<div class="device-item p-2 hover:bg-gray-100 dark:hover:bg-gray-600 cursor-pointer flex justify-between items-center" onclick="window.addDeviceToHandoverCart('${d.id}', '${d.collection}')"><div><p class="font-semibold text-sm">${d[config.nameField]}</p><p class="text-xs text-gray-400">${d[config.serialField]}</p></div><i class="fas fa-plus text-green-500"></i></div>`;
+        return `<div class="device-item p-2 hover:bg-gray-100 dark:hover:bg-gray-600 cursor-pointer flex justify-between items-center" onclick="window.addDeviceToHandoverCart('${d._id || d.id}', '${d.collection}')"><div><p class="font-semibold text-sm">${d[config.nameField]}</p><p class="text-xs text-gray-400">${d[config.serialField]}</p></div><i class="fas fa-plus text-green-500"></i></div>`;
     }).join('');
 };
 
 window.addDeviceToHandoverCart = function(id, col) {
-    if(!handoverCart.some(i=>i.id===id)) {
-        const item = allData[col].find(i=>i.id===id);
+    if(!handoverCart.some(i => (i._id === id || i.id === id))) {
+        const item = allData[col].find(i => (i._id === id || i.id === id));
         handoverCart.push({...item, collection: col}); window.renderHandoverCart(); window.updateHandoverButtonState();
     }
 };
@@ -1156,12 +1220,13 @@ window.renderHandoverCart = function() {
     else {
         list.innerHTML = handoverCart.map(d => {
             const config = collectionConfigs[d.collection];
-            return `<div class="p-2 bg-white dark:bg-gray-800 rounded border flex justify-between"><div><p class="font-semibold text-sm">${d[config.nameField]}</p><p class="text-xs text-gray-400">${d[config.serialField]}</p></div><button onclick="window.removeHandoverItem('${d.id}')" class="text-red-500"><i class="fas fa-times"></i></button></div>`;
+            const id = d._id || d.id;
+            return `<div class="p-2 bg-white dark:bg-gray-800 rounded border flex justify-between"><div><p class="font-semibold text-sm">${d[config.nameField]}</p><p class="text-xs text-gray-400">${d[config.serialField]}</p></div><button onclick="window.removeHandoverItem('${id}')" class="text-red-500"><i class="fas fa-times"></i></button></div>`;
         }).join('');
     }
 };
 
-window.removeHandoverItem = function(id) { handoverCart = handoverCart.filter(i=>i.id!==id); window.renderHandoverCart(); window.updateHandoverButtonState(); };
+window.removeHandoverItem = function(id) { handoverCart = handoverCart.filter(i => (i._id !== id && i.id !== id)); window.renderHandoverCart(); window.updateHandoverButtonState(); };
 window.updateHandoverButtonState = function() { 
     const staffSelected = document.getElementById('selectedHandoverStaff').textContent !== 'None';
     document.getElementById('confirmHandoverBtn').disabled = !(staffSelected && handoverCart.length > 0); 
@@ -1195,7 +1260,10 @@ window.renderStaffTable = function() {
     const tbody = document.getElementById('staffTableBody');
     const staff = allData.Staff || [];
     if(staff.length === 0) tbody.innerHTML = `<tr><td colspan="4" class="text-center p-4 text-gray-500">No staff found.</td></tr>`;
-    else tbody.innerHTML = staff.map(s => `<tr><td class="px-6 py-4">${s.UserName}</td><td class="px-6 py-4">${s.FirstName||''} ${s.LastName||''}</td><td class="px-6 py-4">${s.Department||''}</td><td class="px-6 py-4 text-right"><button onclick="window.openStaffModal('edit','${s.id}')" class="text-indigo-600 mr-2"><i class="fas fa-edit"></i></button><button onclick="window.deleteStaff('${s.id}')" class="text-red-600"><i class="fas fa-trash"></i></button></td></tr>`).join('');
+    else tbody.innerHTML = staff.map(s => {
+        const id = s._id || s.id;
+        return `<tr><td class="px-6 py-4">${s.UserName}</td><td class="px-6 py-4">${s.FirstName||''} ${s.LastName||''}</td><td class="px-6 py-4">${s.Department||''}</td><td class="px-6 py-4 text-right"><button onclick="window.openStaffModal('edit','${id}')" class="text-indigo-600 mr-2"><i class="fas fa-edit"></i></button><button onclick="window.deleteStaff('${id}')" class="text-red-600"><i class="fas fa-trash"></i></button></td></tr>`;
+    }).join('');
 };
 
 window.openStaffModal = function(mode, id) {
@@ -1205,7 +1273,7 @@ window.openStaffModal = function(mode, id) {
     form.reset();
     document.getElementById('editStaffModalTitle').textContent = mode === 'edit' ? 'Edit Staff' : 'Add Staff';
     if (mode === 'edit') {
-        const s = allData.Staff.find(i => i.id === id);
+        const s = allData.Staff.find(i => i._id === id || i.id === id);
         if(s) {
             document.getElementById('editStaffUserName').value = s.UserName; document.getElementById('editStaffFirstName').value = s.FirstName;
             document.getElementById('editStaffLastName').value = s.LastName; document.getElementById('editStaffDepartment').value = s.Department;
@@ -1246,7 +1314,7 @@ window.buildMaintenanceLogInModal = function(item) {
     const list = document.getElementById('maintenanceLogList');
     if(!list) return;
     list.innerHTML = '';
-    const logs = (allData['Maintenance Log'] || []).filter(l => l.deviceId === item.id);
+    const logs = (allData['Maintenance Log'] || []).filter(l => l.deviceId === item._id || l.deviceId === item.id);
     if(logs.length === 0) list.innerHTML = '<p class="text-xs text-gray-500">No logs.</p>';
     logs.forEach(l => { list.innerHTML += `<div class="border-b py-2 dark:border-gray-700"><p class="text-sm font-semibold dark:text-gray-200">${new Date(l.logDate).toLocaleDateString()}</p><p class="text-sm dark:text-gray-400">${l.description}</p></div>`; });
 };
@@ -1324,7 +1392,11 @@ window.buildAssetsByUserPage = function() {
     if(!container) return;
     container.innerHTML = '';
     const byUser = {};
-    Object.keys(collectionConfigs).forEach(key => { (allData[key] || []).forEach(item => { const u = item.UserName || 'Unassigned'; if(!byUser[u]) byUser[u] = []; byUser[u].push({...item, type: key}); }); });
+    const skipKeys = ['Staff', 'CustomMenus', 'TransactionHistory', 'LoanHistory', 'Maintenance Log', 'admins'];
+    Object.keys(allData).forEach(key => { 
+        if (skipKeys.includes(key)) return;
+        (allData[key] || []).forEach(item => { const u = item.UserName || 'Unassigned'; if(!byUser[u]) byUser[u] = []; byUser[u].push({...item, type: key}); }); 
+    });
     Object.keys(byUser).sort().forEach(user => {
         if(user === 'Unassigned') return;
         const assets = byUser[user];
@@ -1333,7 +1405,7 @@ window.buildAssetsByUserPage = function() {
 };
 
 // ==========================================
-// --- LABEL PRINTER SYSTEM ---
+// --- LABEL PRINTER SYSTEM (FIXED) ---
 // ==========================================
 window.buildLabelPrinterPage = function() {
     const pageId = 'labelprinter-page';
@@ -1386,8 +1458,19 @@ window.buildLabelPrinterPage = function() {
         </div>
     `;
     const catSelect = document.getElementById('labelCategorySelect');
-    Object.keys(collectionConfigs).forEach(cat => { catSelect.innerHTML += `<option value="${cat}">${collectionConfigs[cat].displayName || cat}</option>`; });
+    
+    // 🌟 แสดงชื่อหมวดหมู่ที่ดึงมาจากฐานข้อมูลจริงๆ ไม่ใช่แค่ใน Config
+    const skipKeys = ['Staff', 'CustomMenus', 'TransactionHistory', 'LoanHistory', 'Maintenance Log', 'admins'];
+    Object.keys(allData).forEach(cat => { 
+        if (!skipKeys.includes(cat) && Array.isArray(allData[cat])) {
+            const displayName = collectionConfigs[cat] ? collectionConfigs[cat].displayName : cat;
+            catSelect.innerHTML += `<option value="${cat}">${displayName}</option>`; 
+        }
+    });
 };
+
+let currentLabelItems = []; 
+let currentLabelCategory = null;
 
 window.updateLabelItemDropdown = function() {
     const cat = document.getElementById('labelCategorySelect').value;
@@ -1396,12 +1479,17 @@ window.updateLabelItemDropdown = function() {
     window.updateLabelPreview(); 
     if (!cat) return;
 
-    const items = allData[cat] || []; const config = collectionConfigs[cat];
+    const items = allData[cat] || []; 
+    // ถ้าไม่มี Config ให้ใช้ค่าเริ่มต้นในการแสดงผล
+    const config = collectionConfigs[cat] || { nameField: 'SerialNumber', serialField: 'SerialNumber', formFields: ['SerialNumber', 'Status'] }; 
+    
     document.getElementById('selectAllLabelItemsCb').disabled = false; document.getElementById('selectAllLabelItemsCb').checked = false;
     
     document.getElementById('labelItemList').innerHTML = items.length === 0 ? '<p class="text-sm text-gray-500 text-center py-2">No items found</p>' : items.map(item => {
-        const name = item[config.nameField] || 'Unnamed'; const serial = item[config.serialField] || item._id;
-        return `<label class="flex items-center space-x-2 cursor-pointer p-1.5 hover:bg-white dark:hover:bg-gray-600 rounded border border-transparent hover:border-gray-200 dark:hover:border-gray-500 transition-colors"><input type="checkbox" class="label-item-cb rounded text-indigo-600 focus:ring-indigo-500" value="${item.id}" onchange="window.toggleLabelItem('${item.id}', this.checked)"><span class="text-sm text-gray-700 dark:text-gray-300 truncate w-full" title="${name} (${serial})"><span class="font-medium">${name}</span> <span class="text-xs text-gray-500 ml-1">(${serial})</span></span></label>`;
+        const name = item[config.nameField] || item.ComputerName || item.DeviceName || item.ItemName || item.Model || 'Unnamed'; 
+        const serial = item[config.serialField] || item.SerialNumber || item._id;
+        const id = item._id || item.id;
+        return `<label class="flex items-center space-x-2 cursor-pointer p-1.5 hover:bg-white dark:hover:bg-gray-600 rounded border border-transparent hover:border-gray-200 dark:hover:border-gray-500 transition-colors"><input type="checkbox" class="label-item-cb rounded text-indigo-600 focus:ring-indigo-500" value="${id}" onchange="window.toggleLabelItem('${id}', this.checked)"><span class="text-sm text-gray-700 dark:text-gray-300 truncate w-full" title="${name} (${serial})"><span class="font-medium">${name}</span> <span class="text-xs text-gray-500 ml-1">(${serial})</span></span></label>`;
     }).join('');
 
     document.getElementById('labelFieldsContainer').innerHTML = '';
@@ -1431,7 +1519,10 @@ function generateLabelHTML(item, isSplit) {
     else if(checkedFields.length <= 4) fontSizeClass = isSplit ? 'text-[7pt] leading-[8pt]' : 'text-[8pt] leading-[9pt]';
 
     checkedFields.forEach((field, index) => { const val = item[field] || '-'; const extraClass = index === 0 ? 'font-bold' : ''; textHtml += `<div class="${fontSizeClass} ${extraClass} truncate text-black font-sans" style="max-width: 100%;">${val}</div>`; });
-    const serial = item[collectionConfigs[currentLabelCategory].serialField] || item._id;
+    
+    // 🌟 ดึง Serial สำหรับสร้าง QR Code ให้แม่นยำขึ้น
+    const config = collectionConfigs[currentLabelCategory] || {};
+    const serial = item[config.serialField] || item.SerialNumber || item._id;
 
     return `<div class="w-full flex p-1 box-border bg-white ${isSplit ? 'h-1/2' : 'h-full'}"><div class="h-full flex flex-col items-center justify-center pr-1 shrink-0" style="width: 35%;"><canvas data-serial="${serial}" class="qr-render-target max-w-full max-h-full"></canvas></div><div class="h-full w-full pl-1 flex flex-col justify-center overflow-hidden border-l border-gray-300 bg-white">${textHtml}</div></div>`;
 }
@@ -1444,7 +1535,8 @@ window.updateLabelPreview = function() {
     if (currentLabelItems.length === 0) { printArea.innerHTML = '<div class="text-[10px] text-gray-400 text-center py-10 font-medium">No Items Selected</div>'; return; }
 
     let previewHtml = '';
-    const itemsData = currentLabelItems.map(id => allData[currentLabelCategory].find(i => i.id === id)).filter(Boolean);
+    // 🌟 แก้ไขการค้นหา item ด้วย _id ให้ถูกต้อง
+    const itemsData = currentLabelItems.map(id => allData[currentLabelCategory].find(i => i._id === id || i.id === id)).filter(Boolean);
 
     if (isSplit) {
         for (let i = 0; i < itemsData.length; i += 2) {
@@ -1483,14 +1575,6 @@ window.switchModalTab = function(tab, btn) {
     
     btn.classList.remove('text-gray-500');
     btn.classList.add('active', 'bg-white', 'dark:bg-gray-700', 'text-indigo-600', 'dark:text-indigo-400', 'shadow-sm');
-};
-window.hideModal = function(id) { 
-    const modal = document.getElementById(id);
-    modal.classList.add('opacity-0', 'pointer-events-none'); 
-    if (modal.querySelector('.modal-content')) {
-        modal.querySelector('.modal-content').classList.remove('scale-100');
-        modal.querySelector('.modal-content').classList.add('scale-95');
-    }
 };
 
 window.changeRowsPerPage = function(col, el) { paginationState[col].rowsPerPage = parseInt(el.value); paginationState[col].currentPage=1; window.buildTable(col); };
