@@ -82,18 +82,18 @@ let selectedItems = {};
 let collectionConfigs = {};
 
 // ==========================================
-// --- DISPOSAL SYSTEM HELPERS (NEW) ---
+// 1. Initialization & Data Fetching
 // ==========================================
-async function convertFileToBase64(file) {
-    return new Promise((resolve, reject) => {
-        const reader = new FileReader();
-        reader.readAsDataURL(file);
-        reader.onload = () => resolve(reader.result);
-        reader.onerror = error => reject(error);
-    });
+async function initApp() {
+    await fetchData();
+    setupEventListeners();
+    
+    // 🌟 เพิ่ม 2 บรรทัดนี้ เพื่อซ่อนหน้า Loading และแสดงหน้า Dashboard เมื่อดึงข้อมูลเสร็จ
+    document.getElementById('loading-state').style.display = 'none';
+    document.getElementById('app-container').classList.remove('hidden');
 }
 
-window.viewDisposalEvidence = function(base64Data) {
+async function fetchData() {
     if (!base64Data) return alert("ไม่พบเอกสารแนบในระบบ");
     if (base64Data.startsWith('data:application/pdf')) {
         const newWindow = window.open();
