@@ -1,6 +1,6 @@
 // ===================================================================
 // Frontend Logic for IT Inventory System (Full Complete Version)
-// Merged with: Render.com Cloud URL + Disposal Evidence System + Fixed Loading
+// Merged with: Render.com Cloud URL + Disposal Evidence System + Fixed Loading + Restored Features
 // ===================================================================
 
 // 🌟 ล็อก URL ไปที่เซิร์ฟเวอร์บน Cloud ของคุณ 100%
@@ -17,29 +17,38 @@ const AVAILABLE_FIELDS = [
     { id: 'SerialNumber', label: 'Serial Number', required: true, type: 'text', group: 'Core Identity' },
     { id: 'MonitorSerial', label: 'Monitor Serial', type: 'text', group: 'Core Identity' },
     { id: 'Status', label: 'Status (Active/Repair/Storage)', required: true, type: 'dropdown', group: 'Core Identity' },
+    
     { id: 'Type', label: 'Type / Category', type: 'dropdown', group: 'Hardware & Specs' },
     { id: 'Category', label: 'Category (Spare Parts)', type: 'dropdown', group: 'Hardware & Specs' },
     { id: 'AccessoryType', label: 'Accessory Type', type: 'dropdown', group: 'Hardware & Specs' },
     { id: 'Manufacturer', label: 'Manufacturer / Brand', required: false, type: 'text', group: 'Hardware & Specs' },
     { id: 'Model', label: 'Model', required: false, type: 'text', group: 'Hardware & Specs' },
+    { id: 'CPU', label: 'CPU', type: 'text', group: 'Hardware & Specs' },
+    { id: 'RAM_GB', label: 'RAM (GB)', type: 'number', group: 'Hardware & Specs' },
+    { id: 'DiskSize_GB', label: 'Disk Size (GB/TB)', type: 'text', group: 'Hardware & Specs' },
+    { id: 'OS', label: 'Operating System', type: 'text', group: 'Hardware & Specs' },
     { id: 'Capacity', label: 'Capacity (Storage)', type: 'text', group: 'Hardware & Specs' },
     { id: 'Resolution', label: 'Resolution', type: 'text', group: 'Hardware & Specs' },
     { id: 'LampHours', label: 'Lamp Hours', type: 'number', group: 'Hardware & Specs' },
     { id: 'Version', label: 'Software Version', type: 'text', group: 'Hardware & Specs' },
+    
     { id: 'IPAddress', label: 'IP Address', required: false, type: 'text', group: 'Network & Connectivity' },
     { id: 'MacAddress', label: 'MAC Address', required: false, type: 'text', group: 'Network & Connectivity' },
     { id: 'PhoneNumber', label: 'Phone Number', type: 'text', group: 'Network & Connectivity' },
     { id: 'IMEI', label: 'IMEI', type: 'text', group: 'Network & Connectivity' },
     { id: 'PortName', label: 'Port Name', type: 'text', group: 'Network & Connectivity' },
     { id: 'DriverName', label: 'Driver Name', type: 'text', group: 'Network & Connectivity' },
+    
     { id: 'UserName', label: 'Assigned User (Staff)', required: false, type: 'text', group: 'Assignment & Location' },
     { id: 'Location', label: 'Location / Room', required: false, type: 'text', group: 'Assignment & Location' },
     { id: 'AssignedComputer', label: 'Assigned Computer', type: 'text', group: 'Assignment & Location' },
+    
     { id: 'Supplier', label: 'Supplier / Vendor', required: false, type: 'text', group: 'Purchase & Warranty' },
     { id: 'PurchaseDate', label: 'Purchase Date', required: false, type: 'date', group: 'Purchase & Warranty' },
     { id: 'WarrantyStartDate', label: 'Warranty Start', required: false, type: 'date', group: 'Purchase & Warranty' },
     { id: 'WarrantyEndDate', label: 'Warranty End', required: false, type: 'date', group: 'Purchase & Warranty' },
     { id: 'Price', label: 'Price / Cost', required: false, type: 'number', group: 'Purchase & Warranty' },
+    
     { id: 'Quantity', label: 'Quantity (Stock)', required: false, type: 'number', group: 'Inventory & Notes' },
     { id: 'MinimumStock', label: 'Minimum Stock', required: false, type: 'number', group: 'Inventory & Notes' },
     { id: 'Description', label: 'Description / Notes', required: false, type: 'textarea', group: 'Inventory & Notes' }
@@ -153,9 +162,19 @@ async function refreshAllData() {
             }
         }
         
+        // 🌟 ตั้งค่าเริ่มต้นสำหรับอุปกรณ์พื้นฐาน (กู้คืนกลับมา)
+        const defaultConfigs = {
+            Computers: { displayName: 'Computers', headers: ['Last Seen', 'ComputerName', 'SerialNumber', 'UserName', 'Status'], formFields: ['ComputerName', 'Manufacturer', 'Model', 'Type', 'SerialNumber', 'CPU', 'RAM_GB', 'DiskSize_GB', 'OS', 'IPAddress', 'MacAddress', 'UserName', 'Location', 'PurchaseDate', 'WarrantyEndDate', 'Status', 'Description'], nameField: 'ComputerName', serialField: 'SerialNumber', icon: 'fa-laptop', dropdowns: { Status: ['Active', 'On Loan', 'Repair', 'Storage', 'Damaged', 'Disposed'], Type: ['Desktop', 'Laptop', 'MacBook', 'Tablet', 'POS', 'Server', 'Other'] }, isCustom: false },
+            Monitors: { displayName: 'Monitors', headers: ['Manufacturer', 'Model', 'MonitorSerial', 'UserName', 'Status'], formFields: ['Manufacturer', 'Model', 'MonitorSerial', 'UserName', 'Location', 'AssignedComputer', 'PurchaseDate', 'WarrantyEndDate', 'Status', 'Description'], nameField: 'Model', serialField: 'MonitorSerial', icon: 'fa-desktop', dropdowns: { Status: ['Active', 'On Loan', 'Repair', 'Storage', 'Damaged', 'Disposed'] }, isCustom: false },
+            Accessory: { displayName: 'Accessories', headers: ['AccessoryType', 'Model', 'SerialNumber', 'UserName', 'Status'], formFields: ['AccessoryType', 'Manufacturer', 'Model', 'SerialNumber', 'UserName', 'Location', 'AssignedComputer', 'PurchaseDate', 'Status', 'Description'], nameField: 'Model', serialField: 'SerialNumber', icon: 'fa-keyboard', dropdowns: { Status: ['Active', 'On Loan', 'Repair', 'Storage', 'Damaged', 'Disposed'], AccessoryType: ['Mouse', 'Keyboard', 'Webcam', 'Docking', 'Adapter', 'Other'] }, isCustom: false },
+            Printers: { displayName: 'Printers', headers: ['Name', 'Model', 'SerialNumber', 'IPAddress', 'Status'], formFields: ['Name', 'Manufacturer', 'Model', 'SerialNumber', 'IPAddress', 'MacAddress', 'Location', 'PurchaseDate', 'Status', 'Description'], nameField: 'Name', serialField: 'SerialNumber', icon: 'fa-print', dropdowns: { Status: ['Active', 'On Loan', 'Repair', 'Storage', 'Damaged', 'Disposed'] }, isCustom: false },
+            Network: { displayName: 'Network Devices', headers: ['Last Seen', 'DeviceName', 'Model', 'IPAddress', 'Status'], formFields: ['DeviceName', 'Manufacturer', 'Model', 'SerialNumber', 'Type', 'IPAddress', 'MacAddress', 'Location', 'PurchaseDate', 'Status', 'Description'], nameField: 'DeviceName', serialField: 'SerialNumber', icon: 'fa-network-wired', dropdowns: { Status: ['Active', 'On Loan', 'Repair', 'Storage', 'Damaged', 'Disposed'], Type: ['Router', 'Switch', 'Access Point', 'Firewall', 'Other'] }, isCustom: false }
+        };
+        
+        collectionConfigs = { ...defaultConfigs };
+
         const customMenus = data.CustomMenus || [];
         allData.CustomMenus = customMenus;
-        collectionConfigs = {}; 
 
         customMenus.forEach(menu => {
             if (!menu.fields || !Array.isArray(menu.fields) || menu.fields.length === 0) return;
@@ -181,6 +200,7 @@ async function refreshAllData() {
             const serialField = serialFieldObj ? serialFieldObj.id : 'SerialNumber';
 
             collectionConfigs[menu.name] = {
+                displayName: menu.displayName || menu.name,
                 headers: headerFields,
                 formFields: menu.fields.map(f => f.id),
                 nameField: nameField,
@@ -377,7 +397,16 @@ function renderSidebarDynamic() {
     container.innerHTML = ''; 
 
     const dashboardNode = { id: 'Dashboard', name: 'Dashboard', icon: 'fa-tachometer-alt', children: [], isSystem: true, clickAction: "loadPage('Dashboard', this)" };
-    const assetChildren = []; 
+    
+    // 🌟 กู้คืนเมนูอุปกรณ์พื้นฐานกลับมา
+    const assetChildren = [
+        { id: 'Computers', name: 'Computers', icon: 'fa-laptop', isSystem: true, clickAction: "loadPage('Computers', this)" },
+        { id: 'Monitors', name: 'Monitors', icon: 'fa-desktop', isSystem: true, clickAction: "loadPage('Monitors', this)" },
+        { id: 'Accessory', name: 'Accessories', icon: 'fa-keyboard', isSystem: true, clickAction: "loadPage('Accessory', this)" },
+        { id: 'Printers', name: 'Printers', icon: 'fa-print', isSystem: true, clickAction: "loadPage('Printers', this)" },
+        { id: 'Network', name: 'Network', icon: 'fa-network-wired', isSystem: true, clickAction: "loadPage('Network', this)" },
+        { id: 'DisposedAssets', name: 'Disposed Assets', icon: 'fa-trash-alt', isSystem: true, clickAction: "loadPage('DisposedAssets', this)" }
+    ];
     
     const managementChildren = [
         { 
@@ -396,18 +425,19 @@ function renderSidebarDynamic() {
             ]
         },
         { 
-            id: 'UserSettings', name: 'User Settings', icon: 'fa-users-cog', isSystem: true,
+            id: 'UserSettings', name: 'System Settings', icon: 'fa-cogs', isSystem: true,
             children: [
                 { id: 'StaffManagement', name: 'Staff Management', icon: 'fa-users', isSystem: true, clickAction: "loadPage('StaffManagement', this)" },
                 { id: 'AdminManagement', name: 'Admin Management', icon: 'fa-user-shield', isSystem: true, clickAction: "loadPage('AdminManagement', this)" },
-                { id: 'LabelPrinter', name: 'Label Printer', icon: 'fa-tags', isSystem: true, clickAction: "loadPage('LabelPrinter', this)" } 
+                { id: 'LabelPrinter', name: 'Label Printer', icon: 'fa-tags', isSystem: true, clickAction: "loadPage('LabelPrinter', this)" },
+                { id: 'Settings', name: 'Custom Categories', icon: 'fa-sliders-h', isSystem: true, clickAction: "loadPage('Settings', this)" } // 🌟 กู้คืนเมนู Settings
             ]
         }
     ];
 
     const customMenus = allData.CustomMenus || [];
     const customNodes = customMenus
-        .filter(m => collectionConfigs[m.name])
+        .filter(m => collectionConfigs[m.name] && m.name !== 'Computers' && m.name !== 'Monitors' && m.name !== 'Accessory' && m.name !== 'Printers' && m.name !== 'Network')
         .sort((a, b) => (a.order || 0) - (b.order || 0) || a.displayName.localeCompare(b.displayName))
         .map(m => ({
             id: m.name, name: m.displayName, icon: m.icon, isSystem: false, parentId: m.parentId, clickAction: `loadPage('${m.name}', this)`, allowDelete: true, allowEdit: true, order: m.order
@@ -415,9 +445,8 @@ function renderSidebarDynamic() {
 
     const rootNodes = [dashboardNode];
     rootNodes.push({ type: 'header', label: 'Assets' });
-    assetChildren.push({ id: 'DisposedAssets', name: 'Disposed Assets', icon: 'fa-trash-alt', isSystem: true, clickAction: "loadPage('DisposedAssets', this)" });
     
-    rootNodes.push(...assetChildren.map(c => ({...c, clickAction: `loadPage('${c.id}', this)`})), ...customNodes.filter(n => !n.parentId));
+    rootNodes.push(...assetChildren, ...customNodes.filter(n => !n.parentId));
     rootNodes.push({ type: 'header', label: 'Management' });
     rootNodes.push(...managementChildren);
 
@@ -437,8 +466,8 @@ function renderSidebarDynamic() {
         if (node.type === 'header') return `<li class="pt-4"><div class="px-4 text-xs font-semibold uppercase text-gray-400 mb-1">${node.label}</div></li>`;
         
         const hasChildren = node.children && node.children.length > 0;
-        const editBtn = node.allowEdit ? `<button onclick="openEditMenuModal('${node.id}', event)" class="ml-2 text-xs text-gray-400 hover:text-blue-500 opacity-0 group-hover:opacity-100 transition-opacity"><i class="fas fa-edit"></i></button>` : '';
-        const deleteBtn = node.allowDelete ? `<button onclick="deleteCustomMenu('${node.id}', event)" class="ml-2 text-xs text-gray-400 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity"><i class="fas fa-trash"></i></button>` : '';
+        const editBtn = node.allowEdit ? `<button onclick="window.openEditMenuModal('${node.id}', event)" class="ml-2 text-xs text-gray-400 hover:text-blue-500 opacity-0 group-hover:opacity-100 transition-opacity"><i class="fas fa-edit"></i></button>` : '';
+        const deleteBtn = node.allowDelete ? `<button onclick="window.deleteCustomMenu('${node.id}', event)" class="ml-2 text-xs text-gray-400 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity"><i class="fas fa-trash"></i></button>` : '';
 
         let textColor = node.id === 'DisposedAssets' ? 'text-red-500 dark:text-red-400' : 'text-gray-600 dark:text-gray-300';
 
@@ -449,15 +478,6 @@ function renderSidebarDynamic() {
     }
 
     rootNodes.forEach(node => { if (node.type === 'header' || !node.parentId) container.insertAdjacentHTML('beforeend', createMenuHTML(node)); });
-    
-    container.insertAdjacentHTML('beforeend', `
-        <li class="mt-4 pt-4 border-t dark:border-gray-700">
-            <a href="#" onclick="openAddMenuModal(); return false;" class="nav-link flex items-center space-x-3 px-4 py-2 rounded-lg text-indigo-600 dark:text-indigo-400 hover:bg-indigo-50 dark:hover:bg-indigo-900/30 border border-dashed border-indigo-300 dark:border-indigo-700">
-                <i class="fas fa-plus w-5 text-center"></i>
-                <span class="text-sm font-semibold">Add Custom Menu</span>
-            </a>
-        </li>
-    `);
 }
 
 function generateDynamicPages() {
@@ -465,60 +485,121 @@ function generateDynamicPages() {
     if (!container) return;
     container.innerHTML = ''; 
 
-    (allData.CustomMenus || []).forEach(menu => {
-        const config = collectionConfigs[menu.name];
+    // 🌟 กู้คืนการสร้างหน้าตารางให้กับทุกอุปกรณ์ (ไม่ใช่เฉพาะ Custom Menu)
+    Object.keys(collectionConfigs).forEach(colName => {
+        const config = collectionConfigs[colName];
         if (!config) return;
-        const pageId = `${menu.name.toLowerCase()}-page`;
-        const statusOptions = config.dropdowns.Status.map(s => `<option value="${s}">${s}</option>`).join('');
+        const pageId = `${colName.toLowerCase()}-page`;
+        const displayName = config.displayName || colName;
+        const statusOptions = config.dropdowns.Status ? config.dropdowns.Status.map(s => `<option value="${s}">${s}</option>`).join('') : '';
         
         container.innerHTML += `
         <div id="${pageId}" class="page-content" style="display:none;">
             <div class="flex flex-wrap justify-between items-center gap-2 mb-6">
-                <h2 class="text-2xl md:text-3xl font-bold text-gray-900 dark:text-white">${menu.displayName}</h2>
+                <h2 class="text-2xl md:text-3xl font-bold text-gray-900 dark:text-white">${displayName}</h2>
                 <div class="flex gap-2">
-                    <button onclick="openImportModal('${menu.name}')" class="bg-green-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-green-700"><i class="fas fa-file-import mr-2"></i>Import CSV</button>
-                    <button onclick="openModal('add', '${menu.name}')" class="bg-indigo-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-indigo-700"><i class="fas fa-plus mr-2"></i>Add New</button>
+                    <button onclick="window.openImportModal('${colName}')" class="bg-green-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-green-700"><i class="fas fa-file-import mr-2"></i>Import CSV</button>
+                    <button onclick="window.openModal('add', '${colName}')" class="bg-indigo-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-indigo-700"><i class="fas fa-plus mr-2"></i>Add New</button>
                 </div>
             </div>
             
             <div class="mb-4 flex flex-col md:flex-row gap-2">
                 <div class="w-full md:w-1/4">
-                    <select onchange="window.handleStatusFilter('${menu.name}', this.value)" class="w-full px-4 py-2 border rounded-lg dark:bg-gray-700 dark:border-gray-600 dark:text-gray-200">
+                    <select onchange="window.handleStatusFilter('${colName}', this.value)" class="w-full px-4 py-2 border rounded-lg dark:bg-gray-700 dark:border-gray-600 dark:text-gray-200">
                         <option value="">All Statuses</option>
                         ${statusOptions}
                     </select>
                 </div>
                 <div class="w-full md:w-3/4">
-                    <input type="text" id="${menu.name.toLowerCase()}SearchInput" onkeyup="window.handleSearch('${menu.name}', this.value)" placeholder="Search ${menu.displayName}..." class="w-full px-4 py-2 border rounded-lg dark:bg-gray-700 dark:border-gray-600 dark:placeholder-gray-400">
+                    <input type="text" id="${colName.toLowerCase()}SearchInput" onkeyup="window.handleSearch('${colName}', this.value)" placeholder="Search ${displayName}..." class="w-full px-4 py-2 border rounded-lg dark:bg-gray-700 dark:border-gray-600 dark:placeholder-gray-400">
                 </div>
             </div>
 
-            <div id="${menu.name}BulkActions" class="hidden mb-4 p-3 bg-indigo-50 dark:bg-indigo-900/30 border border-indigo-200 dark:border-indigo-700 rounded-lg flex items-center justify-between">
+            <div id="${colName}BulkActions" class="hidden mb-4 p-3 bg-indigo-50 dark:bg-indigo-900/30 border border-indigo-200 dark:border-indigo-700 rounded-lg flex items-center justify-between">
                 <div class="text-indigo-800 dark:text-indigo-200 text-sm font-semibold">
                     <i class="fas fa-check-square mr-1"></i> <span class="selected-count">0 item(s) selected</span>
                 </div>
                 <div class="flex space-x-2">
-                    <button onclick="openBulkEditModal('${menu.name}')" class="px-3 py-1.5 bg-indigo-600 text-white text-sm rounded hover:bg-indigo-700 shadow-sm"><i class="fas fa-edit mr-1"></i>Bulk Edit</button>
-                    <button onclick="bulkDelete('${menu.name}')" class="px-3 py-1.5 bg-red-600 text-white text-sm rounded hover:bg-red-700 shadow-sm"><i class="fas fa-trash mr-1"></i>Bulk Delete</button>
+                    <button onclick="window.openBulkEditModal('${colName}')" class="px-3 py-1.5 bg-indigo-600 text-white text-sm rounded hover:bg-indigo-700 shadow-sm"><i class="fas fa-edit mr-1"></i>Bulk Edit</button>
+                    <button onclick="window.bulkDelete('${colName}')" class="px-3 py-1.5 bg-red-600 text-white text-sm rounded hover:bg-red-700 shadow-sm"><i class="fas fa-trash mr-1"></i>Bulk Delete</button>
                 </div>
             </div>
 
             <div class="bg-white dark:bg-gray-800 rounded-lg shadow-sm overflow-hidden">
-                <div class="overflow-x-auto"><table id="${menu.name}Table" class="min-w-full table-fixed"></table></div>
+                <div class="overflow-x-auto"><table id="${colName}Table" class="min-w-full table-fixed"></table></div>
             </div>
-            <div id="${menu.name}Pagination" class="flex items-center justify-between mt-4 text-sm text-gray-600 dark:text-gray-300"></div>
+            <div id="${colName}Pagination" class="flex items-center justify-between mt-4 text-sm text-gray-600 dark:text-gray-300"></div>
         </div>`;
     });
 }
 
 // ==========================================
-// --- CUSTOM MENU MODAL LOGIC ---
+// --- CUSTOM MENU MODAL LOGIC & SETTINGS ---
 // ==========================================
-function openAddMenuModal() {
+
+// 🌟 กู้คืนระบบหน้าจอ Settings
+window.renderSettings = function() {
+    const area = document.getElementById('settings-content-area');
+    if (!area) return;
+
+    let html = `
+        <div class="mb-8 p-6 bg-gray-50 dark:bg-gray-800/50 rounded-xl border border-gray-200 dark:border-gray-700">
+            <h3 class="text-lg font-bold text-gray-800 dark:text-white mb-4"><i class="fas fa-plus-circle text-indigo-500 mr-2"></i>Create Custom Category</h3>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                <div><label class="block text-xs text-gray-500 uppercase tracking-wider mb-1">Database ID (e.g. Projectors)</label><input type="text" id="newMenuIdSettings" placeholder="No spaces" class="border dark:border-gray-600 p-2 rounded w-full dark:bg-gray-700"></div>
+                <div><label class="block text-xs text-gray-500 uppercase tracking-wider mb-1">Display Name</label><input type="text" id="newMenuNameSettings" placeholder="Display Name" class="border dark:border-gray-600 p-2 rounded w-full dark:bg-gray-700"></div>
+                <div><label class="block text-xs text-gray-500 uppercase tracking-wider mb-1">Icon (FontAwesome Class)</label><input type="text" id="newMenuIconSettings" placeholder="e.g., fa-video" class="border dark:border-gray-600 p-2 rounded w-full dark:bg-gray-700"></div>
+            </div>
+            <button onclick="window.openAddMenuModal()" class="bg-indigo-600 hover:bg-indigo-700 text-white px-6 py-2 rounded-lg font-medium transition shadow-sm">
+                Advanced Configuration / Create
+            </button>
+        </div>
+
+        <h3 class="text-lg font-bold text-gray-800 dark:text-white mb-4">Existing Custom Categories</h3>
+        <ul class="space-y-3">
+    `;
+
+    const customMenus = allData.CustomMenus || [];
+    if (customMenus.length === 0) {
+        html += `<p class="text-gray-500 text-sm">No custom categories created yet.</p>`;
+    } else {
+        customMenus.forEach(menu => {
+            html += `
+                <li class="flex justify-between items-center p-4 bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 shadow-sm">
+                    <div class="flex items-center">
+                        <div class="w-10 h-10 rounded-full bg-indigo-100 text-indigo-600 flex items-center justify-center mr-4"><i class="fas ${menu.icon || 'fa-box'}"></i></div>
+                        <div>
+                            <strong class="text-gray-800 dark:text-white block">${menu.displayName}</strong>
+                            <span class="text-xs text-gray-500">ID: ${menu.name} • Fields: ${menu.fields ? menu.fields.length : 0}</span>
+                        </div>
+                    </div>
+                    <div>
+                        <button onclick="window.openEditMenuModal('${menu.name}', event)" class="text-blue-500 hover:text-blue-700 mr-3 p-2"><i class="fas fa-edit"></i></button>
+                        <button onclick="window.deleteCustomMenu('${menu.name}')" class="text-red-500 hover:text-red-700 p-2"><i class="fas fa-trash"></i></button>
+                    </div>
+                </li>
+            `;
+        });
+    }
+
+    html += `</ul>`;
+    area.innerHTML = html;
+};
+
+window.openAddMenuModal = function() {
     const form = document.getElementById('addMenuForm');
     if (form) form.reset();
     document.getElementById('addMenuModalTitle').textContent = "Create Custom Menu";
     document.getElementById('editMenuMode').value = "create";
+    
+    // ดึงค่าจากหน้า Settings มาใส่ให้ถ้ามีการพิมพ์ค้างไว้
+    const idInput = document.getElementById('newMenuIdSettings');
+    const nameInput = document.getElementById('newMenuNameSettings');
+    const iconInput = document.getElementById('newMenuIconSettings');
+    if(idInput && idInput.value) document.getElementById('newMenuId').value = idInput.value;
+    if(nameInput && nameInput.value) document.getElementById('newMenuDisplay').value = nameInput.value;
+    if(iconInput && iconInput.value) document.getElementById('newMenuIcon').value = iconInput.value;
+
     document.getElementById('newMenuId').disabled = false;
     document.getElementById('newMenuId').classList.remove('bg-gray-200', 'cursor-not-allowed');
     populateParentDropdown();
@@ -527,7 +608,7 @@ function openAddMenuModal() {
     document.getElementById('addMenuModal').classList.remove('opacity-0', 'pointer-events-none');
 }
 
-function openEditMenuModal(menuName, event) {
+window.openEditMenuModal = function(menuName, event) {
     if (event) event.stopPropagation();
     const menu = allData.CustomMenus.find(m => m.name === menuName);
     if (!menu) return;
@@ -555,6 +636,7 @@ function openEditMenuModal(menuName, event) {
 
 function populateParentDropdown(selectedParentId = null) {
     const parentSelect = document.getElementById('newMenuParent');
+    if (!parentSelect) return;
     parentSelect.innerHTML = '<option value="">(None - Root Level)</option>';
     const currentEditingId = document.getElementById('newMenuId').value;
     (allData.CustomMenus || []).forEach(menu => {
@@ -589,7 +671,7 @@ function initColumnSelector() {
 }
 setTimeout(initColumnSelector, 1000);
 
-async function saveCustomMenu() {
+window.saveCustomMenu = async function() {
     const mode = document.getElementById('editMenuMode').value;
     const idInput = document.getElementById('newMenuId').value.trim();
     const displayInput = document.getElementById('newMenuDisplay').value.trim();
@@ -613,16 +695,18 @@ async function saveCustomMenu() {
         showNotificationModal('success', 'Menu Updated', `Custom menu saved.`);
         hideModal('addMenuModal');
         await initializeAppLogic(); 
+        if(document.getElementById('settings-page').style.display === 'block') window.renderSettings();
     } catch (error) { showNotificationModal('warning', 'Error', error.message); }
 }
 
-async function deleteCustomMenu(menuName, event) {
+window.deleteCustomMenu = async function(menuName, event) {
     if (event) event.stopPropagation();
     if (!confirm(`Delete menu "${menuName}"? Data will NOT be deleted.`)) return;
     try {
         await apiRequest(`/api/custom-menus/${menuName}`, 'DELETE');
         showNotificationModal('success', 'Deleted', `Menu deleted.`);
         await initializeAppLogic();
+        if(document.getElementById('settings-page').style.display === 'block') window.renderSettings();
     } catch (error) { showNotificationModal('warning', 'Cannot Delete', error.message); }
 }
 
@@ -660,6 +744,7 @@ function loadPage(pageName, navElement) {
         else if (pageName === 'StaffManagement') buildStaffManagementPage();
         else if (pageName === 'AdminManagement') buildAdminManagementPage();
         else if (pageName === 'DisposedAssets') window.renderDisposedAssets();
+        else if (pageName === 'Settings') window.renderSettings(); // 🌟 รันหน้า Settings
         else if (collectionConfigs[pageName]) {
             paginationState[pageName].filterText = '';
             const searchInput = document.getElementById(`${pageName.toLowerCase()}SearchInput`);
@@ -792,7 +877,7 @@ function buildTable(collectionName) {
                 }
                 html += `<td class="px-6 py-4 text-sm text-gray-700 dark:text-gray-200 whitespace-nowrap max-w-xs truncate" title="${String(val).replace(/<[^>]*>?/gm, '')}">${val}</td>`;
             });
-            html += `<td class="px-6 py-4 text-sm font-medium space-x-3 whitespace-nowrap"><button onclick="openModal('edit', '${collectionName}', '${item.id}')" class="text-indigo-600 hover:text-indigo-900 dark:text-indigo-400 dark:hover:text-indigo-300"><i class="fas fa-edit"></i></button><button onclick="deleteItem('${collectionName}', '${item.id}')" class="text-red-600 hover:text-red-900 dark:text-red-400 dark:hover:text-red-300"><i class="fas fa-trash"></i></button><button onclick="showQrModal('${item[config.serialField]}', '${item[config.nameField]}')" class="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"><i class="fas fa-qrcode"></i></button></td></tr>`;
+            html += `<td class="px-6 py-4 text-sm font-medium space-x-3 whitespace-nowrap"><button onclick="window.openModal('edit', '${collectionName}', '${item.id}')" class="text-indigo-600 hover:text-indigo-900 dark:text-indigo-400 dark:hover:text-indigo-300"><i class="fas fa-edit"></i></button><button onclick="window.deleteItem('${collectionName}', '${item.id}')" class="text-red-600 hover:text-red-900 dark:text-red-400 dark:hover:text-red-300"><i class="fas fa-trash"></i></button><button onclick="window.showQrModal('${item[config.serialField]}', '${item[config.nameField]}')" class="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"><i class="fas fa-qrcode"></i></button></td></tr>`;
         });
         setTimeout(() => { const selectAllCb = document.getElementById(`selectAll_${collectionName}`); if (selectAllCb) selectAllCb.checked = paginatedData.length > 0 && allCurrentPageSelected; }, 10);
     }
@@ -812,7 +897,7 @@ function renderPaginationControls(collectionName, totalRows) {
 }
 
 // --- CRUD & Forms ---
-function openModal(mode, collectionName, id = null) {
+window.openModal = function(mode, collectionName, id = null) {
     currentEdit = { mode, collection: collectionName, id };
     const form = document.getElementById('editForm');
     if (!form) return;
@@ -875,7 +960,7 @@ document.addEventListener('change', (e) => {
     }
 });
 
-async function saveData() {
+window.saveData = async function() {
     const formData = new FormData(document.getElementById('editForm'));
     const data = Object.fromEntries(formData.entries());
     const { mode, collection, id } = currentEdit;
@@ -908,7 +993,7 @@ async function saveData() {
     } catch (error) { showNotificationModal('warning', 'Save Failed', error.message); }
 }
 
-async function deleteItem(collectionName, id) {
+window.deleteItem = async function(collectionName, id) {
     if (confirm(`Are you sure you want to delete this item?`)) {
         try {
             await apiRequest(`/api/inventory/${collectionName}/${id}`, 'DELETE');
@@ -948,7 +1033,7 @@ function renderCategoryChart(data) {
 }
 
 // --- Modals ---
-function hideModal(id) { document.getElementById(id).classList.add('opacity-0', 'pointer-events-none'); }
+window.hideModal = function(id) { document.getElementById(id).classList.add('opacity-0', 'pointer-events-none'); }
 function showNotificationModal(type, title, msg) {
     document.getElementById('modalTitle').textContent = title;
     document.getElementById('modalMessage').textContent = msg;
