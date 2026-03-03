@@ -97,7 +97,6 @@
                     <!-- Scan View -->
                     <div id="scan-view" class="flex flex-col items-center justify-center h-full">
                         <div id="qr-reader" class="w-full max-w-sm mx-auto mb-6 rounded-xl overflow-hidden shadow-sm bg-gray-50 dark:bg-gray-700 min-h-[250px] flex items-center justify-center">
-                            <!-- Placeholder icon before scanning starts -->
                             <i class="fas fa-camera text-4xl text-gray-300 dark:text-gray-500" id="camera-placeholder"></i>
                         </div>
                         <button id="start-scan-button" onclick="startScanning()" class="bg-indigo-600 text-white font-bold py-3 px-8 rounded-xl hover:bg-indigo-700 shadow-md transform hover:-translate-y-0.5 transition-all flex items-center">
@@ -224,8 +223,16 @@
     
     async function apiRequest(endpoint, method = 'GET', body = null) {
         const headers = { 'Content-Type': 'application/json' };
+        
+        // 🌟 แก้ไข: แนบ Token (ถ้ามี) ป้องกัน Error 401 ในบาง API ย่อย
+        const token = localStorage.getItem('authToken');
+        if (token) {
+            headers['Authorization'] = `Bearer ${token}`;
+        }
+        
         const config = { method, headers };
         if (body) config.body = JSON.stringify(body);
+        
         try {
             const response = await fetch(`${API_BASE_URL}${endpoint}`, config);
             if (!response.ok) throw new Error(`API request failed with status ${response.status}`);
@@ -553,7 +560,6 @@
         if (!dueDate) return alert('กรุณาระบุกำหนดคืน');
         if (cartItems.length === 0) return alert('กรุณาเพิ่มอุปกรณ์ลงตะกร้าอย่างน้อย 1 ชิ้น');
         
-        // เช็คว่ากำหนดคืนต้องไม่ใช่อดีต
         if (new Date(dueDate) < new Date(new Date().toDateString())) {
             return alert('กำหนดคืนไม่สามารถเป็นวันที่ผ่านมาแล้วได้');
         }
@@ -576,14 +582,7 @@
             const response = await apiRequest('/api/loans/submit', 'POST', loanPayload);
             showLoanReceipt(response.loanGroupId, { borrowerName, dueDate, items: cartItems });
             cartItems = []; renderCart(); document.getElementById('loanForm').reset();
-            // รีเฟรชข้อมูลเบื้องหลังเพื่อให้รายการในคลังอัปเดต
-            await refreshAllData();
-            if (document.getElementById('device-list-view').style.display === 'flex') {
-                const currentCat = document.getElementById('current-category-title').textContent;
-                const realKey = Object.keys(collectionConfigs).find(k => collectionConfigs[k].displayName === currentCat || k === currentCat);
-                if(realKey) window.showDeviceCategory(realKey);
-            }
-            populateCategories(); // Update counts
+            initializeAppLogic(); 
         } catch (error) { 
             alert(`เกิดข้อผิดพลาด: ${error.message}`); 
         } finally {
@@ -594,7 +593,6 @@
     
     function showLoanReceipt(loanGroupId, loanDetails) {
         const canvas = document.getElementById('receiptQrCanvas');
-        // สร้าง Link สำหรับสแกนคืนอุปกรณ์
         const returnUrl = `${window.location.origin}/return.html?id=${loanGroupId}`;
         QRCode.toCanvas(canvas, returnUrl, { width: 200, margin: 1, color: { dark: '#000000', light: '#ffffff' } });
         
@@ -631,25 +629,23 @@
 
     async function initializeAppLogic() {
         try {
-            // โหลดข้อมูลที่มีสถานะเป็น Storage เท่านั้นมาแสดง
-            const data = await apiRequest('/api/inventory/all');
+            // 🌟 แก้ไข: เรียกใช้งาน API สาธารณะสำหรับหน้าระบบยืมโดยเฉพาะ
+            const data = await apiRequest('/api/public/loanable-items');
+            
             for (const key in data) {
                 if (Array.isArray(data[key])) {
                     allData[key] = data[key].map(item => ({...item, id: item._id }));
                 }
             }
 
-            // รวบรวม Config หมวดหมู่ทั้งหมด
-            const customMenus = data.CustomMenus || [];
-            customMenus.forEach(menu => {
-                if (!collectionConfigs[menu.name]) {
-                    const nameFieldObj = menu.fields?.find(f => ['ComputerName', 'DeviceName', 'ItemName'].includes(f.id));
-                    const serialFieldObj = menu.fields?.find(f => ['SerialNumber', 'MonitorSerial'].includes(f.id));
-                    collectionConfigs[menu.name] = { 
-                        displayName: menu.displayName || menu.name, 
-                        nameField: nameFieldObj ? nameFieldObj.id : (menu.fields?.[0]?.id || 'SerialNumber'),
-                        serialField: serialFieldObj ? serialFieldObj.id : 'SerialNumber',
-                        icon: menu.icon || 'fa-box'
+            // ถ้าไม่มี CustomMenus แนบมา ให้พยายามหาชื่อและไอคอนจาก Collection ที่ดึงมา
+            Object.keys(allData).forEach(key => {
+                if (!collectionConfigs[key]) {
+                    collectionConfigs[key] = { 
+                        displayName: key, 
+                        nameField: 'SerialNumber',
+                        serialField: 'SerialNumber',
+                        icon: 'fa-box'
                     };
                 }
             });
@@ -658,13 +654,17 @@
             document.getElementById('loan-page').style.display = 'block';
             populateCategories();
             
-            // Set default Due Date to tomorrow
             const tomorrow = new Date();
             tomorrow.setDate(tomorrow.getDate() + 1);
             document.getElementById('dueDate').value = tomorrow.toISOString().split('T')[0];
 
         } catch (error) { 
-            document.getElementById('loading-state').innerHTML = `<div class="text-center"><i class="fas fa-exclamation-triangle text-4xl text-red-500 mb-3"></i><p class="text-gray-800 dark:text-white font-bold text-xl">ไม่สามารถโหลดข้อมูลได้</p><p class="text-gray-500 mt-2">${error.message}</p></div>`; 
+            document.getElementById('loading-state').innerHTML = `
+                <div class="text-center">
+                    <i class="fas fa-exclamation-triangle text-4xl text-red-500 mb-3"></i>
+                    <p class="text-gray-800 dark:text-white font-bold text-xl">ไม่สามารถโหลดข้อมูลได้</p>
+                    <p class="text-gray-500 mt-2">${error.message}</p>
+                </div>`; 
         }
     }
 
