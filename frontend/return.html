@@ -3,52 +3,120 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Return Device</title>
+    <title>Device Return System | IT Inventory</title>
+    
+    <!-- Tailwind CSS & Config -->
     <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    fontFamily: { sans: ['Inter', 'sans-serif'] },
+                    colors: { indigo: { 500: '#6366f1', 600: '#4f46e5', 700: '#4338ca' } }
+                }
+            }
+        }
+    </script>
+    
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+    
     <style>
         body { font-family: 'Inter', sans-serif; }
+        .modal { transition: opacity 0.3s ease; }
+        .modal-content { transition: all 0.3s ease; transform: scale(0.95); }
+        .modal.active { opacity: 1; pointer-events: auto; }
+        .modal.active .modal-content { transform: scale(1); }
     </style>
 </head>
-<body class="bg-gray-100 dark:bg-gray-900 flex flex-col items-center min-h-screen transition-colors duration-300">
+<body class="bg-gray-50 dark:bg-gray-900 text-gray-800 dark:text-gray-200 min-h-screen flex flex-col transition-colors duration-300">
     
-    <!-- Header with Theme Toggle -->
-    <header class="w-full bg-white dark:bg-gray-800 shadow-sm p-4 flex items-center justify-between mb-8">
+    <!-- Header -->
+    <header class="w-full bg-white dark:bg-gray-800 shadow-sm p-4 flex items-center justify-between sticky top-0 z-40 border-b dark:border-gray-700">
         <div class="flex items-center space-x-3">
-            <i class="fas fa-undo-alt text-2xl text-indigo-600"></i>
-            <h1 class="text-xl font-bold text-gray-800 dark:text-white">Device Return</h1>
+            <div class="bg-indigo-100 dark:bg-indigo-900/50 p-2 rounded-lg">
+                <i class="fas fa-undo-alt text-xl text-indigo-600 dark:text-indigo-400"></i>
+            </div>
+            <div>
+                <h1 class="text-lg font-bold text-gray-800 dark:text-white leading-tight">ระบบคืนอุปกรณ์</h1>
+                <p class="text-xs text-gray-500 font-medium uppercase tracking-wider">IT Inventory System</p>
+            </div>
         </div>
-        <button id="theme-toggle" class="p-2 rounded-full hover:bg-gray-100 dark:hover:bg-gray-700 focus:outline-none">
-            <i id="theme-toggle-dark-icon" class="fas fa-moon text-gray-500 dark:text-gray-400"></i>
-            <i id="theme-toggle-light-icon" class="fas fa-sun text-gray-500 dark:text-gray-400 hidden"></i>
+        <button id="theme-toggle" class="p-2.5 rounded-full hover:bg-gray-100 dark:hover:bg-gray-700 focus:outline-none transition-colors border border-transparent hover:border-gray-200 dark:hover:border-gray-600">
+            <i id="theme-toggle-dark-icon" class="fas fa-moon text-gray-600 dark:text-gray-400 text-lg"></i>
+            <i id="theme-toggle-light-icon" class="fas fa-sun text-yellow-400 hidden text-lg"></i>
         </button>
     </header>
 
-    <div class="w-full max-w-2xl bg-white dark:bg-gray-800 p-8 rounded-xl shadow-lg mx-4">
-        <div id="loading" class="text-center text-gray-500 dark:text-gray-400">
-            <i class="fas fa-spinner fa-spin text-3xl mb-4"></i>
-            <p>Loading return information...</p>
-        </div>
-        
-        <div id="content" class="hidden">
-            <h2 class="text-2xl font-bold text-gray-800 dark:text-white mb-4">Return Items</h2>
-            <div id="returnDetails" class="text-sm mb-6 p-4 bg-gray-50 dark:bg-gray-700/50 rounded-lg border dark:border-gray-700"></div>
+    <!-- Main Content -->
+    <main class="flex-1 p-4 md:p-8 w-full max-w-3xl mx-auto flex flex-col justify-center">
+        <div class="bg-white dark:bg-gray-800 p-6 md:p-8 rounded-2xl shadow-lg border border-gray-100 dark:border-gray-700 relative overflow-hidden">
             
-            <h3 class="text-lg font-semibold text-gray-700 dark:text-gray-200 mb-3">Items in this loan:</h3>
-            <div id="return-items-list" class="space-y-3"></div>
-            <div id="return-actions" class="mt-6 flex justify-end space-x-3"></div>
+            <!-- Loading State -->
+            <div id="loading" class="flex flex-col items-center justify-center py-16 text-gray-500 dark:text-gray-400">
+                <i class="fas fa-circle-notch fa-spin text-5xl text-indigo-600 mb-4"></i>
+                <p class="font-medium text-lg">กำลังตรวจสอบข้อมูลการยืม...</p>
+            </div>
+            
+            <!-- Content State -->
+            <div id="content" class="hidden">
+                <div class="flex items-center mb-6 border-l-4 border-indigo-600 pl-3">
+                    <h2 class="text-2xl font-bold text-gray-900 dark:text-white">รายการคืนอุปกรณ์</h2>
+                </div>
+                
+                <!-- Borrower Details -->
+                <div id="returnDetails" class="mb-8 p-5 bg-indigo-50 dark:bg-gray-700/50 rounded-xl border border-indigo-100 dark:border-gray-600 shadow-sm">
+                    <!-- Injected by JS -->
+                </div>
+                
+                <h3 class="text-sm font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-4 border-b border-gray-200 dark:border-gray-700 pb-2">
+                    อุปกรณ์ในรายการนี้
+                </h3>
+                
+                <!-- Item List -->
+                <div id="return-items-list" class="space-y-3 mb-8">
+                    <!-- Injected by JS -->
+                </div>
+                
+                <!-- Action Buttons -->
+                <div id="return-actions" class="mt-6 flex flex-col sm:flex-row justify-end gap-3 pt-6 border-t border-gray-100 dark:border-gray-700">
+                    <!-- Injected by JS -->
+                </div>
+            </div>
+            
+            <!-- Not Found State -->
+            <div id="not-found" class="hidden flex flex-col items-center justify-center py-12 text-center">
+                 <div class="w-20 h-20 bg-red-100 dark:bg-red-900/30 rounded-full flex items-center justify-center mb-6">
+                     <i class="fas fa-exclamation-triangle text-4xl text-red-500 dark:text-red-400"></i>
+                 </div>
+                 <h2 class="text-2xl font-bold text-gray-900 dark:text-white mb-2">ไม่พบข้อมูลการยืม</h2>
+                 <p class="text-gray-500 dark:text-gray-400 mb-8 max-w-md">ไม่พบหมายเลขการยืม (Loan ID) ที่คุณระบุ กรุณาตรวจสอบ QR Code หรือลิงก์ที่ใช้สแกนอีกครั้ง</p>
+                 <button onclick="window.location.href='loan.html'" class="px-6 py-3 bg-indigo-600 text-white font-bold rounded-xl hover:bg-indigo-700 transition-colors shadow-md">
+                     กลับไปหน้าระบบยืม
+                 </button>
+            </div>
         </div>
-        
-        <div id="not-found" class="hidden text-center">
-             <i class="fas fa-exclamation-circle text-5xl text-red-500 mb-4"></i>
-             <h2 class="text-2xl font-bold text-red-500 mb-4">Loan Not Found</h2>
-             <p class="text-gray-600 dark:text-gray-400">The provided Loan ID could not be found. Please check the QR code and try again.</p>
+    </main>
+
+    <!-- Notification Modal -->
+    <div id="notificationModal" class="modal opacity-0 pointer-events-none fixed inset-0 z-[60] flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm">
+        <div class="modal-content bg-white dark:bg-gray-800 rounded-2xl p-8 text-center max-w-sm w-full shadow-2xl border border-gray-100 dark:border-gray-700">
+            <div id="modalIcon" class="mb-4 flex justify-center"></div>
+            <h3 id="modalTitle" class="text-xl font-bold text-gray-900 dark:text-white mb-2">แจ้งเตือน</h3>
+            <p id="modalMessage" class="text-gray-600 dark:text-gray-300 text-sm mb-8"></p>
+            <button onclick="closeNotificationAndReload()" class="w-full px-4 py-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-bold transition-colors shadow-md">
+                ตกลง
+            </button>
         </div>
     </div>
 
+    <!-- Main Logic -->
     <script type="module">
-        const API_BASE_URL = 'http://localhost:3000';
+        // 🌟 ล็อก URL ไปที่ Cloud 100%
+        const API_BASE_URL = 'https://it-inventory-system-ncd9.onrender.com';
+
+        let shouldReloadOnClose = false;
 
         const collectionConfigs = {
             Computers: { nameField: 'ComputerName', icon: 'fa-laptop' },
@@ -62,8 +130,39 @@
             SpareParts: { nameField: 'PartName', icon: 'fa-microchip' }
         };
 
+        // ฟังก์ชันแสดง Popup แจ้งเตือนแบบสวยงาม
+        window.showNotificationModal = (type, title, msg, reloadOnClose = false) => {
+            shouldReloadOnClose = reloadOnClose;
+            document.getElementById('modalTitle').textContent = title;
+            document.getElementById('modalMessage').textContent = msg;
+            
+            const icon = document.getElementById('modalIcon');
+            if(type === 'success') {
+                icon.innerHTML = '<div class="w-16 h-16 rounded-full bg-green-100 dark:bg-green-900/30 flex items-center justify-center"><i class="fas fa-check text-3xl text-green-500"></i></div>';
+            } else if(type === 'warning') {
+                icon.innerHTML = '<div class="w-16 h-16 rounded-full bg-yellow-100 dark:bg-yellow-900/30 flex items-center justify-center"><i class="fas fa-exclamation-triangle text-3xl text-yellow-500"></i></div>';
+            } else {
+                icon.innerHTML = '<div class="w-16 h-16 rounded-full bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center"><i class="fas fa-info-circle text-3xl text-blue-500"></i></div>';
+            }
+            
+            const modal = document.getElementById('notificationModal');
+            modal.classList.remove('opacity-0', 'pointer-events-none');
+            modal.classList.add('active');
+        };
+
+        window.closeNotificationAndReload = () => {
+            const modal = document.getElementById('notificationModal');
+            modal.classList.remove('active');
+            modal.classList.add('opacity-0', 'pointer-events-none');
+            
+            if (shouldReloadOnClose) {
+                location.reload();
+            }
+        };
+
         window.processReturn = async (transactionId) => {
-            if (!confirm('Confirm return of this item?')) return;
+            if (!confirm('ยืนยันการคืนอุปกรณ์ชิ้นนี้?')) return;
+            
             try {
                 const response = await fetch(`${API_BASE_URL}/api/loans/return`, {
                     method: 'POST',
@@ -71,17 +170,18 @@
                     body: JSON.stringify({ transactionIds: [transactionId] })
                 });
                 
-                if (!response.ok) throw new Error('Failed to return item.');
-                alert('Item returned successfully!');
-                location.reload();
+                if (!response.ok) throw new Error('เกิดข้อผิดพลาดในการคืนอุปกรณ์');
+                
+                showNotificationModal('success', 'คืนอุปกรณ์สำเร็จ', 'ระบบได้ทำการอัปเดตสถานะของอุปกรณ์เรียบร้อยแล้ว', true);
             } catch (error) {
-                alert(error.message);
+                showNotificationModal('warning', 'ผิดพลาด', error.message);
             }
         };
 
         window.processReturnAll = async (transactionIdsToReturn) => {
             const loanGroupId = new URLSearchParams(window.location.search).get('id');
-            if (!confirm(`Are you sure you want to return all remaining items for loan ${loanGroupId}?`)) return;
+            if (!confirm(`ยืนยันการคืนอุปกรณ์ทั้งหมดที่เหลือในรายการนี้หรือไม่?`)) return;
+            
             try {
                 const response = await fetch(`${API_BASE_URL}/api/loans/return`, {
                     method: 'POST',
@@ -89,11 +189,11 @@
                     body: JSON.stringify({ transactionIds: transactionIdsToReturn })
                 });
                 
-                if (!response.ok) throw new Error('Failed to return items.');
-                alert('All items returned successfully!');
-                location.reload();
+                if (!response.ok) throw new Error('เกิดข้อผิดพลาดในการคืนอุปกรณ์ทั้งหมด');
+                
+                showNotificationModal('success', 'คืนอุปกรณ์สำเร็จ', 'รับคืนอุปกรณ์ทั้งหมดในรายการนี้เรียบร้อยแล้ว', true);
             } catch (error) {
-                alert(error.message);
+                showNotificationModal('warning', 'ผิดพลาด', error.message);
             }
         };
 
@@ -121,20 +221,31 @@
 
             try {
                 const loanGroupId = new URLSearchParams(window.location.search).get('id');
-                if (!loanGroupId) throw new Error('No Loan ID provided');
+                if (!loanGroupId) throw new Error('ไม่พบรหัสการยืม');
 
                 const response = await fetch(`${API_BASE_URL}/api/loans/group/${loanGroupId}`);
                 if (!response.ok) throw new Error('Loan not found');
                 const { loanItems, devices } = await response.json();
 
-                loadingDiv.style.display = 'none';
+                loadingDiv.classList.add('hidden');
 
                 if (loanItems && loanItems.length > 0) {
                     const firstItem = loanItems[0];
+                    const dueDate = new Date(firstItem.DueDate).toLocaleDateString('th-TH', { year: 'numeric', month: 'long', day: 'numeric' });
+                    
                     document.getElementById('returnDetails').innerHTML = `
-                        <div class="flex justify-between items-center">
-                            <p class="text-gray-600 dark:text-gray-300"><strong>Borrower:</strong> ${firstItem.BorrowerName}</p>
-                            <p class="text-gray-500 dark:text-gray-400 text-xs">ID: ${loanGroupId}</p>
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div>
+                                <p class="text-xs text-indigo-500 font-bold uppercase tracking-wider mb-1">ผู้ยืม (Borrower)</p>
+                                <p class="text-lg font-bold text-gray-900 dark:text-white">${firstItem.BorrowerName}</p>
+                            </div>
+                            <div>
+                                <p class="text-xs text-indigo-500 font-bold uppercase tracking-wider mb-1">กำหนดคืน (Due Date)</p>
+                                <p class="text-sm font-bold text-red-600 dark:text-red-400">${dueDate}</p>
+                            </div>
+                            <div class="md:col-span-2 mt-2 pt-3 border-t border-indigo-100 dark:border-gray-600">
+                                <p class="text-xs text-gray-500 font-mono">รหัสอ้างอิง: ${loanGroupId}</p>
+                            </div>
                         </div>
                     `;
                     
@@ -145,7 +256,12 @@
                     for (const item of loanItems) {
                         const config = collectionConfigs[item.DeviceType] || { nameField: 'Name', icon: 'fa-cube' };
                         const deviceDoc = devices.find(d => d.DeviceSerial === item.DeviceSerial);
-                        const deviceName = deviceDoc ? deviceDoc.Name : item.DeviceSerial;
+                        
+                        // รองรับกรณีอุปกรณ์มาจาก Custom Menu
+                        let deviceName = item.DeviceSerial;
+                        if (deviceDoc) {
+                            deviceName = deviceDoc[config.nameField] || deviceDoc.ComputerName || deviceDoc.ItemName || deviceDoc.DeviceName || deviceDoc.Name || item.DeviceSerial;
+                        }
                         
                         const isReturned = item.Status === 'Returned';
                         if (!isReturned) {
@@ -154,19 +270,25 @@
                         }
 
                         let statusHtml = isReturned 
-                            ? `<span class="text-sm text-green-600 dark:text-green-400 font-medium inline-flex items-center"><i class="fas fa-check-circle mr-1.5"></i>Returned</span>` 
-                            : `<button onclick="processReturn('${item._id}')" class="text-sm bg-blue-500 text-white font-semibold py-1 px-4 rounded-full hover:bg-blue-600 transition-colors">Return</button>`;
+                            ? `<span class="px-3 py-1.5 text-xs font-bold rounded-full bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400 inline-flex items-center shadow-sm"><i class="fas fa-check-circle mr-1.5"></i> คืนแล้ว</span>` 
+                            : `<button onclick="processReturn('${item._id}')" class="text-sm bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 text-indigo-600 dark:text-indigo-400 font-bold py-1.5 px-5 rounded-lg hover:bg-indigo-50 dark:hover:bg-gray-600 transition-colors shadow-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-1 dark:focus:ring-offset-gray-800">คืนอุปกรณ์นี้</button>`;
+                        
+                        const itemOpacity = isReturned ? 'opacity-60 grayscale-[50%]' : 'opacity-100';
                         
                         itemsList.innerHTML += `
-                            <div class="bg-gray-50 dark:bg-gray-700/50 p-3 rounded-lg flex items-center justify-between">
-                                <div class="flex items-center space-x-3">
-                                    <i class="fas ${config.icon} text-xl text-gray-400"></i>
+                            <div class="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 p-4 rounded-xl flex items-center justify-between shadow-sm transition-all ${itemOpacity}">
+                                <div class="flex items-center space-x-4">
+                                    <div class="bg-gray-100 dark:bg-gray-700 p-3 rounded-lg">
+                                        <i class="fas ${config.icon} text-2xl text-gray-500 dark:text-gray-400"></i>
+                                    </div>
                                     <div>
-                                        <p class="font-semibold text-gray-800 dark:text-gray-200">${deviceName}</p>
-                                        <p class="text-xs text-gray-500 dark:text-gray-400">SN: ${item.DeviceSerial}</p>
+                                        <p class="font-bold text-sm text-gray-900 dark:text-white">${deviceName}</p>
+                                        <p class="text-xs text-gray-500 dark:text-gray-400 font-mono mt-0.5">SN: ${item.DeviceSerial}</p>
                                     </div>
                                 </div>
-                                ${statusHtml}
+                                <div>
+                                    ${statusHtml}
+                                </div>
                             </div>
                         `;
                     }
@@ -174,21 +296,33 @@
                     const actionsDiv = document.getElementById('return-actions');
                     if (hasItemsToReturn) {
                         actionsDiv.innerHTML = `
-                            <button onclick='processReturnAll(${JSON.stringify(transactionIdsToReturn)})' class="w-full bg-indigo-600 text-white font-bold py-3 px-4 rounded-lg hover:bg-indigo-700 transition-colors flex items-center justify-center space-x-2">
-                                <i class="fas fa-undo-alt"></i><span>Return All Remaining Items</span>
+                            <button onclick="window.location.href='loan.html'" class="w-full sm:w-auto px-6 py-3 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-200 font-bold rounded-xl hover:bg-gray-50 dark:hover:bg-gray-600 transition-colors shadow-sm">
+                                ย้อนกลับ
+                            </button>
+                            <button onclick='processReturnAll(${JSON.stringify(transactionIdsToReturn)})' class="w-full sm:w-auto flex-1 bg-indigo-600 text-white font-bold py-3 px-6 rounded-xl hover:bg-indigo-700 transition-colors shadow-md flex items-center justify-center space-x-2">
+                                <i class="fas fa-undo-alt"></i><span>ทำรายการคืนอุปกรณ์ทั้งหมดที่เหลือ</span>
                             </button>
                         `;
                     } else {
-                        actionsDiv.innerHTML = `<p class="text-center text-green-600 font-semibold w-full">All items have been returned. Thank you!</p>`;
+                        actionsDiv.innerHTML = `
+                            <div class="w-full text-center p-4 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-xl">
+                                <p class="text-green-700 dark:text-green-400 font-bold flex items-center justify-center">
+                                    <i class="fas fa-check-double mr-2 text-xl"></i> รับคืนอุปกรณ์ครบทุกชิ้นเรียบร้อยแล้ว
+                                </p>
+                            </div>
+                            <button onclick="window.location.href='loan.html'" class="w-full mt-4 px-6 py-3 bg-gray-200 dark:bg-gray-700 text-gray-800 dark:text-white font-bold rounded-xl hover:bg-gray-300 dark:hover:bg-gray-600 transition-colors shadow-sm">
+                                กลับหน้าหลัก
+                            </button>
+                        `;
                     }
-                    contentDiv.style.display = 'block';
+                    contentDiv.classList.remove('hidden');
                 } else {
-                    notFoundDiv.style.display = 'block';
+                    notFoundDiv.classList.remove('hidden');
                 }
             } catch (error) {
                 console.error("Initialization Failed:", error);
-                loadingDiv.style.display = 'none';
-                notFoundDiv.style.display = 'block';
+                loadingDiv.classList.add('hidden');
+                notFoundDiv.classList.remove('hidden');
             }
         });
     </script>
