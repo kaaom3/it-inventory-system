@@ -1084,7 +1084,8 @@ window.deleteItem = async function(collectionName, id) {
 // ==========================================
 window.updateDashboard = function() {
     let total = 0, active = 0, storage = 0, issues = 0;
-    const skipKeys = ['Staff', 'CustomMenus', 'TransactionHistory', 'LoanHistory', 'Maintenance Log', 'admins'];
+    // 🌟 เพิ่ม 'Software' เข้าไปใน skipKeys เพื่อไม่ให้นับรวมใน Total, Status, Category Chart
+    const skipKeys = ['Staff', 'CustomMenus', 'TransactionHistory', 'LoanHistory', 'Maintenance Log', 'admins', 'Software'];
     const allItems = [];
 
     for (const [key, items] of Object.entries(allData)) {
@@ -1099,7 +1100,6 @@ window.updateDashboard = function() {
         document.getElementById('stat-issues').innerText = allItems.filter(i=>['Repair','Damaged','Disposed'].includes(i.Status)).length;
     }
     
-    // 🌟 กู้คืนระบบกล่องสรุปอุปกรณ์ (Category Overview Grid) ที่คลิกได้
     let overviewGrid = document.getElementById('category-overview-grid');
     if (!overviewGrid) {
         const topStatsGrid = document.querySelector('#dashboard-page .grid');
@@ -1113,6 +1113,7 @@ window.updateDashboard = function() {
     if (overviewGrid) {
         overviewGrid.innerHTML = '';
         Object.keys(collectionConfigs).forEach(colName => {
+            if (colName === 'Software') return; // 🌟 ข้ามการสร้างกล่องสรุป Software
             const config = collectionConfigs[colName];
             const items = allData[colName] || [];
             const displayName = config.displayName || colName;
@@ -1447,7 +1448,8 @@ window.buildAssetsByUserPage = function() {
     if(!container) return;
     container.innerHTML = '';
     const byUser = {};
-    const skipKeys = ['Staff', 'CustomMenus', 'TransactionHistory', 'LoanHistory', 'Maintenance Log', 'admins'];
+    // 🌟 เพิ่ม 'Software' เข้าไปใน skipKeys เพื่อไม่ให้นับรวมใน Assets by User
+    const skipKeys = ['Staff', 'CustomMenus', 'TransactionHistory', 'LoanHistory', 'Maintenance Log', 'admins', 'Software'];
     Object.keys(allData).forEach(key => { 
         if (skipKeys.includes(key)) return;
         (allData[key] || []).forEach(item => { const u = item.UserName || 'Unassigned'; if(!byUser[u]) byUser[u] = []; byUser[u].push({...item, type: key}); }); 
@@ -1514,7 +1516,6 @@ window.buildLabelPrinterPage = function() {
     `;
     const catSelect = document.getElementById('labelCategorySelect');
     
-    // 🌟 แสดงชื่อหมวดหมู่ที่ดึงมาจากฐานข้อมูลจริงๆ ไม่ใช่แค่ใน Config
     const skipKeys = ['Staff', 'CustomMenus', 'TransactionHistory', 'LoanHistory', 'Maintenance Log', 'admins'];
     Object.keys(allData).forEach(cat => { 
         if (!skipKeys.includes(cat) && Array.isArray(allData[cat])) {
