@@ -558,12 +558,12 @@ window.loadPage = function(pageName, navElement) {
     const pageId = `${pageName.toLowerCase()}-page`;
     let pageDiv = document.getElementById(pageId);
     
+    // สร้างหน้า Printer ถ้าหาไม่เจอ
     if (pageName === 'LabelPrinter' && !pageDiv) {
         pageDiv = document.createElement('div'); 
         pageDiv.id = pageId; 
         pageDiv.className = 'page-content hidden';
         document.getElementById('main-content').appendChild(pageDiv);
-        window.buildLabelPrinterPage();
     }
 
     if (pageDiv) {
@@ -580,6 +580,10 @@ window.loadPage = function(pageName, navElement) {
         else if (pageName === 'AdminManagement') window.buildAdminManagementPage();
         else if (pageName === 'DisposedAssets') window.renderDisposedAssets();
         else if (pageName === 'Settings') window.renderSettings();
+        // 🌟 แก้ไข: เรียกฟังก์ชันวาดหน้า Label Printer ตรงนี้
+        else if (pageName === 'LabelPrinter') {
+            if (pageDiv.innerHTML.trim() === '') window.buildLabelPrinterPage();
+        }
         else if (collectionConfigs[pageName]) {
             if (paginationState[pageName]) {
                 paginationState[pageName].filterText = '';
@@ -1345,7 +1349,7 @@ window.buildLabelPrinterPage = function() {
         </div>
         <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
             <div class="lg:col-span-4 space-y-6">
-                <div class="bg-white dark:bg-gray-800 p-5 rounded-xl shadow-sm">
+                <div class="bg-white dark:bg-gray-800 p-5 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700">
                     <h3 class="font-semibold text-lg border-b dark:border-gray-700 pb-2 mb-4 text-gray-800 dark:text-white">1. Select Assets</h3>
                     <div class="space-y-4">
                         <div>
@@ -1353,30 +1357,30 @@ window.buildLabelPrinterPage = function() {
                             <select id="labelCategorySelect" onchange="window.updateLabelItemDropdown()" class="w-full px-3 py-2 border rounded-md dark:bg-gray-700 dark:border-gray-600 dark:text-white focus:ring-indigo-500"><option value="">-- Select Category --</option></select>
                         </div>
                         <div>
-                            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1 flex justify-between"><span>Items to Print</span><span class="text-indigo-600 dark:text-indigo-400 text-xs" id="selectedLabelCount">0 selected</span></label>
-                            <div class="mb-2 px-1"><label class="inline-flex items-center cursor-pointer"><input type="checkbox" id="selectAllLabelItemsCb" onchange="window.toggleAllLabelItems(this.checked)" class="rounded text-indigo-600 focus:ring-indigo-500" disabled><span class="ml-2 text-sm text-gray-600 dark:text-gray-400">Select All</span></label></div>
+                            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1 flex justify-between"><span>Items to Print</span><span class="text-indigo-600 dark:text-indigo-400 text-xs font-bold" id="selectedLabelCount">0 selected</span></label>
+                            <div class="mb-2 px-1"><label class="inline-flex items-center cursor-pointer"><input type="checkbox" id="selectAllLabelItemsCb" onchange="window.toggleAllLabelItems(this.checked)" class="rounded text-indigo-600 focus:ring-indigo-500" disabled><span class="ml-2 text-sm font-medium text-gray-600 dark:text-gray-400">Select All</span></label></div>
                             <div id="labelItemList" class="max-h-48 overflow-y-auto space-y-1 border rounded-md p-2 dark:border-gray-600 bg-gray-50 dark:bg-gray-700/50"><p class="text-sm text-gray-500 text-center py-2">Select category first</p></div>
                         </div>
                     </div>
                 </div>
-                <div class="bg-white dark:bg-gray-800 p-5 rounded-xl shadow-sm">
+                <div class="bg-white dark:bg-gray-800 p-5 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700">
                     <h3 class="font-semibold text-lg border-b dark:border-gray-700 pb-2 mb-4 text-gray-800 dark:text-white">2. Label Dimensions</h3>
                     <div class="grid grid-cols-2 gap-4 mb-4">
                         <div><label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Width (mm)</label><input type="number" id="labelWidth" value="50" onchange="window.updateLabelPreview()" class="w-full px-3 py-2 border rounded-md dark:bg-gray-700 dark:border-gray-600 dark:text-white focus:ring-indigo-500"></div>
                         <div><label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Height (mm)</label><input type="number" id="labelHeight" value="30" onchange="window.updateLabelPreview()" class="w-full px-3 py-2 border rounded-md dark:bg-gray-700 dark:border-gray-600 dark:text-white focus:ring-indigo-500"></div>
                     </div>
-                    <label class="flex items-center space-x-2 cursor-pointer bg-indigo-50 dark:bg-indigo-900/30 p-2 rounded-lg"><input type="checkbox" id="labelSplitMode" onchange="window.updateLabelPreview()" class="rounded text-indigo-600 focus:ring-indigo-500 w-4 h-4"><span class="text-sm font-medium text-indigo-800 dark:text-indigo-200">Split Label (Top/Bottom - 2 items)</span></label>
+                    <label class="flex items-center space-x-2 cursor-pointer bg-indigo-50 dark:bg-indigo-900/30 p-3 rounded-lg border border-indigo-100 dark:border-indigo-800"><input type="checkbox" id="labelSplitMode" onchange="window.updateLabelPreview()" class="rounded text-indigo-600 focus:ring-indigo-500 w-4 h-4"><span class="text-sm font-bold text-indigo-800 dark:text-indigo-200">Split Label (Top/Bottom - 2 items)</span></label>
                 </div>
-                <div class="bg-white dark:bg-gray-800 p-5 rounded-xl shadow-sm">
+                <div class="bg-white dark:bg-gray-800 p-5 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700">
                     <h3 class="font-semibold text-lg border-b dark:border-gray-700 pb-2 mb-4 text-gray-800 dark:text-white">3. Data to Print</h3>
-                    <div id="labelFieldsContainer" class="space-y-2 max-h-48 overflow-y-auto pr-2"><p class="text-sm text-gray-500 text-center">Select category first</p></div>
+                    <div id="labelFieldsContainer" class="space-y-2 max-h-48 overflow-y-auto pr-2 custom-scrollbar"><p class="text-sm text-gray-500 text-center">Select category first</p></div>
                 </div>
             </div>
             <div class="lg:col-span-8">
                 <div class="bg-white dark:bg-gray-800 p-6 rounded-xl shadow-sm flex flex-col items-center justify-center min-h-[500px] border-2 border-dashed border-gray-300 dark:border-gray-600">
-                    <h3 class="text-gray-400 dark:text-gray-500 mb-6 font-medium tracking-widest uppercase">Live Preview</h3>
-                    <div class="bg-gray-100 dark:bg-gray-900 p-6 rounded-lg overflow-auto max-w-full max-h-[600px]"><div id="print-area" class="flex flex-col gap-4 items-center"><div class="text-[10px] text-gray-400 text-center py-10">No Items Selected</div></div></div>
-                    <p class="text-xs text-gray-500 mt-6 max-w-md text-center"><i class="fas fa-info-circle mr-1"></i> When printing, make sure to set <strong>Margins to "None"</strong>.</p>
+                    <h3 class="text-gray-400 dark:text-gray-500 mb-6 font-bold tracking-widest uppercase">Live Preview</h3>
+                    <div class="bg-gray-100 dark:bg-gray-900 p-6 rounded-lg overflow-auto max-w-full max-h-[600px] custom-scrollbar"><div id="print-area" class="flex flex-col gap-4 items-center"><div class="text-[10px] text-gray-400 text-center py-10 font-medium">No Items Selected</div></div></div>
+                    <p class="text-xs text-gray-500 mt-6 max-w-md text-center"><i class="fas fa-info-circle mr-1 text-indigo-500"></i> When printing, make sure to set <strong>Margins to "None"</strong> and disable headers/footers in your browser's print dialog.</p>
                 </div>
             </div>
         </div>
@@ -1397,13 +1401,13 @@ window.updateLabelItemDropdown = function() {
     
     document.getElementById('labelItemList').innerHTML = items.length === 0 ? '<p class="text-sm text-gray-500 text-center py-2">No items found</p>' : items.map(item => {
         const name = item[config.nameField] || 'Unnamed'; const serial = item[config.serialField] || item._id;
-        return `<label class="flex items-center space-x-2 cursor-pointer p-1.5 hover:bg-white dark:hover:bg-gray-600 rounded border border-transparent hover:border-gray-200 dark:hover:border-gray-500"><input type="checkbox" class="label-item-cb rounded text-indigo-600 focus:ring-indigo-500" value="${item.id}" onchange="window.toggleLabelItem('${item.id}', this.checked)"><span class="text-sm text-gray-700 dark:text-gray-300 truncate w-full" title="${name} (${serial})">${name} <span class="text-xs text-gray-500">(${serial})</span></span></label>`;
+        return `<label class="flex items-center space-x-2 cursor-pointer p-1.5 hover:bg-white dark:hover:bg-gray-600 rounded border border-transparent hover:border-gray-200 dark:hover:border-gray-500 transition-colors"><input type="checkbox" class="label-item-cb rounded text-indigo-600 focus:ring-indigo-500" value="${item.id}" onchange="window.toggleLabelItem('${item.id}', this.checked)"><span class="text-sm text-gray-700 dark:text-gray-300 truncate w-full" title="${name} (${serial})"><span class="font-medium">${name}</span> <span class="text-xs text-gray-500 ml-1">(${serial})</span></span></label>`;
     }).join('');
 
     document.getElementById('labelFieldsContainer').innerHTML = '';
     config.formFields.forEach(field => {
         const isChecked = field === config.nameField || field === config.serialField ? 'checked' : '';
-        document.getElementById('labelFieldsContainer').innerHTML += `<label class="flex items-center space-x-2 cursor-pointer p-1.5 hover:bg-gray-50 dark:hover:bg-gray-700 rounded"><input type="checkbox" class="label-field-cb rounded text-indigo-600 focus:ring-indigo-500" value="${field}" ${isChecked} onchange="window.updateLabelPreview()"><span class="text-sm text-gray-700 dark:text-gray-300 truncate">${field}</span></label>`;
+        document.getElementById('labelFieldsContainer').innerHTML += `<label class="flex items-center space-x-2 cursor-pointer p-1.5 hover:bg-gray-50 dark:hover:bg-gray-700 rounded transition-colors"><input type="checkbox" class="label-field-cb rounded text-indigo-600 focus:ring-indigo-500" value="${field}" ${isChecked} onchange="window.updateLabelPreview()"><span class="text-sm font-medium text-gray-700 dark:text-gray-300 truncate">${field}</span></label>`;
     });
 };
 
@@ -1419,7 +1423,7 @@ window.toggleAllLabelItems = function(isChecked) {
 };
 
 function generateLabelHTML(item, isSplit) {
-    if (!item) return `<div class="w-full ${isSplit ? 'h-1/2' : 'h-full'}"></div>`; 
+    if (!item) return `<div class="w-full ${isSplit ? 'h-1/2' : 'h-full'} bg-white"></div>`; 
     const checkedFields = Array.from(document.querySelectorAll('.label-field-cb:checked')).map(cb => cb.value);
     let textHtml = '';
     let fontSizeClass = isSplit ? 'text-[6pt] leading-[7pt]' : 'text-[7pt] leading-[8pt]';
@@ -1429,7 +1433,7 @@ function generateLabelHTML(item, isSplit) {
     checkedFields.forEach((field, index) => { const val = item[field] || '-'; const extraClass = index === 0 ? 'font-bold' : ''; textHtml += `<div class="${fontSizeClass} ${extraClass} truncate text-black font-sans" style="max-width: 100%;">${val}</div>`; });
     const serial = item[collectionConfigs[currentLabelCategory].serialField] || item._id;
 
-    return `<div class="w-full flex p-1 box-border ${isSplit ? 'h-1/2' : 'h-full'}"><div class="h-full flex flex-col items-center justify-center pr-1 shrink-0" style="width: 35%;"><canvas data-serial="${serial}" class="qr-render-target max-w-full max-h-full"></canvas></div><div class="h-full w-full pl-1 flex flex-col justify-center overflow-hidden border-l border-gray-300">${textHtml}</div></div>`;
+    return `<div class="w-full flex p-1 box-border bg-white ${isSplit ? 'h-1/2' : 'h-full'}"><div class="h-full flex flex-col items-center justify-center pr-1 shrink-0" style="width: 35%;"><canvas data-serial="${serial}" class="qr-render-target max-w-full max-h-full"></canvas></div><div class="h-full w-full pl-1 flex flex-col justify-center overflow-hidden border-l border-gray-300 bg-white">${textHtml}</div></div>`;
 }
 
 window.updateLabelPreview = function() {
@@ -1437,7 +1441,7 @@ window.updateLabelPreview = function() {
     const w = document.getElementById('labelWidth').value || 50; const h = document.getElementById('labelHeight').value || 30;
     const isSplit = document.getElementById('labelSplitMode').checked;
 
-    if (currentLabelItems.length === 0) { printArea.innerHTML = '<div class="text-[10px] text-gray-400 text-center py-10">No Items Selected</div>'; return; }
+    if (currentLabelItems.length === 0) { printArea.innerHTML = '<div class="text-[10px] text-gray-400 text-center py-10 font-medium">No Items Selected</div>'; return; }
 
     let previewHtml = '';
     const itemsData = currentLabelItems.map(id => allData[currentLabelCategory].find(i => i.id === id)).filter(Boolean);
