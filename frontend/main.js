@@ -1,6 +1,6 @@
 // ===================================================================
 // Frontend Logic for IT Inventory System (Full Complete Version)
-// Merged with: Render.com Cloud URL + Disposal Evidence System + Fixed Menus
+// Merged with: Render.com Cloud URL + Disposal Evidence + New Card UI Modal
 // ===================================================================
 
 // 🌟 ล็อก URL ไปที่เซิร์ฟเวอร์บน Cloud ของคุณ 100%
@@ -96,7 +96,7 @@ document.addEventListener('DOMContentLoaded', () => {
 async function initializeAppLogic() {
     const success = await refreshAllData();
     if (success) {
-        // ซ่อนหน้า Loading และโชว์แอปหลัก
+        // ซ่อน Loading สลับไปโชว์ Container หลัก
         const loadingState = document.getElementById('loading-state');
         const appContainer = document.getElementById('app-container');
         
@@ -105,9 +105,8 @@ async function initializeAppLogic() {
 
         renderSidebarDynamic(); 
         generateDynamicPages();
-        updateDashboard();
+        window.updateDashboard();
         
-        // 🌟 บังคับโหลดหน้า Dashboard ให้เป็นหน้าแรก
         window.loadPage('Dashboard');
         
         runPeriodicPing();
@@ -120,7 +119,7 @@ async function initializeAppLogic() {
             if (visiblePage && visiblePage.id !== 'dashboard-page') {
                 const colName = visiblePage.id.replace('-page', '');
                 const realKey = Object.keys(collectionConfigs).find(k => k.toLowerCase() === colName);
-                if(realKey) buildTable(realKey);
+                if(realKey) window.buildTable(realKey);
             }
         }, 60000); 
     }
@@ -398,7 +397,6 @@ function renderSidebarDynamic() {
     if (!container) return;
     container.innerHTML = ''; 
 
-    // 🌟 ใส่ window. ไว้หน้าฟังก์ชันทั้งหมดเพื่อป้องกัน Error scope ในหน้าเว็บ
     const dashboardNode = { id: 'Dashboard', name: 'Dashboard', icon: 'fa-tachometer-alt', children: [], isSystem: true, clickAction: "window.loadPage('Dashboard', this)" };
     
     const assetChildren = [
@@ -499,8 +497,8 @@ function generateDynamicPages() {
             <div class="flex flex-wrap justify-between items-center gap-2 mb-6">
                 <h2 class="text-2xl md:text-3xl font-bold text-gray-900 dark:text-white">${displayName}</h2>
                 <div class="flex gap-2">
-                    <button onclick="window.openImportModal('${colName}')" class="bg-green-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-green-700"><i class="fas fa-file-import mr-2"></i>Import CSV</button>
-                    <button onclick="window.openModal('add', '${colName}')" class="bg-indigo-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-indigo-700"><i class="fas fa-plus mr-2"></i>Add New</button>
+                    <button onclick="window.openImportModal('${colName}')" class="bg-green-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-green-700 shadow-sm"><i class="fas fa-file-import mr-2"></i>Import CSV</button>
+                    <button onclick="window.openModal('add', '${colName}')" class="bg-indigo-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-indigo-700 shadow-sm"><i class="fas fa-plus mr-2"></i>Add New</button>
                 </div>
             </div>
             
@@ -526,7 +524,7 @@ function generateDynamicPages() {
                 </div>
             </div>
 
-            <div class="bg-white dark:bg-gray-800 rounded-lg shadow-sm overflow-hidden">
+            <div class="bg-white dark:bg-gray-800 rounded-lg shadow-sm overflow-hidden border border-gray-100 dark:border-gray-700">
                 <div class="overflow-x-auto"><table id="${colName}Table" class="min-w-full table-fixed"></table></div>
             </div>
             <div id="${colName}Pagination" class="flex items-center justify-between mt-4 text-sm text-gray-600 dark:text-gray-300"></div>
@@ -538,20 +536,17 @@ function generateDynamicPages() {
 // --- PAGE LOAD & SWITCHING (FIXED) ---
 // ==========================================
 window.loadPage = function(pageName, navElement) {
-    // 1. เคลียร์สีและ Active ของเมนูซ้ายทั้งหมด
     document.querySelectorAll('.nav-link').forEach(l => {
         l.classList.remove('bg-indigo-50', 'text-indigo-600', 'dark:bg-gray-700', 'dark:text-white', 'font-semibold');
         l.classList.add('text-gray-600', 'dark:text-gray-300');
     });
 
-    // 2. ปิดซ่อนทุกๆ หน้าต่างหลัก (ลบ Active / เพิ่ม Hidden)
     document.querySelectorAll('.page-content').forEach(p => {
         p.classList.remove('active');
         p.classList.add('hidden');
         p.style.display = 'none';
     });
 
-    // 3. หาสิ่งที่ผู้ใช้คลิก แล้วใส่สีไฮไลต์ให้
     let targetNav = navElement || document.getElementById(`nav-${pageName}`);
     if (targetNav) {
         targetNav.classList.remove('text-gray-600', 'dark:text-gray-300');
@@ -560,11 +555,9 @@ window.loadPage = function(pageName, navElement) {
         if (parentDetails) parentDetails.setAttribute('open', 'true');
     }
 
-    // 4. หาส่วนกล่อง (Div) ของหน้านั้นๆ เพื่อแสดงผล
     const pageId = `${pageName.toLowerCase()}-page`;
     let pageDiv = document.getElementById(pageId);
     
-    // สร้างหน้า Printer แบบเจาะจงถ้าหาไม่เจอ
     if (pageName === 'LabelPrinter' && !pageDiv) {
         pageDiv = document.createElement('div'); 
         pageDiv.id = pageId; 
@@ -573,13 +566,11 @@ window.loadPage = function(pageName, navElement) {
         window.buildLabelPrinterPage();
     }
 
-    // 5. แสดงผลหน้าต่างหลัก
     if (pageDiv) {
         pageDiv.classList.remove('hidden');
         pageDiv.classList.add('active');
         pageDiv.style.display = 'block';
 
-        // โหลดข้อมูลเฉพาะหน้า
         if (pageName === 'Dashboard') window.updateDashboard();
         else if (pageName === 'LoanHistory') window.buildLoanHistoryCards();
         else if (pageName === 'Maintenance') window.buildMaintenancePage();
@@ -599,7 +590,6 @@ window.loadPage = function(pageName, navElement) {
         }
     }
     
-    // พับเมนูบนมือถือ
     if (window.innerWidth < 768) {
         const sidebar = document.getElementById('sidebar');
         const overlay = document.getElementById('sidebar-overlay');
@@ -678,7 +668,7 @@ window.openAddMenuModal = function() {
     
     document.querySelectorAll('.col-checkbox').forEach(cb => { if(!cb.disabled) cb.checked = true; });
     document.getElementById('addMenuModal').classList.remove('opacity-0', 'pointer-events-none');
-}
+};
 
 window.openEditMenuModal = function(menuName, event) {
     if (event) event.stopPropagation();
@@ -704,7 +694,7 @@ window.openEditMenuModal = function(menuName, event) {
     }
 
     document.getElementById('addMenuModal').classList.remove('opacity-0', 'pointer-events-none');
-}
+};
 
 window.populateParentDropdown = function(selectedParentId = null) {
     const parentSelect = document.getElementById('newMenuParent');
@@ -717,7 +707,7 @@ window.populateParentDropdown = function(selectedParentId = null) {
             parentSelect.innerHTML += `<option value="${menu.name}" ${selected}>${menu.displayName}</option>`;
         }
     });
-}
+};
 
 function initColumnSelector() {
     const colContainer = document.getElementById('column-selector-container');
@@ -769,7 +759,7 @@ window.saveCustomMenu = async function() {
         await initializeAppLogic(); 
         if(document.getElementById('settings-page').style.display === 'block') window.renderSettings();
     } catch (error) { showNotificationModal('warning', 'Error', error.message); }
-}
+};
 
 window.deleteCustomMenu = async function(menuName, event) {
     if (event) event.stopPropagation();
@@ -780,7 +770,7 @@ window.deleteCustomMenu = async function(menuName, event) {
         await initializeAppLogic();
         if(document.getElementById('settings-page').style.display === 'block') window.renderSettings();
     } catch (error) { showNotificationModal('warning', 'Cannot Delete', error.message); }
-}
+};
 
 // ==========================================
 // --- BULK SELECTION & MANAGEMENT ---
@@ -920,7 +910,9 @@ window.renderPaginationControls = function(collectionName, totalRows) {
     container.innerHTML = `<div class="text-sm">Showing <span class="font-semibold">${startItem}</span> to <span class="font-semibold">${endItem}</span> of <span class="font-semibold">${totalRows}</span> results</div><div class="flex items-center space-x-2"><label class="text-sm font-medium">Rows:</label><select onchange="window.changeRowsPerPage('${collectionName}', this)" class="rounded-md border-gray-300 dark:bg-gray-700 dark:border-gray-600 text-sm"><option value="10" ${state.rowsPerPage == 10 ? 'selected' : ''}>10</option><option value="25" ${state.rowsPerPage == 25 ? 'selected' : ''}>25</option><option value="50" ${state.rowsPerPage == 50 ? 'selected' : ''}>50</option></select><button onclick="window.changePage('${collectionName}', -1)" ${state.currentPage===1?'disabled':''} class="px-2 py-1 border rounded disabled:opacity-50 bg-white dark:bg-gray-700"><i class="fas fa-chevron-left"></i></button><span class="text-sm">Page ${state.currentPage} / ${totalPages || 1}</span><button onclick="window.changePage('${collectionName}', 1)" ${state.currentPage>=totalPages?'disabled':''} class="px-2 py-1 border rounded disabled:opacity-50 bg-white dark:bg-gray-700"><i class="fas fa-chevron-right"></i></button></div>`;
 };
 
-// --- CRUD & Forms ---
+// ==========================================
+// --- NEW REDESIGNED CRUD MODAL ---
+// ==========================================
 window.openModal = function(mode, collectionName, id = null) {
     currentEdit = { mode, collection: collectionName, id };
     const form = document.getElementById('editForm');
@@ -928,30 +920,81 @@ window.openModal = function(mode, collectionName, id = null) {
     form.innerHTML = '';
     const config = collectionConfigs[collectionName];
     const itemData = (mode === 'edit' && allData[collectionName]) ? allData[collectionName].find(i => i.id === id) || {} : {};
-    document.getElementById('editModalTitle').innerHTML = mode === 'edit' ? `<i class="fas fa-edit mr-2 text-indigo-500"></i> Edit ${collectionName}` : `<i class="fas fa-plus mr-2 text-indigo-500"></i> Add ${collectionName}`;
+    
+    // Header แบบใหม่ (เข้ากับ index.html ดีไซน์ล่าสุด)
+    const actionText = mode === 'edit' ? 'Edit' : 'Add New';
+    const actionIcon = mode === 'edit' ? 'fa-edit' : 'fa-plus-circle';
+    document.getElementById('editModalTitle').innerHTML = `
+        <div class="flex items-center">
+            <div class="w-12 h-12 rounded-full bg-indigo-100 dark:bg-indigo-900/50 flex items-center justify-center mr-4 shadow-inner">
+                <i class="fas ${actionIcon} text-indigo-600 dark:text-indigo-400 text-xl"></i>
+            </div>
+            <div>
+                <h3 class="text-2xl font-bold text-gray-900 dark:text-white leading-tight">${actionText} <span class="text-indigo-600 dark:text-indigo-400">${config.displayName || collectionName}</span></h3>
+                <p class="text-xs text-gray-500 font-medium mt-1 uppercase tracking-widest">${mode === 'edit' ? 'System ID: ' + (itemData[config.serialField] || id) : 'Fill in the specification details'}</p>
+            </div>
+        </div>
+    `;
     
     const groups = { 'Core Identity': [], 'Hardware & Specs': [], 'Network & Connectivity': [], 'Assignment & Location': [], 'Purchase & Warranty': [], 'Inventory & Notes': [], 'Other': [] };
     config.formFields.forEach(fieldId => { const fieldDef = AVAILABLE_FIELDS.find(f => f.id === fieldId) || { label: fieldId, type: 'text', group: 'Other' }; const grp = fieldDef.group || 'Other'; if(!groups[grp]) groups[grp] = []; groups[grp].push({ id: fieldId, def: fieldDef }); });
 
+    const groupIcons = {
+        'Core Identity': 'fa-id-badge text-blue-500',
+        'Hardware & Specs': 'fa-microchip text-purple-500',
+        'Network & Connectivity': 'fa-network-wired text-green-500',
+        'Assignment & Location': 'fa-map-marker-alt text-red-500',
+        'Purchase & Warranty': 'fa-file-invoice-dollar text-yellow-500',
+        'Inventory & Notes': 'fa-clipboard-list text-teal-500',
+        'Other': 'fa-layer-group text-gray-500'
+    };
+
     let formHtml = '';
+    
+    // วาดกล่อง Card ของฟอร์มตามกลุ่มข้อมูล
     for (const [groupName, fields] of Object.entries(groups)) {
         if (fields.length === 0) continue;
-        formHtml += `<div class="col-span-full mt-4 mb-2"><h4 class="text-md font-bold text-indigo-600 dark:text-indigo-400 border-b border-indigo-100 dark:border-indigo-900/50 pb-2">${groupName}</h4></div><div class="grid grid-cols-1 md:grid-cols-2 gap-4 w-full">`;
+        const iconClass = groupIcons[groupName] || 'fa-folder';
+
+        formHtml += `
+        <div class="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm overflow-hidden">
+            <div class="px-5 py-3 bg-gray-50 dark:bg-gray-900/50 border-b border-gray-200 dark:border-gray-700 flex items-center">
+                <i class="fas ${iconClass} mr-2"></i>
+                <h4 class="text-sm font-bold text-gray-700 dark:text-gray-200 uppercase tracking-wider">${groupName}</h4>
+            </div>
+            <div class="p-5 grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-5">
+        `;
+        
         fields.forEach(f => {
             const fieldId = f.id; const fieldDef = f.def; let val = itemData[fieldId] !== undefined ? itemData[fieldId] : ''; const dropdown = config.dropdowns && config.dropdowns[fieldId];
-            formHtml += `<div class="col-span-1"><label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">${fieldDef.label}</label>`;
-            if (dropdown) formHtml += `<select name="${fieldId}" id="edit-${fieldId}" class="mt-1 block w-full px-3 py-2 border rounded-md dark:bg-gray-700 dark:border-gray-600 dark:text-white"><option value="">-- Select --</option>${dropdown.map(opt => `<option value="${opt}" ${val === opt ? 'selected' : ''}>${opt}</option>`).join('')}</select>`;
-            else if (fieldDef.type === 'date') { const d = new Date(val); if(!isNaN(d) && val) val = d.toISOString().split('T')[0]; formHtml += `<input type="date" name="${fieldId}" id="edit-${fieldId}" value="${val}" class="mt-1 block w-full px-3 py-2 border rounded-md dark:bg-gray-700 dark:border-gray-600 dark:text-white">`; }
-            else if (fieldDef.type === 'number') formHtml += `<input type="number" name="${fieldId}" id="edit-${fieldId}" value="${val}" class="mt-1 block w-full px-3 py-2 border rounded-md dark:bg-gray-700 dark:border-gray-600 dark:text-white">`;
-            else if (fieldDef.type === 'textarea') formHtml += `<textarea name="${fieldId}" id="edit-${fieldId}" rows="3" class="mt-1 block w-full px-3 py-2 border rounded-md dark:bg-gray-700 dark:border-gray-600 dark:text-white">${val}</textarea>`;
-            else formHtml += `<input type="text" name="${fieldId}" id="edit-${fieldId}" value="${val}" class="mt-1 block w-full px-3 py-2 border rounded-md dark:bg-gray-700 dark:border-gray-600 dark:text-white">`;
+            
+            formHtml += `<div class="col-span-1 relative">`;
+            const requiredHtml = (fieldDef.required || ['SerialNumber', 'ItemName', 'Status'].includes(fieldId)) ? `<span class="text-red-500 ml-1">*</span>` : '';
+            formHtml += `<label class="block text-xs font-semibold text-gray-600 dark:text-gray-400 mb-1.5">${fieldDef.label}${requiredHtml}</label>`;
+            
+            const inputClasses = `w-full px-4 py-2.5 bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 block dark:bg-gray-700/50 dark:border-gray-600 dark:placeholder-gray-400 dark:text-white transition-all duration-200 hover:border-indigo-300`;
+
+            if (dropdown) {
+                formHtml += `<select name="${fieldId}" id="edit-${fieldId}" class="${inputClasses} appearance-none"><option value="">-- Select --</option>${dropdown.map(opt => `<option value="${opt}" ${val === opt ? 'selected' : ''}>${opt}</option>`).join('')}</select>`;
+                formHtml += `<div class="pointer-events-none absolute inset-y-0 right-0 top-6 flex items-center px-4 text-gray-500"><i class="fas fa-chevron-down text-xs"></i></div>`;
+            } else if (fieldDef.type === 'date') { 
+                const d = new Date(val); if(!isNaN(d) && val) val = d.toISOString().split('T')[0]; 
+                formHtml += `<input type="date" name="${fieldId}" id="edit-${fieldId}" value="${val}" class="${inputClasses}">`; 
+            } else if (fieldDef.type === 'number') {
+                formHtml += `<input type="number" name="${fieldId}" id="edit-${fieldId}" value="${val}" class="${inputClasses}">`;
+            } else if (fieldDef.type === 'textarea') { 
+                formHtml += `<textarea name="${fieldId}" id="edit-${fieldId}" rows="2" class="${inputClasses}">${val}</textarea>`;
+            } else { 
+                formHtml += `<input type="text" name="${fieldId}" id="edit-${fieldId}" value="${val}" class="${inputClasses}">`;
+            }
             formHtml += `</div>`;
         });
-        formHtml += '</div>';
+        formHtml += `</div></div>`;
     }
     
     form.innerHTML = formHtml;
     
+    // ส่วนแสดงผลกล่องแนบไฟล์ตอนแทงจำหน่าย (Disposed)
     const disposalSection = document.getElementById('disposal-evidence-section');
     const existingEvidenceBox = document.getElementById('existingEvidenceBox');
     const fileInput = document.getElementById('disposalFileInput');
@@ -971,9 +1014,17 @@ window.openModal = function(mode, collectionName, id = null) {
     const tabBtn = document.querySelector('#modal-tabs .tab-button');
     if (tabBtn) window.switchModalTab('details', tabBtn);
     window.buildMaintenanceLogInModal(itemData);
-    document.getElementById('editModal').classList.remove('opacity-0', 'pointer-events-none');
+    
+    // เปิดหน้าต่าง Modal (พร้อม Animation Scale จาก index.html)
+    const modal = document.getElementById('editModal');
+    modal.classList.remove('opacity-0', 'pointer-events-none');
+    if (modal.querySelector('.modal-content')) {
+        modal.querySelector('.modal-content').classList.remove('scale-95');
+        modal.querySelector('.modal-content').classList.add('scale-100');
+    }
 };
 
+// Toggle ระบบแทงจำหน่ายแบบ Real-time
 document.addEventListener('change', (e) => {
     if (e.target && e.target.id === 'edit-Status') {
         const disposalSection = document.getElementById('disposal-evidence-section');
@@ -1026,48 +1077,9 @@ window.deleteItem = async function(collectionName, id) {
     }
 };
 
-// --- Dashboard ---
-window.updateDashboard = function() {
-    const allItems = Object.keys(collectionConfigs).flatMap(k => allData[k] || []);
-    if(document.getElementById('stat-total')) {
-        document.getElementById('stat-total').innerText = allItems.length;
-        document.getElementById('stat-active').innerText = allItems.filter(i=>i.Status==='Active' || i.Status==='On Loan').length;
-        document.getElementById('stat-storage').innerText = allItems.filter(i=>i.Status==='Storage').length;
-        document.getElementById('stat-issues').innerText = allItems.filter(i=>['Repair','Damaged','Disposed'].includes(i.Status)).length;
-    }
-    const statusCounts = {}; allItems.forEach(i => { statusCounts[i.Status] = (statusCounts[i.Status] || 0) + 1; });
-    window.renderStatusChart(statusCounts);
-    const categoryCounts = {}; Object.keys(collectionConfigs).forEach(k => { categoryCounts[k] = (allData[k] || []).length; });
-    window.renderCategoryChart(categoryCounts);
-};
-
-window.renderStatusChart = function(data) {
-    const ctx = document.getElementById('statusChart');
-    if(!ctx) return;
-    if(statusChart) { statusChart.data.labels = Object.keys(data); statusChart.data.datasets[0].data = Object.values(data); statusChart.update(); }
-    else { statusChart = new Chart(ctx, { type: 'doughnut', data: { labels: Object.keys(data), datasets: [{ data: Object.values(data), backgroundColor: ['#22c55e', '#eab308', '#f97316', '#3b82f6', '#ef4444', '#9ca3af'] }] }, options: { responsive: true, maintainAspectRatio: false } }); }
-};
-
-window.renderCategoryChart = function(data) {
-    const ctx = document.getElementById('categoryChart');
-    if(!ctx) return;
-    if(categoryChart) { categoryChart.data.labels = Object.keys(data); categoryChart.data.datasets[0].data = Object.values(data); categoryChart.update(); }
-    else { categoryChart = new Chart(ctx, { type: 'bar', data: { labels: Object.keys(data), datasets: [{ label: 'Assets', data: Object.values(data), backgroundColor: '#6366f1' }] }, options: { responsive: true, maintainAspectRatio: false } }); }
-};
-
-// --- Modals ---
-window.hideModal = function(id) { document.getElementById(id).classList.add('opacity-0', 'pointer-events-none'); };
-function showNotificationModal(type, title, msg) {
-    document.getElementById('modalTitle').textContent = title;
-    document.getElementById('modalMessage').textContent = msg;
-    const icon = document.getElementById('modalIcon');
-    if(type === 'success') icon.innerHTML = '<i class="fas fa-check-circle text-4xl text-green-500"></i>';
-    else if(type === 'warning') icon.innerHTML = '<i class="fas fa-exclamation-triangle text-4xl text-yellow-500"></i>';
-    else icon.innerHTML = '<i class="fas fa-info-circle text-4xl text-blue-500"></i>';
-    document.getElementById('notificationModal').classList.remove('opacity-0', 'pointer-events-none');
-}
-
-// --- Management Logic (Handover, Staff, Admin, Maintenance, Print) ---
+// ==========================================
+// --- Management Logic (Handover, Staff, Admin, Maintenance) ---
+// ==========================================
 window.buildHandoverReturnPage = function() {
     const handoverTab = document.getElementById('handover-tab-content');
     if(handoverTab) {
@@ -1226,19 +1238,13 @@ window.renderAdminTable = async function() {
 window.openAddUserModal = function() { document.getElementById('addUserModal').classList.remove('opacity-0', 'pointer-events-none'); };
 window.deleteAdmin = async function(id) { if(confirm("Delete admin?")) { await apiRequest('/api/admins/delete', 'DELETE', { uid: id }); window.renderAdminTable(); } };
 
-document.getElementById('addUserForm')?.addEventListener('submit', async (e) => {
-    e.preventDefault();
-    const email = document.getElementById('newUserEmail').value; const pwd = document.getElementById('newUserPassword').value;
-    try { await apiRequest('/api/admins/create', 'POST', { email, password: pwd }); window.hideModal('addUserModal'); window.renderAdminTable(); } catch(err) { document.getElementById('addUserError').textContent = err.message; }
-});
-
 window.buildMaintenanceLogInModal = function(item) {
     const list = document.getElementById('maintenanceLogList');
     if(!list) return;
     list.innerHTML = '';
     const logs = (allData['Maintenance Log'] || []).filter(l => l.deviceId === item.id);
     if(logs.length === 0) list.innerHTML = '<p class="text-xs text-gray-500">No logs.</p>';
-    logs.forEach(l => { list.innerHTML += `<div class="border-b py-2"><p class="text-sm font-semibold">${new Date(l.logDate).toLocaleDateString()}</p><p class="text-sm">${l.description}</p></div>`; });
+    logs.forEach(l => { list.innerHTML += `<div class="border-b py-2 dark:border-gray-700"><p class="text-sm font-semibold dark:text-gray-200">${new Date(l.logDate).toLocaleDateString()}</p><p class="text-sm dark:text-gray-400">${l.description}</p></div>`; });
 };
 
 window.addMaintenanceLog = function() {
@@ -1325,7 +1331,6 @@ window.buildAssetsByUserPage = function() {
 // ==========================================
 // --- LABEL PRINTER SYSTEM ---
 // ==========================================
-let currentLabelItems = []; let currentLabelCategory = null;
 window.buildLabelPrinterPage = function() {
     const pageId = 'labelprinter-page';
     let pageDiv = document.getElementById(pageId);
@@ -1461,14 +1466,29 @@ window.printLabel = function() {
 };
 
 // ==========================================
-// --- Global Utilities ---
+// --- Global Utilities (UI Control) ---
 // ==========================================
 window.switchModalTab = function(tab, btn) {
     document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
     document.getElementById(tab+'-tab').classList.add('active');
-    document.querySelectorAll('.tab-button').forEach(b => b.classList.remove('active'));
-    btn.classList.add('active');
+    
+    document.querySelectorAll('.tab-button').forEach(b => {
+        b.classList.remove('active', 'bg-white', 'dark:bg-gray-700', 'text-indigo-600', 'dark:text-indigo-400', 'shadow-sm');
+        b.classList.add('text-gray-500');
+    });
+    
+    btn.classList.remove('text-gray-500');
+    btn.classList.add('active', 'bg-white', 'dark:bg-gray-700', 'text-indigo-600', 'dark:text-indigo-400', 'shadow-sm');
 };
+window.hideModal = function(id) { 
+    const modal = document.getElementById(id);
+    modal.classList.add('opacity-0', 'pointer-events-none'); 
+    if (modal.querySelector('.modal-content')) {
+        modal.querySelector('.modal-content').classList.remove('scale-100');
+        modal.querySelector('.modal-content').classList.add('scale-95');
+    }
+};
+
 window.changeRowsPerPage = function(col, el) { paginationState[col].rowsPerPage = parseInt(el.value); paginationState[col].currentPage=1; window.buildTable(col); };
 window.changePage = function(col, dir) { paginationState[col].currentPage += dir; window.buildTable(col); };
 window.handleSearch = function(col, val) { paginationState[col].filterText = val; paginationState[col].currentPage=1; window.buildTable(col); };
