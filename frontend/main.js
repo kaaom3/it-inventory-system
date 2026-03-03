@@ -1,6 +1,6 @@
 // ===================================================================
 // Frontend Logic for IT Inventory System (Full Complete Version)
-// Merged with: Render.com Cloud URL + Disposal Evidence System + Fixed Loading + Restored Features
+// Merged with: Render.com Cloud URL + Disposal Evidence System + Fixed Menus
 // ===================================================================
 
 // 🌟 ล็อก URL ไปที่เซิร์ฟเวอร์บน Cloud ของคุณ 100%
@@ -75,7 +75,7 @@ let selectedItems = {};
 let collectionConfigs = {};
 
 // ==========================================
-// 1. Initialization (แก้ปัญหา Loading ค้าง)
+// 1. Initialization & Core Logic
 // ==========================================
 document.addEventListener('DOMContentLoaded', () => {
     const token = localStorage.getItem('authToken');
@@ -87,8 +87,6 @@ document.addEventListener('DOMContentLoaded', () => {
         }
         initTheme();
         initPrintStyles(); 
-        
-        // เริ่มดึงข้อมูลและเปิดระบบ
         initializeAppLogic();
     } else {
         window.location.replace('login.html');
@@ -98,7 +96,7 @@ document.addEventListener('DOMContentLoaded', () => {
 async function initializeAppLogic() {
     const success = await refreshAllData();
     if (success) {
-        // 🌟 ดึงข้อมูลเสร็จแล้ว ให้ซ่อน Loading และแสดงหน้าต่างหลัก
+        // ซ่อนหน้า Loading และโชว์แอปหลัก
         const loadingState = document.getElementById('loading-state');
         const appContainer = document.getElementById('app-container');
         
@@ -108,7 +106,9 @@ async function initializeAppLogic() {
         renderSidebarDynamic(); 
         generateDynamicPages();
         updateDashboard();
-        loadPage('Dashboard', document.getElementById('nav-dashboard'));
+        
+        // 🌟 บังคับโหลดหน้า Dashboard ให้เป็นหน้าแรก
+        window.loadPage('Dashboard');
         
         runPeriodicPing();
 
@@ -116,7 +116,7 @@ async function initializeAppLogic() {
         pingIntervalId = setInterval(async () => { 
             await runPeriodicPing();
             await refreshAllData();
-            const visiblePage = document.querySelector('.page-content[style="display: block;"]');
+            const visiblePage = document.querySelector('.page-content.active');
             if (visiblePage && visiblePage.id !== 'dashboard-page') {
                 const colName = visiblePage.id.replace('-page', '');
                 const realKey = Object.keys(collectionConfigs).find(k => k.toLowerCase() === colName);
@@ -125,6 +125,12 @@ async function initializeAppLogic() {
         }, 60000); 
     }
 }
+
+window.logout = function() { 
+    localStorage.removeItem('authToken'); 
+    localStorage.removeItem('user'); 
+    window.location.replace('login.html'); 
+};
 
 // --- API Helper ---
 async function apiRequest(endpoint, method = 'GET', body = null) {
@@ -137,7 +143,7 @@ async function apiRequest(endpoint, method = 'GET', body = null) {
 
     try {
         const response = await fetch(`${API_BASE_URL}${endpoint}`, config);
-        if (response.status === 401 || response.status === 403) { logout(); return; }
+        if (response.status === 401 || response.status === 403) { window.logout(); return; }
         if (!response.ok) {
             let errorMessage = `API Error ${response.status}`;
             try { const errorData = await response.json(); errorMessage = errorData.message || errorMessage; } catch (e) {}
@@ -162,7 +168,6 @@ async function refreshAllData() {
             }
         }
         
-        // 🌟 ตั้งค่าเริ่มต้นสำหรับอุปกรณ์พื้นฐาน (กู้คืนกลับมา)
         const defaultConfigs = {
             Computers: { displayName: 'Computers', headers: ['Last Seen', 'ComputerName', 'SerialNumber', 'UserName', 'Status'], formFields: ['ComputerName', 'Manufacturer', 'Model', 'Type', 'SerialNumber', 'CPU', 'RAM_GB', 'DiskSize_GB', 'OS', 'IPAddress', 'MacAddress', 'UserName', 'Location', 'PurchaseDate', 'WarrantyEndDate', 'Status', 'Description'], nameField: 'ComputerName', serialField: 'SerialNumber', icon: 'fa-laptop', dropdowns: { Status: ['Active', 'On Loan', 'Repair', 'Storage', 'Damaged', 'Disposed'], Type: ['Desktop', 'Laptop', 'MacBook', 'Tablet', 'POS', 'Server', 'Other'] }, isCustom: false },
             Monitors: { displayName: 'Monitors', headers: ['Manufacturer', 'Model', 'MonitorSerial', 'UserName', 'Status'], formFields: ['Manufacturer', 'Model', 'MonitorSerial', 'UserName', 'Location', 'AssignedComputer', 'PurchaseDate', 'WarrantyEndDate', 'Status', 'Description'], nameField: 'Model', serialField: 'MonitorSerial', icon: 'fa-desktop', dropdowns: { Status: ['Active', 'On Loan', 'Repair', 'Storage', 'Damaged', 'Disposed'] }, isCustom: false },
@@ -191,11 +196,8 @@ async function refreshAllData() {
                 headerFields.unshift('Last Seen');
             }
 
-            const nameFieldObj = menu.fields.find(f => 
-                ['ComputerName', 'DeviceName', 'ItemName', 'PartName', 'Name', 'SoftwareName', 'Model'].includes(f.id)
-            );
+            const nameFieldObj = menu.fields.find(f => ['ComputerName', 'DeviceName', 'ItemName', 'PartName', 'Name', 'SoftwareName', 'Model'].includes(f.id));
             const nameField = nameFieldObj ? nameFieldObj.id : menu.fields[0].id;
-            
             const serialFieldObj = menu.fields.find(f => ['SerialNumber', 'MonitorSerial'].includes(f.id));
             const serialField = serialFieldObj ? serialFieldObj.id : 'SerialNumber';
 
@@ -396,41 +398,41 @@ function renderSidebarDynamic() {
     if (!container) return;
     container.innerHTML = ''; 
 
-    const dashboardNode = { id: 'Dashboard', name: 'Dashboard', icon: 'fa-tachometer-alt', children: [], isSystem: true, clickAction: "loadPage('Dashboard', this)" };
+    // 🌟 ใส่ window. ไว้หน้าฟังก์ชันทั้งหมดเพื่อป้องกัน Error scope ในหน้าเว็บ
+    const dashboardNode = { id: 'Dashboard', name: 'Dashboard', icon: 'fa-tachometer-alt', children: [], isSystem: true, clickAction: "window.loadPage('Dashboard', this)" };
     
-    // 🌟 กู้คืนเมนูอุปกรณ์พื้นฐานกลับมา
     const assetChildren = [
-        { id: 'Computers', name: 'Computers', icon: 'fa-laptop', isSystem: true, clickAction: "loadPage('Computers', this)" },
-        { id: 'Monitors', name: 'Monitors', icon: 'fa-desktop', isSystem: true, clickAction: "loadPage('Monitors', this)" },
-        { id: 'Accessory', name: 'Accessories', icon: 'fa-keyboard', isSystem: true, clickAction: "loadPage('Accessory', this)" },
-        { id: 'Printers', name: 'Printers', icon: 'fa-print', isSystem: true, clickAction: "loadPage('Printers', this)" },
-        { id: 'Network', name: 'Network', icon: 'fa-network-wired', isSystem: true, clickAction: "loadPage('Network', this)" },
-        { id: 'DisposedAssets', name: 'Disposed Assets', icon: 'fa-trash-alt', isSystem: true, clickAction: "loadPage('DisposedAssets', this)" }
+        { id: 'Computers', name: 'Computers', icon: 'fa-laptop', isSystem: true, clickAction: "window.loadPage('Computers', this)" },
+        { id: 'Monitors', name: 'Monitors', icon: 'fa-desktop', isSystem: true, clickAction: "window.loadPage('Monitors', this)" },
+        { id: 'Accessory', name: 'Accessories', icon: 'fa-keyboard', isSystem: true, clickAction: "window.loadPage('Accessory', this)" },
+        { id: 'Printers', name: 'Printers', icon: 'fa-print', isSystem: true, clickAction: "window.loadPage('Printers', this)" },
+        { id: 'Network', name: 'Network', icon: 'fa-network-wired', isSystem: true, clickAction: "window.loadPage('Network', this)" },
+        { id: 'DisposedAssets', name: 'Disposed Assets', icon: 'fa-trash-alt', isSystem: true, clickAction: "window.loadPage('DisposedAssets', this)" }
     ];
     
     const managementChildren = [
         { 
             id: 'Transactions', name: 'Transactions', icon: 'fa-tasks', isSystem: true,
             children: [
-                { id: 'Handover', name: 'Handover / Return', icon: 'fa-dolly-flatbed', isSystem: true, clickAction: "loadPage('Handover', this)" },
+                { id: 'Handover', name: 'Handover / Return', icon: 'fa-dolly-flatbed', isSystem: true, clickAction: "window.loadPage('Handover', this)" },
                 { id: 'LoanPage', name: 'Loan Page (for User)', icon: 'fa-external-link-alt', isSystem: true, clickAction: "window.open('loan.html', '_blank')" }
             ]
         },
         { 
             id: 'Reports', name: 'Reports', icon: 'fa-file-alt', isSystem: true,
             children: [
-                { id: 'LoanHistory', name: 'Loan History', icon: 'fa-history', isSystem: true, clickAction: "loadPage('LoanHistory', this)" },
-                { id: 'Maintenance', name: 'Maintenance History', icon: 'fa-tools', isSystem: true, clickAction: "loadPage('Maintenance', this)" },
-                { id: 'AssetsByUser', name: 'Assets by User', icon: 'fa-user-tag', isSystem: true, clickAction: "loadPage('AssetsByUser', this)" }
+                { id: 'LoanHistory', name: 'Loan History', icon: 'fa-history', isSystem: true, clickAction: "window.loadPage('LoanHistory', this)" },
+                { id: 'Maintenance', name: 'Maintenance History', icon: 'fa-tools', isSystem: true, clickAction: "window.loadPage('Maintenance', this)" },
+                { id: 'AssetsByUser', name: 'Assets by User', icon: 'fa-user-tag', isSystem: true, clickAction: "window.loadPage('AssetsByUser', this)" }
             ]
         },
         { 
             id: 'UserSettings', name: 'System Settings', icon: 'fa-cogs', isSystem: true,
             children: [
-                { id: 'StaffManagement', name: 'Staff Management', icon: 'fa-users', isSystem: true, clickAction: "loadPage('StaffManagement', this)" },
-                { id: 'AdminManagement', name: 'Admin Management', icon: 'fa-user-shield', isSystem: true, clickAction: "loadPage('AdminManagement', this)" },
-                { id: 'LabelPrinter', name: 'Label Printer', icon: 'fa-tags', isSystem: true, clickAction: "loadPage('LabelPrinter', this)" },
-                { id: 'Settings', name: 'Custom Categories', icon: 'fa-sliders-h', isSystem: true, clickAction: "loadPage('Settings', this)" } // 🌟 กู้คืนเมนู Settings
+                { id: 'StaffManagement', name: 'Staff Management', icon: 'fa-users', isSystem: true, clickAction: "window.loadPage('StaffManagement', this)" },
+                { id: 'AdminManagement', name: 'Admin Management', icon: 'fa-user-shield', isSystem: true, clickAction: "window.loadPage('AdminManagement', this)" },
+                { id: 'LabelPrinter', name: 'Label Printer', icon: 'fa-tags', isSystem: true, clickAction: "window.loadPage('LabelPrinter', this)" },
+                { id: 'Settings', name: 'Custom Categories', icon: 'fa-sliders-h', isSystem: true, clickAction: "window.loadPage('Settings', this)" }
             ]
         }
     ];
@@ -440,7 +442,7 @@ function renderSidebarDynamic() {
         .filter(m => collectionConfigs[m.name] && m.name !== 'Computers' && m.name !== 'Monitors' && m.name !== 'Accessory' && m.name !== 'Printers' && m.name !== 'Network')
         .sort((a, b) => (a.order || 0) - (b.order || 0) || a.displayName.localeCompare(b.displayName))
         .map(m => ({
-            id: m.name, name: m.displayName, icon: m.icon, isSystem: false, parentId: m.parentId, clickAction: `loadPage('${m.name}', this)`, allowDelete: true, allowEdit: true, order: m.order
+            id: m.name, name: m.displayName, icon: m.icon, isSystem: false, parentId: m.parentId, clickAction: `window.loadPage('${m.name}', this)`, allowDelete: true, allowEdit: true, order: m.order
         }));
 
     const rootNodes = [dashboardNode];
@@ -474,7 +476,7 @@ function renderSidebarDynamic() {
         if (hasChildren) {
             return `<li><details class="group nav-group"><summary class="nav-link flex items-center justify-between px-4 py-2.5 rounded-lg text-gray-600 dark:text-gray-300 cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700"><div class="flex items-center space-x-3"><i class="fas ${node.icon} w-5 text-center"></i><span>${node.name}</span></div><div class="flex items-center">${editBtn}${deleteBtn}<i class="fas fa-chevron-right text-xs transform group-open:rotate-90 transition-transform ml-2"></i></div></summary><ul class="pl-4 pt-1 space-y-1 border-l-2 border-gray-100 dark:border-gray-700 ml-6">${node.children.map(createMenuHTML).join('')}</ul></details></li>`;
         }
-        return `<li><a href="#" id="nav-${node.id}" onclick="${node.clickAction}; return false;" class="nav-link flex items-center space-x-3 px-4 py-2.5 rounded-lg ${textColor} group hover:bg-gray-100 dark:hover:bg-gray-700"><i class="fas ${node.icon} w-5 text-center"></i><span class="flex-1">${node.name}</span>${editBtn}${deleteBtn}</a></li>`;
+        return `<li><a href="#" id="nav-${node.id}" onclick="${node.clickAction}; return false;" class="nav-link flex items-center space-x-3 px-4 py-2.5 rounded-lg ${textColor} group hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"><i class="fas ${node.icon} w-5 text-center"></i><span class="flex-1">${node.name}</span>${editBtn}${deleteBtn}</a></li>`;
     }
 
     rootNodes.forEach(node => { if (node.type === 'header' || !node.parentId) container.insertAdjacentHTML('beforeend', createMenuHTML(node)); });
@@ -485,7 +487,6 @@ function generateDynamicPages() {
     if (!container) return;
     container.innerHTML = ''; 
 
-    // 🌟 กู้คืนการสร้างหน้าตารางให้กับทุกอุปกรณ์ (ไม่ใช่เฉพาะ Custom Menu)
     Object.keys(collectionConfigs).forEach(colName => {
         const config = collectionConfigs[colName];
         if (!config) return;
@@ -494,7 +495,7 @@ function generateDynamicPages() {
         const statusOptions = config.dropdowns.Status ? config.dropdowns.Status.map(s => `<option value="${s}">${s}</option>`).join('') : '';
         
         container.innerHTML += `
-        <div id="${pageId}" class="page-content" style="display:none;">
+        <div id="${pageId}" class="page-content hidden">
             <div class="flex flex-wrap justify-between items-center gap-2 mb-6">
                 <h2 class="text-2xl md:text-3xl font-bold text-gray-900 dark:text-white">${displayName}</h2>
                 <div class="flex gap-2">
@@ -534,10 +535,82 @@ function generateDynamicPages() {
 }
 
 // ==========================================
+// --- PAGE LOAD & SWITCHING (FIXED) ---
+// ==========================================
+window.loadPage = function(pageName, navElement) {
+    // 1. เคลียร์สีและ Active ของเมนูซ้ายทั้งหมด
+    document.querySelectorAll('.nav-link').forEach(l => {
+        l.classList.remove('bg-indigo-50', 'text-indigo-600', 'dark:bg-gray-700', 'dark:text-white', 'font-semibold');
+        l.classList.add('text-gray-600', 'dark:text-gray-300');
+    });
+
+    // 2. ปิดซ่อนทุกๆ หน้าต่างหลัก (ลบ Active / เพิ่ม Hidden)
+    document.querySelectorAll('.page-content').forEach(p => {
+        p.classList.remove('active');
+        p.classList.add('hidden');
+        p.style.display = 'none';
+    });
+
+    // 3. หาสิ่งที่ผู้ใช้คลิก แล้วใส่สีไฮไลต์ให้
+    let targetNav = navElement || document.getElementById(`nav-${pageName}`);
+    if (targetNav) {
+        targetNav.classList.remove('text-gray-600', 'dark:text-gray-300');
+        targetNav.classList.add('bg-indigo-50', 'text-indigo-600', 'dark:bg-gray-700', 'dark:text-white', 'font-semibold');
+        const parentDetails = targetNav.closest('details');
+        if (parentDetails) parentDetails.setAttribute('open', 'true');
+    }
+
+    // 4. หาส่วนกล่อง (Div) ของหน้านั้นๆ เพื่อแสดงผล
+    const pageId = `${pageName.toLowerCase()}-page`;
+    let pageDiv = document.getElementById(pageId);
+    
+    // สร้างหน้า Printer แบบเจาะจงถ้าหาไม่เจอ
+    if (pageName === 'LabelPrinter' && !pageDiv) {
+        pageDiv = document.createElement('div'); 
+        pageDiv.id = pageId; 
+        pageDiv.className = 'page-content hidden';
+        document.getElementById('main-content').appendChild(pageDiv);
+        window.buildLabelPrinterPage();
+    }
+
+    // 5. แสดงผลหน้าต่างหลัก
+    if (pageDiv) {
+        pageDiv.classList.remove('hidden');
+        pageDiv.classList.add('active');
+        pageDiv.style.display = 'block';
+
+        // โหลดข้อมูลเฉพาะหน้า
+        if (pageName === 'Dashboard') window.updateDashboard();
+        else if (pageName === 'LoanHistory') window.buildLoanHistoryCards();
+        else if (pageName === 'Maintenance') window.buildMaintenancePage();
+        else if (pageName === 'AssetsByUser') window.buildAssetsByUserPage();
+        else if (pageName === 'Handover') window.buildHandoverReturnPage();
+        else if (pageName === 'StaffManagement') window.buildStaffManagementPage();
+        else if (pageName === 'AdminManagement') window.buildAdminManagementPage();
+        else if (pageName === 'DisposedAssets') window.renderDisposedAssets();
+        else if (pageName === 'Settings') window.renderSettings();
+        else if (collectionConfigs[pageName]) {
+            if (paginationState[pageName]) {
+                paginationState[pageName].filterText = '';
+                const searchInput = document.getElementById(`${pageName.toLowerCase()}SearchInput`);
+                if (searchInput) searchInput.value = '';
+                window.buildTable(pageName);
+            }
+        }
+    }
+    
+    // พับเมนูบนมือถือ
+    if (window.innerWidth < 768) {
+        const sidebar = document.getElementById('sidebar');
+        const overlay = document.getElementById('sidebar-overlay');
+        if(sidebar) sidebar.classList.add('-translate-x-full');
+        if(overlay) overlay.classList.add('hidden');
+    }
+};
+
+// ==========================================
 // --- CUSTOM MENU MODAL LOGIC & SETTINGS ---
 // ==========================================
-
-// 🌟 กู้คืนระบบหน้าจอ Settings
 window.renderSettings = function() {
     const area = document.getElementById('settings-content-area');
     if (!area) return;
@@ -592,7 +665,6 @@ window.openAddMenuModal = function() {
     document.getElementById('addMenuModalTitle').textContent = "Create Custom Menu";
     document.getElementById('editMenuMode').value = "create";
     
-    // ดึงค่าจากหน้า Settings มาใส่ให้ถ้ามีการพิมพ์ค้างไว้
     const idInput = document.getElementById('newMenuIdSettings');
     const nameInput = document.getElementById('newMenuNameSettings');
     const iconInput = document.getElementById('newMenuIconSettings');
@@ -602,7 +674,7 @@ window.openAddMenuModal = function() {
 
     document.getElementById('newMenuId').disabled = false;
     document.getElementById('newMenuId').classList.remove('bg-gray-200', 'cursor-not-allowed');
-    populateParentDropdown();
+    window.populateParentDropdown();
     
     document.querySelectorAll('.col-checkbox').forEach(cb => { if(!cb.disabled) cb.checked = true; });
     document.getElementById('addMenuModal').classList.remove('opacity-0', 'pointer-events-none');
@@ -621,7 +693,7 @@ window.openEditMenuModal = function(menuName, event) {
     document.getElementById('newMenuDisplay').value = menu.displayName;
     document.getElementById('newMenuIcon').value = menu.icon || 'fa-box';
     document.getElementById('newMenuOrder').value = menu.order || 0;
-    populateParentDropdown(menu.parentId); 
+    window.populateParentDropdown(menu.parentId); 
     
     document.querySelectorAll('.col-checkbox').forEach(cb => cb.checked = false);
     if (menu.fields && Array.isArray(menu.fields)) {
@@ -634,7 +706,7 @@ window.openEditMenuModal = function(menuName, event) {
     document.getElementById('addMenuModal').classList.remove('opacity-0', 'pointer-events-none');
 }
 
-function populateParentDropdown(selectedParentId = null) {
+window.populateParentDropdown = function(selectedParentId = null) {
     const parentSelect = document.getElementById('newMenuParent');
     if (!parentSelect) return;
     parentSelect.innerHTML = '<option value="">(None - Root Level)</option>';
@@ -693,7 +765,7 @@ window.saveCustomMenu = async function() {
         if (mode === 'edit') await apiRequest(`/api/custom-menus/${idInput}`, 'PUT', payload);
         else await apiRequest('/api/custom-menus', 'POST', payload);
         showNotificationModal('success', 'Menu Updated', `Custom menu saved.`);
-        hideModal('addMenuModal');
+        window.hideModal('addMenuModal');
         await initializeAppLogic(); 
         if(document.getElementById('settings-page').style.display === 'block') window.renderSettings();
     } catch (error) { showNotificationModal('warning', 'Error', error.message); }
@@ -711,57 +783,9 @@ window.deleteCustomMenu = async function(menuName, event) {
 }
 
 // ==========================================
-// --- PAGE LOAD & SWITCHING ---
-// ==========================================
-function logout() { localStorage.removeItem('authToken'); localStorage.removeItem('user'); window.location.replace('login.html'); }
-
-function loadPage(pageName, navElement) {
-    document.querySelectorAll('.nav-link').forEach(l => l.classList.remove('active'));
-    document.querySelectorAll('.page-content').forEach(p => p.style.display = 'none');
-
-    if (navElement) {
-        navElement.classList.add('active');
-        const parentDetails = navElement.closest('details');
-        if (parentDetails) parentDetails.setAttribute('open', 'true');
-    }
-
-    const pageId = `${pageName.toLowerCase()}-page`;
-    let pageDiv = document.getElementById(pageId);
-    
-    if (pageName === 'LabelPrinter' && !pageDiv) {
-        pageDiv = document.createElement('div'); pageDiv.id = pageId; pageDiv.className = 'page-content';
-        document.getElementById('main-content').appendChild(pageDiv);
-        buildLabelPrinterPage();
-    }
-
-    if (pageDiv) {
-        pageDiv.style.display = 'block';
-        if (pageName === 'Dashboard') updateDashboard();
-        else if (pageName === 'LoanHistory') buildLoanHistoryCards();
-        else if (pageName === 'Maintenance') buildMaintenancePage();
-        else if (pageName === 'AssetsByUser') buildAssetsByUserPage();
-        else if (pageName === 'Handover') buildHandoverReturnPage();
-        else if (pageName === 'StaffManagement') buildStaffManagementPage();
-        else if (pageName === 'AdminManagement') buildAdminManagementPage();
-        else if (pageName === 'DisposedAssets') window.renderDisposedAssets();
-        else if (pageName === 'Settings') window.renderSettings(); // 🌟 รันหน้า Settings
-        else if (collectionConfigs[pageName]) {
-            paginationState[pageName].filterText = '';
-            const searchInput = document.getElementById(`${pageName.toLowerCase()}SearchInput`);
-            if (searchInput) searchInput.value = '';
-            buildTable(pageName);
-        }
-    }
-    if (window.innerWidth < 768) {
-        document.getElementById('sidebar').classList.add('-translate-x-full');
-        document.getElementById('sidebar-overlay').classList.add('hidden');
-    }
-}
-
-// ==========================================
 // --- BULK SELECTION & MANAGEMENT ---
 // ==========================================
-window.toggleSelectAll = (collectionName, checkbox) => {
+window.toggleSelectAll = function(collectionName, checkbox) {
     const isChecked = checkbox.checked;
     const checkboxes = document.querySelectorAll(`.${collectionName}-row-cb`);
     selectedItems[collectionName] = selectedItems[collectionName] || [];
@@ -770,25 +794,25 @@ window.toggleSelectAll = (collectionName, checkbox) => {
         if (isChecked && !selectedItems[collectionName].includes(cb.value)) selectedItems[collectionName].push(cb.value);
         else if (!isChecked) selectedItems[collectionName] = selectedItems[collectionName].filter(id => id !== cb.value);
     });
-    updateBulkActionBar(collectionName);
+    window.updateBulkActionBar(collectionName);
 };
 
-window.toggleSelectItem = (collectionName, checkbox) => {
+window.toggleSelectItem = function(collectionName, checkbox) {
     selectedItems[collectionName] = selectedItems[collectionName] || [];
     if (checkbox.checked) { if (!selectedItems[collectionName].includes(checkbox.value)) selectedItems[collectionName].push(checkbox.value); } 
     else { selectedItems[collectionName] = selectedItems[collectionName].filter(id => id !== checkbox.value); document.getElementById(`selectAll_${collectionName}`).checked = false; }
-    updateBulkActionBar(collectionName);
+    window.updateBulkActionBar(collectionName);
 };
 
-function updateBulkActionBar(collectionName) {
+window.updateBulkActionBar = function(collectionName) {
     const count = (selectedItems[collectionName] || []).length;
     const bar = document.getElementById(`${collectionName}BulkActions`);
     if (!bar) return;
     if (count > 0) { bar.classList.remove('hidden'); bar.querySelector('.selected-count').textContent = `${count} item(s) selected`; } 
     else { bar.classList.add('hidden'); document.getElementById(`selectAll_${collectionName}`).checked = false; }
-}
+};
 
-window.bulkDelete = async (collectionName) => {
+window.bulkDelete = async function(collectionName) {
     const ids = selectedItems[collectionName] || [];
     if (ids.length === 0) return;
     if (!confirm(`Are you sure you want to permanently delete ${ids.length} selected item(s)?`)) return;
@@ -796,11 +820,11 @@ window.bulkDelete = async (collectionName) => {
         await apiRequest(`/api/inventory/${collectionName}/bulk-delete`, 'POST', { ids });
         showNotificationModal('success', 'Bulk Delete Successful', `Deleted ${ids.length} item(s).`);
         selectedItems[collectionName] = []; 
-        await refreshAllData(); buildTable(collectionName); updateDashboard();
+        await refreshAllData(); window.buildTable(collectionName); window.updateDashboard();
     } catch (error) { showNotificationModal('warning', 'Bulk Delete Failed', error.message); }
 };
 
-window.openBulkEditModal = (collectionName) => {
+window.openBulkEditModal = function(collectionName) {
     const ids = selectedItems[collectionName] || [];
     if (ids.length === 0) return;
     document.getElementById('bulkEditForm').reset();
@@ -809,7 +833,7 @@ window.openBulkEditModal = (collectionName) => {
     document.getElementById('bulkEditModal').classList.remove('opacity-0', 'pointer-events-none');
 };
 
-window.saveBulkEdit = async () => {
+window.saveBulkEdit = async function() {
     const collectionName = document.getElementById('bulkEditCollection').value;
     const ids = selectedItems[collectionName] || [];
     const updateData = {};
@@ -818,17 +842,17 @@ window.saveBulkEdit = async () => {
     const user = document.getElementById('bulkEditUser').value.trim();
     if (status) updateData.Status = status; if (location) updateData.Location = location; if (user !== '') updateData.UserName = user; 
     
-    if (Object.keys(updateData).length === 0) { hideModal('bulkEditModal'); return; }
+    if (Object.keys(updateData).length === 0) { window.hideModal('bulkEditModal'); return; }
     try {
         await apiRequest(`/api/inventory/${collectionName}/bulk-update`, 'PUT', { ids, updateData });
         showNotificationModal('success', 'Bulk Update Successful', `Updated ${ids.length} item(s).`);
-        hideModal('bulkEditModal'); selectedItems[collectionName] = []; 
-        await refreshAllData(); buildTable(collectionName); updateDashboard();
+        window.hideModal('bulkEditModal'); selectedItems[collectionName] = []; 
+        await refreshAllData(); window.buildTable(collectionName); window.updateDashboard();
     } catch (error) { showNotificationModal('warning', 'Bulk Update Failed', error.message); }
 };
 
 // --- Table Building Logic ---
-function buildTable(collectionName) {
+window.buildTable = function(collectionName) {
     const table = document.getElementById(collectionName + 'Table');
     if (!table) return;
     const state = paginationState[collectionName];
@@ -844,7 +868,7 @@ function buildTable(collectionName) {
     const startIndex = (state.currentPage - 1) * state.rowsPerPage;
     const paginatedData = filteredData.slice(startIndex, startIndex + state.rowsPerPage);
     
-    let html = `<thead class="bg-gray-50 dark:bg-gray-700"><tr><th class="px-4 py-3 w-12 text-center"><input type="checkbox" id="selectAll_${collectionName}" onclick="toggleSelectAll('${collectionName}', this)" class="rounded text-indigo-600 focus:ring-indigo-500 cursor-pointer"></th>`;
+    let html = `<thead class="bg-gray-50 dark:bg-gray-700"><tr><th class="px-4 py-3 w-12 text-center"><input type="checkbox" id="selectAll_${collectionName}" onclick="window.toggleSelectAll('${collectionName}', this)" class="rounded text-indigo-600 focus:ring-indigo-500 cursor-pointer"></th>`;
 
     config.headers.forEach(h => {
         const fieldDef = AVAILABLE_FIELDS.find(f => f.id === h);
@@ -859,7 +883,7 @@ function buildTable(collectionName) {
             const isChecked = (selectedItems[collectionName] || []).includes(item.id);
             if (!isChecked) allCurrentPageSelected = false;
 
-            html += `<tr class="hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"><td class="px-4 py-3 text-center"><input type="checkbox" value="${item.id}" onclick="toggleSelectItem('${collectionName}', this)" class="${collectionName}-row-cb rounded text-indigo-600 focus:ring-indigo-500 cursor-pointer" ${isChecked ? 'checked' : ''}></td>`;
+            html += `<tr class="hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"><td class="px-4 py-3 text-center"><input type="checkbox" value="${item.id}" onclick="window.toggleSelectItem('${collectionName}', this)" class="${collectionName}-row-cb rounded text-indigo-600 focus:ring-indigo-500 cursor-pointer" ${isChecked ? 'checked' : ''}></td>`;
 
             config.headers.forEach(header => {
                 let val = item[header] || '';
@@ -882,11 +906,11 @@ function buildTable(collectionName) {
         setTimeout(() => { const selectAllCb = document.getElementById(`selectAll_${collectionName}`); if (selectAllCb) selectAllCb.checked = paginatedData.length > 0 && allCurrentPageSelected; }, 10);
     }
     table.innerHTML = html + `</tbody>`;
-    renderPaginationControls(collectionName, totalRows);
-    updateBulkActionBar(collectionName);
-}
+    window.renderPaginationControls(collectionName, totalRows);
+    window.updateBulkActionBar(collectionName);
+};
 
-function renderPaginationControls(collectionName, totalRows) {
+window.renderPaginationControls = function(collectionName, totalRows) {
     const container = document.getElementById(collectionName + 'Pagination');
     if (!container) return;
     const state = paginationState[collectionName];
@@ -894,7 +918,7 @@ function renderPaginationControls(collectionName, totalRows) {
     const startItem = totalRows > 0 ? (state.currentPage - 1) * state.rowsPerPage + 1 : 0;
     const endItem = Math.min(state.currentPage * state.rowsPerPage, totalRows);
     container.innerHTML = `<div class="text-sm">Showing <span class="font-semibold">${startItem}</span> to <span class="font-semibold">${endItem}</span> of <span class="font-semibold">${totalRows}</span> results</div><div class="flex items-center space-x-2"><label class="text-sm font-medium">Rows:</label><select onchange="window.changeRowsPerPage('${collectionName}', this)" class="rounded-md border-gray-300 dark:bg-gray-700 dark:border-gray-600 text-sm"><option value="10" ${state.rowsPerPage == 10 ? 'selected' : ''}>10</option><option value="25" ${state.rowsPerPage == 25 ? 'selected' : ''}>25</option><option value="50" ${state.rowsPerPage == 50 ? 'selected' : ''}>50</option></select><button onclick="window.changePage('${collectionName}', -1)" ${state.currentPage===1?'disabled':''} class="px-2 py-1 border rounded disabled:opacity-50 bg-white dark:bg-gray-700"><i class="fas fa-chevron-left"></i></button><span class="text-sm">Page ${state.currentPage} / ${totalPages || 1}</span><button onclick="window.changePage('${collectionName}', 1)" ${state.currentPage>=totalPages?'disabled':''} class="px-2 py-1 border rounded disabled:opacity-50 bg-white dark:bg-gray-700"><i class="fas fa-chevron-right"></i></button></div>`;
-}
+};
 
 // --- CRUD & Forms ---
 window.openModal = function(mode, collectionName, id = null) {
@@ -928,7 +952,6 @@ window.openModal = function(mode, collectionName, id = null) {
     
     form.innerHTML = formHtml;
     
-    // จัดการกล่องเอกสารแทงจำหน่าย
     const disposalSection = document.getElementById('disposal-evidence-section');
     const existingEvidenceBox = document.getElementById('existingEvidenceBox');
     const fileInput = document.getElementById('disposalFileInput');
@@ -947,9 +970,9 @@ window.openModal = function(mode, collectionName, id = null) {
 
     const tabBtn = document.querySelector('#modal-tabs .tab-button');
     if (tabBtn) window.switchModalTab('details', tabBtn);
-    buildMaintenanceLogInModal(itemData);
+    window.buildMaintenanceLogInModal(itemData);
     document.getElementById('editModal').classList.remove('opacity-0', 'pointer-events-none');
-}
+};
 
 document.addEventListener('change', (e) => {
     if (e.target && e.target.id === 'edit-Status') {
@@ -989,22 +1012,22 @@ window.saveData = async function() {
         if (mode === 'edit') await apiRequest(`/api/inventory/${collection}/${id}`, 'PUT', data);
         else await apiRequest(`/api/inventory/${collection}`, 'POST', data);
         showNotificationModal('success', 'Success', `Data saved successfully.`);
-        hideModal('editModal'); await refreshAllData(); buildTable(collection); updateDashboard();
+        window.hideModal('editModal'); await refreshAllData(); window.buildTable(collection); window.updateDashboard();
     } catch (error) { showNotificationModal('warning', 'Save Failed', error.message); }
-}
+};
 
 window.deleteItem = async function(collectionName, id) {
     if (confirm(`Are you sure you want to delete this item?`)) {
         try {
             await apiRequest(`/api/inventory/${collectionName}/${id}`, 'DELETE');
             showNotificationModal('success', 'Deleted', 'The item has been deleted.');
-            await refreshAllData(); buildTable(collectionName); updateDashboard();
+            await refreshAllData(); window.buildTable(collectionName); window.updateDashboard();
         } catch (error) {}
     }
-}
+};
 
 // --- Dashboard ---
-function updateDashboard() {
+window.updateDashboard = function() {
     const allItems = Object.keys(collectionConfigs).flatMap(k => allData[k] || []);
     if(document.getElementById('stat-total')) {
         document.getElementById('stat-total').innerText = allItems.length;
@@ -1013,27 +1036,27 @@ function updateDashboard() {
         document.getElementById('stat-issues').innerText = allItems.filter(i=>['Repair','Damaged','Disposed'].includes(i.Status)).length;
     }
     const statusCounts = {}; allItems.forEach(i => { statusCounts[i.Status] = (statusCounts[i.Status] || 0) + 1; });
-    renderStatusChart(statusCounts);
+    window.renderStatusChart(statusCounts);
     const categoryCounts = {}; Object.keys(collectionConfigs).forEach(k => { categoryCounts[k] = (allData[k] || []).length; });
-    renderCategoryChart(categoryCounts);
-}
+    window.renderCategoryChart(categoryCounts);
+};
 
-function renderStatusChart(data) {
+window.renderStatusChart = function(data) {
     const ctx = document.getElementById('statusChart');
     if(!ctx) return;
     if(statusChart) { statusChart.data.labels = Object.keys(data); statusChart.data.datasets[0].data = Object.values(data); statusChart.update(); }
     else { statusChart = new Chart(ctx, { type: 'doughnut', data: { labels: Object.keys(data), datasets: [{ data: Object.values(data), backgroundColor: ['#22c55e', '#eab308', '#f97316', '#3b82f6', '#ef4444', '#9ca3af'] }] }, options: { responsive: true, maintainAspectRatio: false } }); }
-}
+};
 
-function renderCategoryChart(data) {
+window.renderCategoryChart = function(data) {
     const ctx = document.getElementById('categoryChart');
     if(!ctx) return;
     if(categoryChart) { categoryChart.data.labels = Object.keys(data); categoryChart.data.datasets[0].data = Object.values(data); categoryChart.update(); }
     else { categoryChart = new Chart(ctx, { type: 'bar', data: { labels: Object.keys(data), datasets: [{ label: 'Assets', data: Object.values(data), backgroundColor: '#6366f1' }] }, options: { responsive: true, maintainAspectRatio: false } }); }
-}
+};
 
 // --- Modals ---
-window.hideModal = function(id) { document.getElementById(id).classList.add('opacity-0', 'pointer-events-none'); }
+window.hideModal = function(id) { document.getElementById(id).classList.add('opacity-0', 'pointer-events-none'); };
 function showNotificationModal(type, title, msg) {
     document.getElementById('modalTitle').textContent = title;
     document.getElementById('modalMessage').textContent = msg;
@@ -1045,7 +1068,7 @@ function showNotificationModal(type, title, msg) {
 }
 
 // --- Management Logic (Handover, Staff, Admin, Maintenance, Print) ---
-function buildHandoverReturnPage() {
+window.buildHandoverReturnPage = function() {
     const handoverTab = document.getElementById('handover-tab-content');
     if(handoverTab) {
         handoverTab.innerHTML = `
@@ -1053,7 +1076,7 @@ function buildHandoverReturnPage() {
                 <div><h3 class="font-semibold mb-2">1. Select Staff</h3><input type="text" onkeyup="window.filterStaffList(this, 'handoverStaffList')" placeholder="Search staff..." class="w-full p-2 border rounded mb-2 dark:bg-gray-700 dark:border-gray-600"><div id="handoverStaffList" class="max-h-48 overflow-y-auto border rounded p-2 dark:border-gray-600"></div><h3 class="font-semibold mb-2 mt-4">2. Select Device</h3><input type="text" onkeyup="window.filterDeviceList(this, 'handoverDeviceList')" placeholder="Search storage..." class="w-full p-2 border rounded mb-2 dark:bg-gray-700 dark:border-gray-600"><div id="handoverDeviceList" class="max-h-64 overflow-y-auto border rounded p-2 dark:border-gray-600"></div></div>
                 <div><h3 class="font-semibold mb-2">3. Cart</h3><p class="text-sm mb-2">Staff: <span id="selectedHandoverStaff" class="font-bold">None</span></p><div id="handoverCartList" class="border rounded p-2 min-h-[200px] bg-gray-50 dark:bg-gray-700 space-y-2"><p class="text-center text-gray-400 p-4">Empty</p></div><button id="confirmHandoverBtn" onclick="window.confirmHandover()" class="mt-4 w-full bg-indigo-600 text-white font-bold py-3 rounded disabled:bg-gray-400" disabled>Confirm</button></div>
             </div>`;
-        populateStaffLists('handoverStaffList', 'selectedHandoverStaff'); populateHandoverDeviceList();
+        window.populateStaffLists('handoverStaffList', 'selectedHandoverStaff'); window.populateHandoverDeviceList();
     }
     const returnTab = document.getElementById('return-tab-content');
     if(returnTab) {
@@ -1062,19 +1085,19 @@ function buildHandoverReturnPage() {
                 <div><h3 class="font-semibold mb-2">1. Find Staff</h3><input type="text" onkeyup="window.filterStaffList(this, 'returnStaffList')" placeholder="Search staff..." class="w-full p-2 border rounded mb-2 dark:bg-gray-700 dark:border-gray-600"><div id="returnStaffList" class="max-h-48 overflow-y-auto border rounded p-2 dark:border-gray-600"></div></div>
                 <div><h3 class="font-semibold mb-2">2. Return Devices</h3><p class="text-sm mb-2">Assets of: <span id="selectedReturnStaff" class="font-bold">None</span></p><div id="returnDeviceList" class="border rounded p-2 min-h-[200px] bg-gray-50 dark:bg-gray-700 space-y-2"><p class="text-center text-gray-400 p-4">Select staff first.</p></div><button id="confirmReturnBtn" onclick="window.confirmReturn()" class="mt-4 w-full bg-green-600 text-white font-bold py-3 rounded disabled:bg-gray-400" disabled>Confirm Return</button></div>
             </div>`;
-        populateStaffLists('returnStaffList', 'selectedReturnStaff', true);
+        window.populateStaffLists('returnStaffList', 'selectedReturnStaff', true);
     }
-}
+};
 
-function populateStaffLists(listId, labelId, isReturn = false) {
+window.populateStaffLists = function(listId, labelId, isReturn = false) {
     const list = document.getElementById(listId);
     if (!list) return;
     const staff = allData.Staff || [];
     if (staff.length === 0) { list.innerHTML = `<p class="p-2 text-center text-gray-500">No staff found.</p>`; return; }
     list.innerHTML = staff.map(s => `<div class="staff-item p-2 hover:bg-gray-100 dark:hover:bg-gray-600 cursor-pointer rounded" onclick="window.selectStaff('${s.UserName}', '${listId}', '${labelId}', ${isReturn})">${s.FirstName || s.UserName} ${s.LastName || ''}</div>`).join('');
-}
+};
 
-window.selectStaff = (name, listId, labelId, isReturn) => {
+window.selectStaff = function(name, listId, labelId, isReturn) {
     document.getElementById(labelId).textContent = name;
     document.querySelectorAll(`#${listId} .staff-item`).forEach(el => el.classList.remove('bg-indigo-100', 'dark:bg-indigo-900'));
     event.target.classList.add('bg-indigo-100', 'dark:bg-indigo-900');
@@ -1090,10 +1113,10 @@ window.selectStaff = (name, listId, labelId, isReturn) => {
             }).join('');
             document.querySelectorAll('.return-checkbox').forEach(cb => cb.addEventListener('change', () => document.getElementById('confirmReturnBtn').disabled = !document.querySelector('.return-checkbox:checked')));
         }
-    } else { updateHandoverButtonState(); }
+    } else { window.updateHandoverButtonState(); }
 };
 
-function populateHandoverDeviceList() {
+window.populateHandoverDeviceList = function() {
     const list = document.getElementById('handoverDeviceList');
     const allDevices = Object.keys(collectionConfigs).flatMap(cat => (allData[cat] || []).map(d => ({ ...d, collection: cat })));
     const available = allDevices.filter(d => d.Status === 'Storage');
@@ -1102,16 +1125,16 @@ function populateHandoverDeviceList() {
         const config = collectionConfigs[d.collection];
         return `<div class="device-item p-2 hover:bg-gray-100 dark:hover:bg-gray-600 cursor-pointer flex justify-between items-center" onclick="window.addDeviceToHandoverCart('${d.id}', '${d.collection}')"><div><p class="font-semibold text-sm">${d[config.nameField]}</p><p class="text-xs text-gray-400">${d[config.serialField]}</p></div><i class="fas fa-plus text-green-500"></i></div>`;
     }).join('');
-}
+};
 
-window.addDeviceToHandoverCart = (id, col) => {
+window.addDeviceToHandoverCart = function(id, col) {
     if(!handoverCart.some(i=>i.id===id)) {
         const item = allData[col].find(i=>i.id===id);
-        handoverCart.push({...item, collection: col}); renderHandoverCart(); updateHandoverButtonState();
+        handoverCart.push({...item, collection: col}); window.renderHandoverCart(); window.updateHandoverButtonState();
     }
 };
 
-function renderHandoverCart() {
+window.renderHandoverCart = function() {
     const list = document.getElementById('handoverCartList');
     if(handoverCart.length===0) list.innerHTML = `<p class="text-center text-gray-400 p-4">Select items.</p>`;
     else {
@@ -1120,23 +1143,23 @@ function renderHandoverCart() {
             return `<div class="p-2 bg-white dark:bg-gray-800 rounded border flex justify-between"><div><p class="font-semibold text-sm">${d[config.nameField]}</p><p class="text-xs text-gray-400">${d[config.serialField]}</p></div><button onclick="window.removeHandoverItem('${d.id}')" class="text-red-500"><i class="fas fa-times"></i></button></div>`;
         }).join('');
     }
-}
+};
 
-window.removeHandoverItem = (id) => { handoverCart = handoverCart.filter(i=>i.id!==id); renderHandoverCart(); updateHandoverButtonState(); };
-function updateHandoverButtonState() { 
+window.removeHandoverItem = function(id) { handoverCart = handoverCart.filter(i=>i.id!==id); window.renderHandoverCart(); window.updateHandoverButtonState(); };
+window.updateHandoverButtonState = function() { 
     const staffSelected = document.getElementById('selectedHandoverStaff').textContent !== 'None';
     document.getElementById('confirmHandoverBtn').disabled = !(staffSelected && handoverCart.length > 0); 
-}
+};
 
-window.confirmHandover = async () => {
+window.confirmHandover = async function() {
     const staff = document.getElementById('selectedHandoverStaff').textContent;
     if(confirm(`Handover ${handoverCart.length} items to ${staff}?`)) {
         await apiRequest('/api/transactions/handover', 'POST', { staffUserName: staff, devices: handoverCart });
-        handoverCart = []; renderHandoverCart(); populateHandoverDeviceList(); showNotificationModal('success', 'Success', 'Items assigned.');
+        handoverCart = []; window.renderHandoverCart(); window.populateHandoverDeviceList(); showNotificationModal('success', 'Success', 'Items assigned.');
     }
 };
 
-window.confirmReturn = async () => {
+window.confirmReturn = async function() {
     const items = Array.from(document.querySelectorAll('.return-checkbox:checked')).map(cb => ({ id: cb.value, collection: cb.dataset.col }));
     if(confirm(`Return ${items.length} items?`)) {
         await apiRequest('/api/transactions/return', 'POST', { devices: items });
@@ -1144,22 +1167,22 @@ window.confirmReturn = async () => {
     }
 };
 
-function buildStaffManagementPage() {
+window.buildStaffManagementPage = function() {
     const page = document.getElementById('staffmanagement-page');
     page.innerHTML = `
         <div class="flex justify-between items-center mb-6"><h2 class="text-2xl font-bold dark:text-white">Staff Management</h2><button onclick="window.openStaffModal('add')" class="bg-indigo-600 text-white px-4 py-2 rounded">Add Staff</button></div>
         <div class="bg-white dark:bg-gray-800 rounded shadow overflow-x-auto"><table class="min-w-full"><thead class="bg-gray-50 dark:bg-gray-700"><tr><th class="px-6 py-3 text-left text-xs uppercase text-gray-500">Username</th><th class="px-6 py-3 text-left text-xs uppercase text-gray-500">Name</th><th class="px-6 py-3 text-left text-xs uppercase text-gray-500">Dept</th><th class="px-6 py-3"></th></tr></thead><tbody id="staffTableBody" class="divide-y divide-gray-200 dark:divide-gray-700"></tbody></table></div>`;
-    renderStaffTable();
-}
+    window.renderStaffTable();
+};
 
-function renderStaffTable() {
+window.renderStaffTable = function() {
     const tbody = document.getElementById('staffTableBody');
     const staff = allData.Staff || [];
     if(staff.length === 0) tbody.innerHTML = `<tr><td colspan="4" class="text-center p-4 text-gray-500">No staff found.</td></tr>`;
     else tbody.innerHTML = staff.map(s => `<tr><td class="px-6 py-4">${s.UserName}</td><td class="px-6 py-4">${s.FirstName||''} ${s.LastName||''}</td><td class="px-6 py-4">${s.Department||''}</td><td class="px-6 py-4 text-right"><button onclick="window.openStaffModal('edit','${s.id}')" class="text-indigo-600 mr-2"><i class="fas fa-edit"></i></button><button onclick="window.deleteStaff('${s.id}')" class="text-red-600"><i class="fas fa-trash"></i></button></td></tr>`).join('');
-}
+};
 
-window.openStaffModal = (mode, id) => {
+window.openStaffModal = function(mode, id) {
     currentStaffEdit = { mode, id };
     const modal = document.getElementById('editStaffModal');
     const form = document.getElementById('editStaffForm');
@@ -1175,50 +1198,50 @@ window.openStaffModal = (mode, id) => {
     modal.classList.remove('opacity-0', 'pointer-events-none');
 };
 
-window.saveStaffChanges = async () => {
+window.saveStaffChanges = async function() {
     const data = { UserName: document.getElementById('editStaffUserName').value, FirstName: document.getElementById('editStaffFirstName').value, LastName: document.getElementById('editStaffLastName').value, Department: document.getElementById('editStaffDepartment').value };
     if(!data.UserName) return alert("Username required");
     const { mode, id } = currentStaffEdit;
     if (mode === 'edit') await apiRequest(`/api/staff/${id}`, 'PUT', data); else await apiRequest('/api/staff', 'POST', data);
-    hideModal('editStaffModal'); await refreshAllData(); renderStaffTable();
+    window.hideModal('editStaffModal'); await refreshAllData(); window.renderStaffTable();
 };
 
-window.deleteStaff = async (id) => { if(confirm("Delete this staff?")) { await apiRequest(`/api/staff/${id}`, 'DELETE'); await refreshAllData(); renderStaffTable(); } };
+window.deleteStaff = async function(id) { if(confirm("Delete this staff?")) { await apiRequest(`/api/staff/${id}`, 'DELETE'); await refreshAllData(); window.renderStaffTable(); } };
 
-function buildAdminManagementPage() {
+window.buildAdminManagementPage = function() {
     const page = document.getElementById('adminmanagement-page');
     page.innerHTML = `
         <div class="flex justify-between items-center mb-6"><h2 class="text-2xl font-bold dark:text-white">Admin Management</h2><button onclick="window.openAddUserModal()" class="bg-indigo-600 text-white px-4 py-2 rounded">Add Admin</button></div>
         <div class="bg-white dark:bg-gray-800 rounded shadow overflow-x-auto"><table class="min-w-full"><thead class="bg-gray-50 dark:bg-gray-700"><tr><th class="px-6 py-3 text-left text-xs uppercase text-gray-500">Email</th><th class="px-6 py-3 text-left text-xs uppercase text-gray-500">ID</th><th class="px-6 py-3"></th></tr></thead><tbody id="adminTableBody" class="divide-y divide-gray-200 dark:divide-gray-700"><tr><td colspan="3" class="text-center p-4">Loading...</td></tr></tbody></table></div>`;
-    renderAdminTable();
-}
+    window.renderAdminTable();
+};
 
-async function renderAdminTable() {
+window.renderAdminTable = async function() {
     const res = await apiRequest('/api/admins/list');
     const tbody = document.getElementById('adminTableBody');
     if(!res || !res.users) return;
     tbody.innerHTML = res.users.map(u => `<tr><td class="px-6 py-4">${u.email}</td><td class="px-6 py-4 text-xs text-gray-500">${u._id}</td><td class="px-6 py-4 text-right"><button onclick="window.deleteAdmin('${u._id}')" class="text-red-600"><i class="fas fa-trash"></i></button></td></tr>`).join('');
-}
+};
 
-window.openAddUserModal = () => document.getElementById('addUserModal').classList.remove('opacity-0', 'pointer-events-none');
-window.deleteAdmin = async (id) => { if(confirm("Delete admin?")) { await apiRequest('/api/admins/delete', 'DELETE', { uid: id }); renderAdminTable(); } };
+window.openAddUserModal = function() { document.getElementById('addUserModal').classList.remove('opacity-0', 'pointer-events-none'); };
+window.deleteAdmin = async function(id) { if(confirm("Delete admin?")) { await apiRequest('/api/admins/delete', 'DELETE', { uid: id }); window.renderAdminTable(); } };
 
 document.getElementById('addUserForm')?.addEventListener('submit', async (e) => {
     e.preventDefault();
     const email = document.getElementById('newUserEmail').value; const pwd = document.getElementById('newUserPassword').value;
-    try { await apiRequest('/api/admins/create', 'POST', { email, password: pwd }); hideModal('addUserModal'); renderAdminTable(); } catch(err) { document.getElementById('addUserError').textContent = err.message; }
+    try { await apiRequest('/api/admins/create', 'POST', { email, password: pwd }); window.hideModal('addUserModal'); window.renderAdminTable(); } catch(err) { document.getElementById('addUserError').textContent = err.message; }
 });
 
-function buildMaintenanceLogInModal(item) {
+window.buildMaintenanceLogInModal = function(item) {
     const list = document.getElementById('maintenanceLogList');
     if(!list) return;
     list.innerHTML = '';
     const logs = (allData['Maintenance Log'] || []).filter(l => l.deviceId === item.id);
     if(logs.length === 0) list.innerHTML = '<p class="text-xs text-gray-500">No logs.</p>';
     logs.forEach(l => { list.innerHTML += `<div class="border-b py-2"><p class="text-sm font-semibold">${new Date(l.logDate).toLocaleDateString()}</p><p class="text-sm">${l.description}</p></div>`; });
-}
+};
 
-window.addMaintenanceLog = () => {
+window.addMaintenanceLog = function() {
     const { collection, id } = currentEdit;
     const desc = document.getElementById('newLogDescription').value; const date = document.getElementById('newLogDate').value; const cost = document.getElementById('newLogCost').value; const tech = document.getElementById('newLogTechnician').value;
     if(!desc || !date) return alert("Date and Description required");
@@ -1227,7 +1250,7 @@ window.addMaintenanceLog = () => {
     });
 };
 
-window.openImportModal = (collectionName) => {
+window.openImportModal = function(collectionName) {
     currentImportCollection = collectionName;
     document.getElementById('importModalTitle').textContent = `Import CSV to ${collectionName}`;
     const config = collectionConfigs[collectionName];
@@ -1235,7 +1258,7 @@ window.openImportModal = (collectionName) => {
     document.getElementById('importModal').classList.remove('opacity-0', 'pointer-events-none');
 };
 
-window.downloadCsvTemplate = () => {
+window.downloadCsvTemplate = function() {
     if(!currentImportCollection) return;
     const config = collectionConfigs[currentImportCollection];
     const headers = config.formFields.join(',');
@@ -1244,7 +1267,7 @@ window.downloadCsvTemplate = () => {
     const link = document.createElement("a"); link.href = url; link.download = `${currentImportCollection}_template.csv`; link.click();
 };
 
-window.processCsvImport = () => {
+window.processCsvImport = function() {
     const file = document.getElementById('csvFileInput').files[0];
     if (!file) { showNotificationModal('warning', 'No File', 'Please select a file.'); return; }
     Papa.parse(file, { header: true, skipEmptyLines: true, encoding: document.getElementById('csvEncoding').value, complete: async (results) => {
@@ -1252,18 +1275,18 @@ window.processCsvImport = () => {
             if(results.data.length === 0) throw new Error("Empty CSV");
             await apiRequest(`/api/inventory/${currentImportCollection}/bulk`, 'POST', results.data);
             showNotificationModal('success', 'Imported', `Imported ${results.data.length} items.`);
-            hideModal('importModal'); refreshAllData();
+            window.hideModal('importModal'); refreshAllData();
         } catch (e) { showNotificationModal('warning', 'Error', e.message); }
     }});
 };
 
-window.showQrModal = (sn, name) => {
+window.showQrModal = function(sn, name) {
     document.getElementById('qrModalTitle').innerText = name;
     QRCode.toCanvas(document.getElementById('qrCanvas'), `${window.location.origin}/details.html?sn=${sn}`, { width: 200 });
     document.getElementById('qrModal').classList.remove('opacity-0', 'pointer-events-none');
 };
 
-function buildLoanHistoryCards() {
+window.buildLoanHistoryCards = function() {
     const container = document.getElementById('LoanHistoryContainer');
     if(!container) return;
     container.innerHTML = '';
@@ -1274,9 +1297,9 @@ function buildLoanHistoryCards() {
     Object.values(grouped).sort((a,b) => new Date(b.LoanDate) - new Date(a.LoanDate)).forEach(g => {
         container.innerHTML += `<div class="bg-white dark:bg-gray-800 rounded-lg shadow p-4 mb-3 border-l-4 ${g.Status==='Returned'?'border-green-500':'border-yellow-500'}"><div class="flex justify-between items-center cursor-pointer" onclick="this.nextElementSibling.classList.toggle('hidden')"><div><h4 class="font-bold text-gray-800 dark:text-white">${g.BorrowerName}</h4><p class="text-xs text-gray-500">${new Date(g.LoanDate).toLocaleDateString()} - ${g.LoanGroupID}</p></div><span class="px-2 py-1 rounded text-xs font-semibold ${g.Status==='Returned'?'bg-green-100 text-green-800':'bg-yellow-100 text-yellow-800'}">${g.Status}</span></div><div class="hidden mt-3 pt-3 border-t dark:border-gray-700"><ul class="text-sm space-y-1">${g.items.map(i => `<li class="flex justify-between"><span>${i.DeviceSerial} (${i.DeviceType})</span><span class="${i.Status==='Returned'?'text-green-500':'text-yellow-500'}">${i.Status}</span></li>`).join('')}</ul></div></div>`;
     });
-}
+};
 
-function buildMaintenancePage() {
+window.buildMaintenancePage = function() {
     const container = document.getElementById('MaintenanceContainer');
     if(!container) return;
     container.innerHTML = '';
@@ -1284,9 +1307,9 @@ function buildMaintenancePage() {
     logs.sort((a,b) => new Date(b.logDate) - new Date(a.logDate)).forEach(log => {
         container.innerHTML += `<div class="bg-white dark:bg-gray-800 p-4 rounded-lg shadow mb-3"><div class="flex justify-between"><span class="font-bold text-gray-800 dark:text-white">${log.deviceCollection} (ID: ${log.deviceId})</span><span class="text-sm text-gray-500">${new Date(log.logDate).toLocaleDateString()}</span></div><p class="text-gray-600 dark:text-gray-300 mt-1">${log.description}</p><div class="mt-2 text-xs text-gray-400 flex justify-between"><span>Tech: ${log.technician || '-'}</span><span>Cost: ${log.cost || 0}</span></div></div>`;
     });
-}
+};
 
-function buildAssetsByUserPage() {
+window.buildAssetsByUserPage = function() {
     const container = document.getElementById('AssetsByUserContainer');
     if(!container) return;
     container.innerHTML = '';
@@ -1297,13 +1320,13 @@ function buildAssetsByUserPage() {
         const assets = byUser[user];
         container.innerHTML += `<details class="group bg-white dark:bg-gray-800 rounded-lg shadow mb-3"><summary class="p-4 flex justify-between items-center cursor-pointer list-none"><span class="font-bold text-gray-800 dark:text-white"><i class="fas fa-user mr-2"></i>${user}</span><span class="bg-indigo-100 text-indigo-800 text-xs px-2 py-1 rounded-full">${assets.length} items</span></summary><div class="p-4 border-t dark:border-gray-700"><ul class="text-sm space-y-2">${assets.map(a => `<li class="flex justify-between items-center"><span>${a.ComputerName || a.DeviceName || a.ItemName || a.Model} <span class="text-xs text-gray-500">(${a.type})</span></span><span class="text-xs font-mono">${a.SerialNumber || a.MonitorSerial || '-'}</span></li>`).join('')}</ul></div></details>`;
     });
-}
+};
 
 // ==========================================
 // --- LABEL PRINTER SYSTEM ---
 // ==========================================
 let currentLabelItems = []; let currentLabelCategory = null;
-function buildLabelPrinterPage() {
+window.buildLabelPrinterPage = function() {
     const pageId = 'labelprinter-page';
     let pageDiv = document.getElementById(pageId);
     if (!pageDiv) return;
@@ -1355,9 +1378,9 @@ function buildLabelPrinterPage() {
     `;
     const catSelect = document.getElementById('labelCategorySelect');
     Object.keys(collectionConfigs).forEach(cat => { catSelect.innerHTML += `<option value="${cat}">${collectionConfigs[cat].displayName || cat}</option>`; });
-}
+};
 
-window.updateLabelItemDropdown = () => {
+window.updateLabelItemDropdown = function() {
     const cat = document.getElementById('labelCategorySelect').value;
     currentLabelCategory = cat; currentLabelItems = [];
     document.getElementById('selectedLabelCount').textContent = `0 selected`;
@@ -1379,13 +1402,13 @@ window.updateLabelItemDropdown = () => {
     });
 };
 
-window.toggleLabelItem = (id, isChecked) => {
+window.toggleLabelItem = function(id, isChecked) {
     if (isChecked) { if (!currentLabelItems.includes(id)) currentLabelItems.push(id); } 
     else { currentLabelItems = currentLabelItems.filter(i => i !== id); document.getElementById('selectAllLabelItemsCb').checked = false; }
     document.getElementById('selectedLabelCount').textContent = `${currentLabelItems.length} selected`; window.updateLabelPreview();
 };
 
-window.toggleAllLabelItems = (isChecked) => {
+window.toggleAllLabelItems = function(isChecked) {
     currentLabelItems = []; document.querySelectorAll('.label-item-cb').forEach(cb => { cb.checked = isChecked; if (isChecked) currentLabelItems.push(cb.value); });
     document.getElementById('selectedLabelCount').textContent = `${currentLabelItems.length} selected`; window.updateLabelPreview();
 };
@@ -1404,7 +1427,7 @@ function generateLabelHTML(item, isSplit) {
     return `<div class="w-full flex p-1 box-border ${isSplit ? 'h-1/2' : 'h-full'}"><div class="h-full flex flex-col items-center justify-center pr-1 shrink-0" style="width: 35%;"><canvas data-serial="${serial}" class="qr-render-target max-w-full max-h-full"></canvas></div><div class="h-full w-full pl-1 flex flex-col justify-center overflow-hidden border-l border-gray-300">${textHtml}</div></div>`;
 }
 
-window.updateLabelPreview = () => {
+window.updateLabelPreview = function() {
     const printArea = document.getElementById('print-area');
     const w = document.getElementById('labelWidth').value || 50; const h = document.getElementById('labelHeight').value || 30;
     const isSplit = document.getElementById('labelSplitMode').checked;
@@ -1428,7 +1451,7 @@ window.updateLabelPreview = () => {
     });
 };
 
-window.printLabel = () => {
+window.printLabel = function() {
     if (currentLabelItems.length === 0) return showNotificationModal('warning', 'No Items Selected', 'Please select at least one item to print.');
     const w = document.getElementById('labelWidth').value || 50; const h = document.getElementById('labelHeight').value || 30;
     let dynamicStyle = document.getElementById('dynamic-print-style');
@@ -1440,22 +1463,22 @@ window.printLabel = () => {
 // ==========================================
 // --- Global Utilities ---
 // ==========================================
-window.switchModalTab = (tab, btn) => {
+window.switchModalTab = function(tab, btn) {
     document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
     document.getElementById(tab+'-tab').classList.add('active');
     document.querySelectorAll('.tab-button').forEach(b => b.classList.remove('active'));
     btn.classList.add('active');
 };
-window.changeRowsPerPage = (col, el) => { paginationState[col].rowsPerPage = parseInt(el.value); paginationState[col].currentPage=1; buildTable(col); };
-window.changePage = (col, dir) => { paginationState[col].currentPage += dir; buildTable(col); };
-window.handleSearch = (col, val) => { paginationState[col].filterText = val; paginationState[col].currentPage=1; buildTable(col); };
-window.handleStatusFilter = (col, val) => { paginationState[col].statusFilter = val; paginationState[col].currentPage=1; buildTable(col); };
-window.filterLoanHistory = (val) => { const term=val.toUpperCase(); document.querySelectorAll('#LoanHistoryContainer > div').forEach(el => el.style.display = el.textContent.toUpperCase().includes(term)?'':'none'); };
-window.filterMaintenanceHistory = (val) => { const term=val.toUpperCase(); document.querySelectorAll('#MaintenanceContainer > div').forEach(el => el.style.display = el.textContent.toUpperCase().includes(term)?'':'none'); };
-window.filterAssetsByUser = (val) => { const term=val.toUpperCase(); document.querySelectorAll('#AssetsByUserContainer > details').forEach(el => el.style.display = el.textContent.toUpperCase().includes(term)?'':'none'); };
-window.filterStaffList = (input, listId) => { const term = input.value.toUpperCase(); document.querySelectorAll(`#${listId} .staff-item`).forEach(el => el.style.display = el.textContent.toUpperCase().includes(term) ? '' : 'none'); };
-window.filterDeviceList = (input, listId) => { const term = input.value.toUpperCase(); document.querySelectorAll(`#${listId} .device-item`).forEach(el => el.style.display = el.textContent.toUpperCase().includes(term) ? '' : 'none'); };
-window.switchHandoverTab = (tab, btn) => {
+window.changeRowsPerPage = function(col, el) { paginationState[col].rowsPerPage = parseInt(el.value); paginationState[col].currentPage=1; window.buildTable(col); };
+window.changePage = function(col, dir) { paginationState[col].currentPage += dir; window.buildTable(col); };
+window.handleSearch = function(col, val) { paginationState[col].filterText = val; paginationState[col].currentPage=1; window.buildTable(col); };
+window.handleStatusFilter = function(col, val) { paginationState[col].statusFilter = val; paginationState[col].currentPage=1; window.buildTable(col); };
+window.filterLoanHistory = function(val) { const term=val.toUpperCase(); document.querySelectorAll('#LoanHistoryContainer > div').forEach(el => el.style.display = el.textContent.toUpperCase().includes(term)?'':'none'); };
+window.filterMaintenanceHistory = function(val) { const term=val.toUpperCase(); document.querySelectorAll('#MaintenanceContainer > div').forEach(el => el.style.display = el.textContent.toUpperCase().includes(term)?'':'none'); };
+window.filterAssetsByUser = function(val) { const term=val.toUpperCase(); document.querySelectorAll('#AssetsByUserContainer > details').forEach(el => el.style.display = el.textContent.toUpperCase().includes(term)?'':'none'); };
+window.filterStaffList = function(input, listId) { const term = input.value.toUpperCase(); document.querySelectorAll(`#${listId} .staff-item`).forEach(el => el.style.display = el.textContent.toUpperCase().includes(term) ? '' : 'none'); };
+window.filterDeviceList = function(input, listId) { const term = input.value.toUpperCase(); document.querySelectorAll(`#${listId} .device-item`).forEach(el => el.style.display = el.textContent.toUpperCase().includes(term) ? '' : 'none'); };
+window.switchHandoverTab = function(tab, btn) {
     document.getElementById('handover-tab-content').style.display = tab==='handover'?'block':'none';
     document.getElementById('return-tab-content').style.display = tab==='return'?'block':'none';
     document.querySelectorAll('#handover-tabs button').forEach(b => { b.classList.remove('border-indigo-600', 'text-indigo-600', 'dark:text-indigo-400'); b.classList.add('border-transparent', 'text-gray-500'); });
