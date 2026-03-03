@@ -1109,6 +1109,33 @@ window.updateDashboard = function() {
         if (Array.isArray(items)) categoryCounts[key] = items.length;
     }
     window.renderCategoryChart(categoryCounts);
+
+    // 🌟 กู้คืนระบบแสดงประวัติรายการล่าสุด (Recent Transactions)
+    const activityContainer = document.getElementById('recent-activity-list');
+    if (activityContainer) {
+        const transactions = allData['TransactionHistory'] || [];
+        if (transactions.length === 0) {
+            activityContainer.innerHTML = '<p class="text-gray-500 text-sm">No recent activities found.</p>';
+        } else {
+            const sorted = transactions.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp)).slice(0, 5);
+            let html = '';
+            sorted.forEach(tx => {
+                const date = new Date(tx.timestamp).toLocaleString('th-TH');
+                const color = tx.type === 'Handover' ? 'text-blue-500' : 'text-green-500';
+                const icon = tx.type === 'Handover' ? 'fa-arrow-right' : 'fa-arrow-left';
+                html += `
+                    <div class="flex items-start space-x-3 p-3 bg-gray-50 dark:bg-gray-700/50 rounded-lg">
+                        <div class="mt-1 ${color}"><i class="fas ${icon}"></i></div>
+                        <div>
+                            <p class="text-sm font-semibold text-gray-800 dark:text-gray-200">${tx.type}: <span class="font-normal text-gray-600 dark:text-gray-400">${tx.staffUserName || 'Unknown'}</span></p>
+                            <p class="text-xs text-gray-500">${tx.devices ? tx.devices.length : 0} items • ${date}</p>
+                        </div>
+                    </div>
+                `;
+            });
+            activityContainer.innerHTML = html;
+        }
+    }
 };
 
 window.renderStatusChart = function(data) {
