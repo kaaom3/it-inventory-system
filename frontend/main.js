@@ -1434,28 +1434,22 @@ window.buildLoanHistoryCards = function() {
     const groupsArray = Object.values(grouped).sort((a,b) => new Date(b.LoanDate) - new Date(a.LoanDate));
     
     groupsArray.forEach(g => {
-        html += `
-        <div class="bg-white dark:bg-gray-800 rounded-lg shadow p-4 mb-3 border-l-4 ${g.Status==='Returned'?'border-green-500':'border-yellow-500'}">
+        html += `<div class="bg-white dark:bg-gray-800 rounded-lg shadow p-4 mb-3 border-l-4 ${g.Status==='Returned'?'border-green-500':'border-yellow-500'}">
             <div class="flex justify-between items-center cursor-pointer" onclick="this.nextElementSibling.classList.toggle('hidden')">
                 <div>
                     <h4 class="font-bold text-gray-800 dark:text-white">${g.BorrowerName}</h4>
-                    <p class="text-xs text-gray-500">${new Date(g.LoanDate).toLocaleDateString()} - ${g.LoanGroupID}</p>
+                    <p class="text-xs text-gray-500">${new Date(g.LoanDate).toLocaleDateString('th-TH')} - ${g.LoanGroupID}</p>
                 </div>
                 <span class="px-2 py-1 rounded text-xs font-semibold ${g.Status==='Returned'?'bg-green-100 text-green-800':'bg-yellow-100 text-yellow-800'}">${g.Status}</span>
             </div>
-            
             <div class="hidden mt-3 pt-3 border-t dark:border-gray-700">
                 <ul class="text-sm space-y-2 mb-4">
-                    ${g.items.map(i => `
-                    <li class="flex justify-between border-b dark:border-gray-700 pb-1 border-dashed">
-                        <span>${i.DeviceSerial} <span class="text-xs text-gray-500 ml-1">(${i.DeviceType})</span></span>
-                        <span class="${i.Status==='Returned'?'text-green-500':'text-yellow-500'} font-medium">${i.Status}</span>
-                    </li>`).join('')}
+                    ${g.items.map(i => `<li class="flex justify-between border-b dark:border-gray-700 pb-1 border-dashed"><span>${i.DeviceSerial} <span class="text-xs text-gray-500 ml-1">(${i.DeviceType})</span></span><span class="${i.Status==='Returned'?'text-green-500':'text-yellow-500'} font-medium">${i.Status}</span></li>`).join('')}
                 </ul>
                 
-                <!-- 🌟 กล่องแสดง QR Code สำหรับส่งให้ผู้ยืม (กรณีทำหาย) -->
+                <!-- 🌟 กล่องแสดง QR Code พร้อมปุ่มดาวน์โหลด/คัดลอกลิงก์ -->
                 <div class="bg-gray-50 dark:bg-gray-900/50 p-4 rounded-xl flex flex-col items-center border border-gray-100 dark:border-gray-700">
-                    <p class="text-sm font-bold mb-3 text-gray-700 dark:text-gray-300"><i class="fas fa-qrcode mr-2 text-indigo-500"></i>QR Code คืนอุปกรณ์รายการนี้</p>
+                    <p class="text-sm font-bold mb-3 text-gray-700 dark:text-gray-300"><i class="fas fa-qrcode mr-2 text-indigo-500"></i>QR Code คืนอุปกรณ์</p>
                     <div class="bg-white p-2 rounded-lg shadow-sm border border-gray-200 mb-4 inline-block">
                         <canvas id="qr-loan-${g.LoanGroupID}"></canvas>
                     </div>
@@ -1463,7 +1457,8 @@ window.buildLoanHistoryCards = function() {
                         <button onclick="window.copyLoanLink('${g.LoanGroupID}')" class="flex-1 max-w-[140px] text-xs bg-indigo-100 text-indigo-700 hover:bg-indigo-200 dark:bg-indigo-900/40 dark:text-indigo-400 py-2 rounded-lg font-bold transition shadow-sm border border-indigo-200 dark:border-indigo-800 flex items-center justify-center">
                             <i class="fas fa-link mr-1"></i> คัดลอกลิงก์
                         </button>
-                        <button onclick="window.downloadLoanQR('${g.LoanGroupID}')" class="flex-1 max-w-[140px] text-xs bg-green-100 text-green-700 hover:bg-green-200 dark:bg-green-900/40 dark:text-green-400 py-2 rounded-lg font-bold transition shadow-sm border border-green-200 dark:border-green-800 flex items-center justify-center">
+                        <!-- 🌟 ส่งพารามิเตอร์เพิ่มไปให้ตอนดาวน์โหลดภาพ -->
+                        <button onclick="window.downloadLoanQR('${g.LoanGroupID}', '${g.BorrowerName}', '${new Date(g.LoanDate).toLocaleDateString('th-TH')}')" class="flex-1 max-w-[140px] text-xs bg-green-100 text-green-700 hover:bg-green-200 dark:bg-green-900/40 dark:text-green-400 py-2 rounded-lg font-bold transition shadow-sm border border-green-200 dark:border-green-800 flex items-center justify-center">
                             <i class="fas fa-download mr-1"></i> โหลดภาพ
                         </button>
                     </div>
@@ -1474,7 +1469,7 @@ window.buildLoanHistoryCards = function() {
     
     container.innerHTML = html;
 
-    // ทำการเรนเดอร์ QR Code หลังจากที่ใส่ HTML ลงไปในหน้าเว็บแล้ว
+    // วาด QR Code หลังจากแทรก HTML
     groupsArray.forEach(g => {
         const canvas = document.getElementById(`qr-loan-${g.LoanGroupID}`);
         if (canvas) {
@@ -1486,7 +1481,6 @@ window.buildLoanHistoryCards = function() {
     });
 };
 
-// ฟังก์ชันคัดลอกลิงก์การคืนอุปกรณ์
 window.copyLoanLink = function(loanId) {
     const url = `${window.location.origin}/return.html?id=${loanId}`;
     const textArea = document.createElement("textarea");
@@ -1501,22 +1495,53 @@ window.copyLoanLink = function(loanId) {
             alert('คัดลอกลิงก์แล้ว: ' + url);
         }
     } catch (err) {
-        if(typeof showNotificationModal === 'function') {
-            showNotificationModal('warning', 'ผิดพลาด', 'ไม่สามารถคัดลอกลิงก์ได้');
-        } else {
-            alert('ไม่สามารถคัดลอกลิงก์ได้');
-        }
+        if(typeof showNotificationModal === 'function') showNotificationModal('warning', 'ผิดพลาด', 'ไม่สามารถคัดลอกลิงก์ได้');
+        else alert('ไม่สามารถคัดลอกลิงก์ได้');
     }
     document.body.removeChild(textArea);
 };
 
-// ฟังก์ชันดาวน์โหลดภาพ QR Code
-window.downloadLoanQR = function(loanId) {
-    const canvas = document.getElementById(`qr-loan-${loanId}`);
-    if(canvas) {
+// 🌟 สร้างฟังก์ชันดาวน์โหลดรูป QR แบบมีรายละเอียดแทรกด้านล่าง
+window.downloadLoanQR = function(loanId, borrowerName, loanDate) {
+    const qrCanvas = document.getElementById(`qr-loan-${loanId}`);
+    if(qrCanvas) {
+        // สร้าง Canvas พิเศษในหน่วยความจำเพื่อนำภาพ QR และข้อความมารวมกัน
+        const compositeCanvas = document.createElement('canvas');
+        const ctx = compositeCanvas.getContext('2d');
+        
+        const qrSize = qrCanvas.width;
+        const textHeight = 80; // ความสูงพื้นที่สำหรับตัวหนังสือด้านล่าง
+        
+        compositeCanvas.width = qrSize;
+        compositeCanvas.height = qrSize + textHeight;
+        
+        // 1. ถมพื้นหลังสีขาวให้เต็มก่อน
+        ctx.fillStyle = '#ffffff';
+        ctx.fillRect(0, 0, compositeCanvas.width, compositeCanvas.height);
+        
+        // 2. วาดรูปรหัส QR Code ไว้ด้านบน
+        ctx.drawImage(qrCanvas, 0, 0);
+        
+        // 3. ตั้งค่าการวาดข้อความ
+        ctx.fillStyle = '#1f2937'; // สีตัวอักษรเทาเข้ม
+        ctx.textAlign = 'center';
+        
+        // บรรทัดที่ 1: รหัสยืม
+        ctx.font = 'bold 13px sans-serif';
+        ctx.fillText(`รหัสยืม: ${loanId}`, qrSize / 2, qrSize + 20);
+        
+        // บรรทัดที่ 2: ชื่อผู้ยืม
+        ctx.font = '12px sans-serif';
+        ctx.fillText(`ผู้ยืม: ${borrowerName}`, qrSize / 2, qrSize + 40);
+        
+        // บรรทัดที่ 3: วันที่ทำรายการ
+        ctx.fillStyle = '#6b7280'; // สีตัวอักษรเทาอ่อน
+        ctx.fillText(`วันที่ยืม: ${loanDate}`, qrSize / 2, qrSize + 60);
+
+        // แปลงเป็นรูปภาพแล้วสั่งดาวน์โหลด
         const link = document.createElement('a');
         link.download = `Return_QRCode_${loanId}.png`;
-        link.href = canvas.toDataURL("image/png");
+        link.href = compositeCanvas.toDataURL("image/png");
         link.click();
     }
 };
