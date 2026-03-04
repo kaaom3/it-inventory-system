@@ -1,6 +1,6 @@
 // ===================================================================
 // Frontend Logic for IT Inventory System (Full Complete Version)
-// Merged with: Render.com Cloud URL + Disposal Evidence + Fixed Data Mapping
+// Merged with: Advanced Ping System + Composite QR + New Card UI
 // ===================================================================
 
 // 🌟 ล็อก URL ไปที่เซิร์ฟเวอร์บน Cloud ของคุณ 100%
@@ -151,15 +151,14 @@ async function apiRequest(endpoint, method = 'GET', body = null) {
 // --- Data Refresh & Config Builder ---
 async function refreshAllData() {
     try {
-        // รับค่ามาแบบตรงๆ เพื่อป้องกันข้อมูลโครงสร้างเปลี่ยน
         allData = await apiRequest('/api/inventory/all');
         
         const defaultConfigs = {
             Computers: { displayName: 'Computers', headers: ['Last Seen', 'ComputerName', 'SerialNumber', 'UserName', 'Status'], formFields: ['ComputerName', 'Manufacturer', 'Model', 'Type', 'SerialNumber', 'CPU', 'RAM_GB', 'DiskSize_GB', 'OS', 'IPAddress', 'MacAddress', 'UserName', 'Location', 'PurchaseDate', 'WarrantyEndDate', 'Status', 'Description'], nameField: 'ComputerName', serialField: 'SerialNumber', icon: 'fa-laptop', dropdowns: { Status: ['Active', 'On Loan', 'Repair', 'Storage', 'Damaged', 'Disposed'], Type: ['Desktop', 'Laptop', 'MacBook', 'Tablet', 'POS', 'Server', 'Other'] }, isCustom: false },
             Monitors: { displayName: 'Monitors', headers: ['Manufacturer', 'Model', 'MonitorSerial', 'UserName', 'Status'], formFields: ['Manufacturer', 'Model', 'MonitorSerial', 'UserName', 'Location', 'AssignedComputer', 'PurchaseDate', 'WarrantyEndDate', 'Status', 'Description'], nameField: 'Model', serialField: 'MonitorSerial', icon: 'fa-desktop', dropdowns: { Status: ['Active', 'On Loan', 'Repair', 'Storage', 'Damaged', 'Disposed'] }, isCustom: false },
             Accessory: { displayName: 'Accessories', headers: ['AccessoryType', 'Model', 'SerialNumber', 'UserName', 'Status'], formFields: ['AccessoryType', 'Manufacturer', 'Model', 'SerialNumber', 'UserName', 'Location', 'AssignedComputer', 'PurchaseDate', 'Status', 'Description'], nameField: 'Model', serialField: 'SerialNumber', icon: 'fa-keyboard', dropdowns: { Status: ['Active', 'On Loan', 'Repair', 'Storage', 'Damaged', 'Disposed'], AccessoryType: ['Mouse', 'Keyboard', 'Webcam', 'Docking', 'Adapter', 'Other'] }, isCustom: false },
-            Printers: { displayName: 'Printers', headers: ['Name', 'Model', 'SerialNumber', 'IPAddress', 'Status'], formFields: ['Name', 'Manufacturer', 'Model', 'SerialNumber', 'IPAddress', 'MacAddress', 'Location', 'PurchaseDate', 'Status', 'Description'], nameField: 'Name', serialField: 'SerialNumber', icon: 'fa-print', dropdowns: { Status: ['Active', 'On Loan', 'Repair', 'Storage', 'Damaged', 'Disposed'] }, isCustom: false },
-            Network: { displayName: 'Network Devices', headers: ['Last Seen', 'DeviceName', 'Model', 'IPAddress', 'Status'], formFields: ['DeviceName', 'Manufacturer', 'Model', 'SerialNumber', 'Type', 'IPAddress', 'MacAddress', 'Location', 'PurchaseDate', 'Status', 'Description'], nameField: 'DeviceName', serialField: 'SerialNumber', icon: 'fa-network-wired', dropdowns: { Status: ['Active', 'On Loan', 'Repair', 'Storage', 'Damaged', 'Disposed'], Type: ['Router', 'Switch', 'Access Point', 'Firewall', 'Other'] }, isCustom: false }
+            Printers: { displayName: 'Printers', headers: ['Last Seen', 'Name', 'Model', 'SerialNumber', 'IPAddress', 'Status'], formFields: ['Name', 'Manufacturer', 'Model', 'SerialNumber', 'IPAddress', 'MacAddress', 'Location', 'PurchaseDate', 'Status', 'Description'], nameField: 'Name', serialField: 'SerialNumber', icon: 'fa-print', dropdowns: { Status: ['Active', 'On Loan', 'Repair', 'Storage', 'Damaged', 'Disposed'] }, isCustom: false },
+            Network: { displayName: 'Network Devices', headers: ['Last Seen', 'DeviceName', 'Model', 'IPAddress', 'Status'], formFields: ['DeviceName', 'Manufacturer', 'Model', 'SerialNumber', 'Type', 'IPAddress', 'MacAddress', 'Location', 'PurchaseDate', 'Status', 'Description'], nameField: 'DeviceName', serialField: 'SerialNumber', icon: 'fa-network-wired', dropdowns: { Status: ['Active', 'On Loan', 'Repair', 'Storage', 'Damaged', 'Disposed'], Type: ['Router', 'Switch', 'Access Point', 'Firewall', 'CCTV', 'Other'] }, isCustom: false }
         };
         
         collectionConfigs = { ...defaultConfigs };
@@ -349,7 +348,7 @@ function initPrintStyles() {
 }
 
 // ==========================================
-// --- PERIODIC PING FUNCTION ---
+// --- 🌟 PERIODIC PING FUNCTION (UPDATED) ---
 // ==========================================
 async function runPeriodicPing() {
     const pingPromises = [];
@@ -357,21 +356,28 @@ async function runPeriodicPing() {
         const items = allData[colName] || [];
         const config = collectionConfigs[colName];
         
+        // เราจะเช็คว่าอุปกรณ์นี้มี IPAddress หรือไม่ (รองรับทุกอุปกรณ์ไม่ใช่แค่คอมพิวเตอร์)
         const hasIP = config.formFields.includes('IPAddress');
         const isComputers = colName === 'Computers';
         
         if (hasIP || isComputers) {
             items.forEach(item => {
                 let target = null;
-                if (isComputers && item.ComputerName && item.ComputerName.trim() !== '') target = item.ComputerName;
-                else if (item.IPAddress && item.IPAddress !== 'N/A' && item.IPAddress.trim() !== '') target = item.IPAddress;
+                // ลำดับความสำคัญ: ถ้ามี IPAddress ให้ใช้ IP ก่อน, ถ้าไม่มี IP แต่เป็น Computer ค่อยใช้ ComputerName
+                if (item.IPAddress && item.IPAddress !== 'N/A' && item.IPAddress.trim() !== '') {
+                    target = item.IPAddress;
+                } else if (isComputers && item.ComputerName && item.ComputerName.trim() !== '') {
+                    target = item.ComputerName;
+                }
                 
+                // แจ้งให้ Backend ทำการส่ง Ping ไปเช็ค Target นี้
                 if (target) {
                     pingPromises.push(apiRequest(`/api/ping/${target}?collection=${colName}`).catch(e => null));
                 }
             });
         }
     });
+    // สั่งยิงพร้อมกันเบื้องหลังโดยไม่บล็อกหน้าจอ
     await Promise.allSettled(pingPromises);
 }
 
@@ -888,10 +894,11 @@ window.buildTable = function(collectionName) {
                    let color = 'gray'; if (val === 'Active') color = 'green'; else if (val === 'On Loan') color = 'yellow'; else if (val === 'Repair') color = 'orange'; else if (val === 'Storage') color = 'blue'; else if (val === 'Damaged') color = 'red';
                    val = `<span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-${color}-100 text-${color}-800 dark:bg-${color}-900/50 dark:text-${color}-300">${val}</span>`; 
                 } else if (header === 'Last Seen') {
-                     if (item.lastSeenOnline) {
-                        const diffMins = (new Date() - new Date(item.lastSeenOnline)) / 60000;
+                     let lastSeen = item.lastSeenOnline || item.Timestamp;
+                     if (lastSeen) {
+                        const diffMins = (new Date() - new Date(lastSeen)) / 60000;
                         if (diffMins <= 15) val = `<div class="flex items-center space-x-2"><div class="h-2.5 w-2.5 rounded-full bg-green-500 shadow-[0_0_5px_#22c55e] animate-pulse"></div><span class="font-medium text-green-600 dark:text-green-400">Online</span></div>`;
-                        else val = `<div class="flex flex-col"><div class="flex items-center space-x-2"><div class="h-2.5 w-2.5 rounded-full bg-gray-400"></div><span class="text-gray-500">Offline</span></div><span class="text-[10px] text-gray-400 mt-0.5" title="${new Date(item.lastSeenOnline).toLocaleString('th-TH')}">ล่าสุด: ${window.formatTimeAgo(item.lastSeenOnline)}</span></div>`;
+                        else val = `<div class="flex flex-col"><div class="flex items-center space-x-2"><div class="h-2.5 w-2.5 rounded-full bg-gray-400"></div><span class="text-gray-500">Offline</span></div><span class="text-[10px] text-gray-400 mt-0.5" title="${new Date(lastSeen).toLocaleString('th-TH')}">ล่าสุด: ${window.formatTimeAgo(lastSeen)}</span></div>`;
                      } else {
                         val = `<div class="flex items-center space-x-2"><div class="h-2.5 w-2.5 rounded-full bg-yellow-400"></div><span class="text-gray-500">Unknown</span></div>`;
                      }
@@ -1084,7 +1091,6 @@ window.deleteItem = async function(collectionName, id) {
 // ==========================================
 window.updateDashboard = function() {
     let total = 0, active = 0, storage = 0, issues = 0;
-    // 🌟 เพิ่ม 'Software' เข้าไปใน skipKeys เพื่อไม่ให้นับรวมใน Total, Status, Category Chart
     const skipKeys = ['Staff', 'CustomMenus', 'TransactionHistory', 'LoanHistory', 'Maintenance Log', 'admins', 'Software'];
     const allItems = [];
 
@@ -1113,7 +1119,7 @@ window.updateDashboard = function() {
     if (overviewGrid) {
         overviewGrid.innerHTML = '';
         Object.keys(collectionConfigs).forEach(colName => {
-            if (colName === 'Software') return; // 🌟 ข้ามการสร้างกล่องสรุป Software
+            if (colName === 'Software') return; 
             const config = collectionConfigs[colName];
             const items = allData[colName] || [];
             const displayName = config.displayName || colName;
@@ -1182,15 +1188,6 @@ window.renderCategoryChart = function(data) {
 };
 
 // --- Modals ---
-window.hideModal = function(id) { 
-    const modal = document.getElementById(id);
-    modal.classList.add('opacity-0', 'pointer-events-none'); 
-    if (modal.querySelector('.modal-content')) {
-        modal.querySelector('.modal-content').classList.remove('scale-100');
-        modal.querySelector('.modal-content').classList.add('scale-95');
-    }
-};
-
 function showNotificationModal(type, title, msg) {
     document.getElementById('modalTitle').textContent = title;
     document.getElementById('modalMessage').textContent = msg;
@@ -1414,6 +1411,9 @@ window.processCsvImport = function() {
     }});
 };
 
+// ==========================================
+// 🌟 Loan History & Composite QR Code
+// ==========================================
 window.showQrModal = function(sn, name) {
     document.getElementById('qrModalTitle').innerText = name;
     QRCode.toCanvas(document.getElementById('qrCanvas'), `${window.location.origin}/details.html?sn=${sn}`, { width: 200 });
@@ -1447,7 +1447,6 @@ window.buildLoanHistoryCards = function() {
                     ${g.items.map(i => `<li class="flex justify-between border-b dark:border-gray-700 pb-1 border-dashed"><span>${i.DeviceSerial} <span class="text-xs text-gray-500 ml-1">(${i.DeviceType})</span></span><span class="${i.Status==='Returned'?'text-green-500':'text-yellow-500'} font-medium">${i.Status}</span></li>`).join('')}
                 </ul>
                 
-                <!-- 🌟 กล่องแสดง QR Code พร้อมปุ่มดาวน์โหลด/คัดลอกลิงก์ -->
                 <div class="bg-gray-50 dark:bg-gray-900/50 p-4 rounded-xl flex flex-col items-center border border-gray-100 dark:border-gray-700">
                     <p class="text-sm font-bold mb-3 text-gray-700 dark:text-gray-300"><i class="fas fa-qrcode mr-2 text-indigo-500"></i>QR Code คืนอุปกรณ์</p>
                     <div class="bg-white p-2 rounded-lg shadow-sm border border-gray-200 mb-4 inline-block">
@@ -1457,7 +1456,6 @@ window.buildLoanHistoryCards = function() {
                         <button onclick="window.copyLoanLink('${g.LoanGroupID}')" class="flex-1 max-w-[140px] text-xs bg-indigo-100 text-indigo-700 hover:bg-indigo-200 dark:bg-indigo-900/40 dark:text-indigo-400 py-2 rounded-lg font-bold transition shadow-sm border border-indigo-200 dark:border-indigo-800 flex items-center justify-center">
                             <i class="fas fa-link mr-1"></i> คัดลอกลิงก์
                         </button>
-                        <!-- 🌟 ส่งพารามิเตอร์เพิ่มไปให้ตอนดาวน์โหลดภาพ -->
                         <button onclick="window.downloadLoanQR('${g.LoanGroupID}', '${g.BorrowerName}', '${new Date(g.LoanDate).toLocaleDateString('th-TH')}')" class="flex-1 max-w-[140px] text-xs bg-green-100 text-green-700 hover:bg-green-200 dark:bg-green-900/40 dark:text-green-400 py-2 rounded-lg font-bold transition shadow-sm border border-green-200 dark:border-green-800 flex items-center justify-center">
                             <i class="fas fa-download mr-1"></i> โหลดภาพ
                         </button>
@@ -1469,7 +1467,6 @@ window.buildLoanHistoryCards = function() {
     
     container.innerHTML = html;
 
-    // วาด QR Code หลังจากแทรก HTML
     groupsArray.forEach(g => {
         const canvas = document.getElementById(`qr-loan-${g.LoanGroupID}`);
         if (canvas) {
@@ -1501,44 +1498,35 @@ window.copyLoanLink = function(loanId) {
     document.body.removeChild(textArea);
 };
 
-// 🌟 สร้างฟังก์ชันดาวน์โหลดรูป QR แบบมีรายละเอียดแทรกด้านล่าง
 window.downloadLoanQR = function(loanId, borrowerName, loanDate) {
     const qrCanvas = document.getElementById(`qr-loan-${loanId}`);
     if(qrCanvas) {
-        // สร้าง Canvas พิเศษในหน่วยความจำเพื่อนำภาพ QR และข้อความมารวมกัน
         const compositeCanvas = document.createElement('canvas');
         const ctx = compositeCanvas.getContext('2d');
         
         const qrSize = qrCanvas.width;
-        const textHeight = 80; // ความสูงพื้นที่สำหรับตัวหนังสือด้านล่าง
+        const textHeight = 80; 
         
         compositeCanvas.width = qrSize;
         compositeCanvas.height = qrSize + textHeight;
         
-        // 1. ถมพื้นหลังสีขาวให้เต็มก่อน
         ctx.fillStyle = '#ffffff';
         ctx.fillRect(0, 0, compositeCanvas.width, compositeCanvas.height);
         
-        // 2. วาดรูปรหัส QR Code ไว้ด้านบน
         ctx.drawImage(qrCanvas, 0, 0);
         
-        // 3. ตั้งค่าการวาดข้อความ
-        ctx.fillStyle = '#1f2937'; // สีตัวอักษรเทาเข้ม
+        ctx.fillStyle = '#1f2937'; 
         ctx.textAlign = 'center';
         
-        // บรรทัดที่ 1: รหัสยืม
         ctx.font = 'bold 13px sans-serif';
         ctx.fillText(`รหัสยืม: ${loanId}`, qrSize / 2, qrSize + 20);
         
-        // บรรทัดที่ 2: ชื่อผู้ยืม
         ctx.font = '12px sans-serif';
         ctx.fillText(`ผู้ยืม: ${borrowerName}`, qrSize / 2, qrSize + 40);
         
-        // บรรทัดที่ 3: วันที่ทำรายการ
-        ctx.fillStyle = '#6b7280'; // สีตัวอักษรเทาอ่อน
+        ctx.fillStyle = '#6b7280'; 
         ctx.fillText(`วันที่ยืม: ${loanDate}`, qrSize / 2, qrSize + 60);
 
-        // แปลงเป็นรูปภาพแล้วสั่งดาวน์โหลด
         const link = document.createElement('a');
         link.download = `Return_QRCode_${loanId}.png`;
         link.href = compositeCanvas.toDataURL("image/png");
@@ -1561,7 +1549,6 @@ window.buildAssetsByUserPage = function() {
     if(!container) return;
     container.innerHTML = '';
     const byUser = {};
-    // 🌟 เพิ่ม 'Software' เข้าไปใน skipKeys เพื่อไม่ให้นับรวมใน Assets by User
     const skipKeys = ['Staff', 'CustomMenus', 'TransactionHistory', 'LoanHistory', 'Maintenance Log', 'admins', 'Software'];
     Object.keys(allData).forEach(key => { 
         if (skipKeys.includes(key)) return;
@@ -1575,7 +1562,7 @@ window.buildAssetsByUserPage = function() {
 };
 
 // ==========================================
-// --- LABEL PRINTER SYSTEM (FIXED) ---
+// --- LABEL PRINTER SYSTEM ---
 // ==========================================
 window.buildLabelPrinterPage = function() {
     const pageId = 'labelprinter-page';
@@ -1629,7 +1616,7 @@ window.buildLabelPrinterPage = function() {
     `;
     const catSelect = document.getElementById('labelCategorySelect');
     
-    const skipKeys = ['Staff', 'CustomMenus', 'TransactionHistory', 'LoanHistory', 'Maintenance Log', 'admins'];
+    const skipKeys = ['Staff', 'CustomMenus', 'TransactionHistory', 'LoanHistory', 'Maintenance Log', 'admins', 'Software'];
     Object.keys(allData).forEach(cat => { 
         if (!skipKeys.includes(cat) && Array.isArray(allData[cat])) {
             const displayName = collectionConfigs[cat] ? collectionConfigs[cat].displayName : cat;
@@ -1649,7 +1636,6 @@ window.updateLabelItemDropdown = function() {
     if (!cat) return;
 
     const items = allData[cat] || []; 
-    // ถ้าไม่มี Config ให้ใช้ค่าเริ่มต้นในการแสดงผล
     const config = collectionConfigs[cat] || { nameField: 'SerialNumber', serialField: 'SerialNumber', formFields: ['SerialNumber', 'Status'] }; 
     
     document.getElementById('selectAllLabelItemsCb').disabled = false; document.getElementById('selectAllLabelItemsCb').checked = false;
@@ -1689,7 +1675,6 @@ function generateLabelHTML(item, isSplit) {
 
     checkedFields.forEach((field, index) => { const val = item[field] || '-'; const extraClass = index === 0 ? 'font-bold' : ''; textHtml += `<div class="${fontSizeClass} ${extraClass} truncate text-black font-sans" style="max-width: 100%;">${val}</div>`; });
     
-    // 🌟 ดึง Serial สำหรับสร้าง QR Code ให้แม่นยำขึ้น
     const config = collectionConfigs[currentLabelCategory] || {};
     const serial = item[config.serialField] || item.SerialNumber || item._id;
 
@@ -1704,7 +1689,6 @@ window.updateLabelPreview = function() {
     if (currentLabelItems.length === 0) { printArea.innerHTML = '<div class="text-[10px] text-gray-400 text-center py-10 font-medium">No Items Selected</div>'; return; }
 
     let previewHtml = '';
-    // 🌟 แก้ไขการค้นหา item ด้วย _id ให้ถูกต้อง
     const itemsData = currentLabelItems.map(id => allData[currentLabelCategory].find(i => i._id === id || i.id === id)).filter(Boolean);
 
     if (isSplit) {

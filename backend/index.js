@@ -38,36 +38,68 @@ let db;
 // --- Connect to MongoDB ---
 MongoClient.connect(mongoUri)
   .then(async client => {
-    console.log("Successfully connected to MongoDB!");
-    db = client.db(dbName);
+      } catch (e) {
+          console.error("Error creating default admin:", e);
+      }
 
-    // 🌟 ระบบสร้าง Admin แรกอัตโนมัติ (ถ้าฐานข้อมูลยังไม่มี Admin เลย)
-    try {
-        const adminCount = await db.collection('admins').countDocuments();
-        if (adminCount === 0) {
-            const defaultEmail = "admin@inventory.com";
-            const defaultPassword = "password123";
-            const hashed = await bcrypt.hash(defaultPassword, 10);
-            await db.collection('admins').insertOne({ 
-                email: defaultEmail, 
-                password: hashed, 
-                createdAt: new Date() 
-            });
-            console.log("==========================================");
-            console.log("🌟 DEFAULT ADMIN CREATED AUTOMATICALLY 🌟");
-            console.log(`Email:    ${defaultEmail}`);
-            console.log(`Password: ${defaultPassword}`);
-            console.log("Please login and create your own admin account.");
-            console.log("==========================================");
+      // 🌟 เริ่มต้นระบบ Background Ping
+      startBackgroundPingService();
+    })
+    .catch(error => {
+      console.error("Failed to connect to MongoDB", error);
+      console.log("Server started but DB connection failed. Check MongoDB service.");
+    });
+
+// ===================================================================
+// 🌟 ระบบ Background Ping Service (สำหรับอุปกรณ์ที่มี IP Address)
+// ===================================================================
+async function startBackgroundPingService() {
+    console.log("[Ping Service] Starting background ping service for IP devices...");
+    
+    // รันทุกๆ 10 นาที (600000 ms)
+    setInterval(async () => {
+        if (!db) return;
+        
+        try {
+            // ดึงรายชื่อ Custom Menus เพื่อหา Collection ทั้งหมด
+            const customMenus = await db.collection('CustomMenus').find().toArray();
+            const customCollectionNames = customMenus.map(m => m.name);
+            
+            // Collection ที่น่าจะมี IP Address
+            const collectionsToCheck = ['Network', 'Printers', ...customCollectionNames];
+
+            for (const collectionName of collectionsToCheck) {
+                // หาอุปกรณ์ทั้งหมดใน Collection นั้นที่มี IP Address ระบุไว้ และไม่ใช่ 'N/A'
+                const devices = await db.collection(collectionName).find({
+                    IPAddress: { $exists: true, $ne: "", $ne: "N/A" }
+                }).toArray();
+
+                for (const device of devices) {
+                    try {
+                        const targetIp = device.IPAddress;
+                        // ทำการ Ping ไปยัง IP นั้น
+                        const res = await ping.promise.probe(targetIp, { timeout: 2 });
+                        
+                        if (res.alive) {
+                            // ถ้า Ping เจอ ให้อัปเดตเวลา lastSeenOnline
+                            await db.collection(collectionName).updateOne(
+                                { _id: device._id },
+                                { $set: { lastSeenOnline: new Date() } }
+                            );
+                            // console.log(`[Ping Service] ${device.DeviceName || device.Name || targetIp} is ONLINE`);
+                        } else {
+                            // console.log(`[Ping Service] ${device.DeviceName || device.Name || targetIp} is OFFLINE`);
+                        }
+                    } catch (pingError) {
+                        console.error(`[Ping Service] Error pinging ${device.IPAddress}:`, pingError);
+                    }
+                }
+            }
+        } catch (error) {
+            console.error("[Ping Service] Error in ping cycle:", error);
         }
-    } catch (e) {
-        console.error("Error creating default admin:", e);
-    }
-  })
-  .catch(error => {
-    console.error("Failed to connect to MongoDB", error);
-    console.log("Server started but DB connection failed. Check MongoDB service.");
-  });
+    }, 600000); // 10 นาที
+}
 
 // --- Middleware ---
 const verifyToken = (req, res, next) => {
@@ -341,24 +373,55 @@ app.get('/api/ping/:hostname', verifyToken, async (req, res) => {
 
         if (!hostname) return res.status(400).json({ message: "Hostname/IP is required." });
 
-        const result = await ping.promise.probe(hostname, { timeout: 2 });
-
-        if (result.alive) {
-            let query = {};
-            if (collectionName === 'Computers') {
-                query = { ComputerName: hostname };
-            } else {
-                query = { IPAddress: hostname };
-            }
-
-            await db.collection(collectionName).updateOne(
-                query, 
-                { $set: { lastSeenOnline: new Date() } }
-            );
+        // 🌟 แก้ไข: ยกเลิกการใช้ ICMP Ping เปลี่ยนเป็นเช็คเวลาจากฐานข้อมูลแทน
+        let query = {};
+        if (collectionName === 'Computers') {
+            query = { ComputerName: hostname };
+        } else {
+            query = { IPAddress: hostname };
         }
-        res.status(200).json({ alive: result.alive });
+
+        const device = await db.collection(collectionName).findOne(query);
+        let isAlive = false;
+
+        if (device) {
+            // เช็คเวลาอัปเดตล่าสุด (lastSeenOnline หรือ Timestamp)
+            const lastSeen = device.lastSeenOnline || device.Timestamp;
+            if (lastSeen) {
+                // คำนวณหาความต่างของเวลาเป็น "นาที"
+                const diffMinutes = (new Date() - new Date(lastSeen)) / 1000 / 60;
+                
+                // ถ้ามีการส่งสัญญาณมาภายใน 15 นาที ถือว่าเครื่องนี้ "ออนไลน์"
+                if (diffMinutes <= 15) {
+                    isAlive = true;
+                }
+            }
+        }
+
+        // ส่งสถานะกลับไปให้หน้าเว็บแสดงผล (เขียว/แดง)
+        res.status(200).json({ alive: isAlive });
     } catch (error) {
-        res.status(500).json({ message: 'Error during ping process', error: error.message, alive: false });
+        res.status(500).json({ message: 'Error checking status', error: error.message, alive: false });
+    }
+});
+
+// 🌟 เพิ่ม API ใหม่: สำหรับรับสัญญาณชีพจร (Heartbeat) จากคอมพิวเตอร์พนักงาน
+app.post('/api/heartbeat', async (req, res) => {
+    if (!db) return res.status(500).json({ message: "Database not connected" });
+    try {
+        const { hostname, collectionName = 'Computers' } = req.body;
+        if (!hostname) return res.status(400).json({ message: "Hostname required" });
+
+        let query = collectionName === 'Computers' ? { ComputerName: hostname } : { IPAddress: hostname };
+        
+        // อัปเดตเวลาล่าสุดที่เจอเครื่องนี้
+        await db.collection(collectionName).updateOne(
+            query,
+            { $set: { lastSeenOnline: new Date() } }
+        );
+        res.status(200).json({ status: "success" });
+    } catch (error) {
+        res.status(500).json({ message: error.message });
     }
 });
 
@@ -549,23 +612,7 @@ app.get('/api/inventory/find/:serial', async (req, res) => {
         res.status(404).json({ message: 'Device not found' });
     } catch (e) { res.status(500).json({ error: e.message }); }
 });
-// API สำหรับรับสัญญาณชีพจร (Heartbeat) จากคอมพิวเตอร์พนักงาน
-app.post('/api/heartbeat', async (req, res) => {
-    if (!db) return res.status(500).json({ message: "Database not connected" });
-    try {
-        const { hostname, collectionName = 'Computers' } = req.body;
-        if (!hostname) return res.status(400).json({ message: "Hostname required" });
 
-        let query = collectionName === 'Computers' ? { ComputerName: hostname } : { IPAddress: hostname };
-        await db.collection(collectionName).updateOne(
-            query,
-            { $set: { lastSeenOnline: new Date() } }
-        );
-        res.status(200).json({ status: "success" });
-    } catch (error) {
-        res.status(500).json({ message: error.message });
-    }
-});
 // --- Loans ---
 
 app.post('/api/loans/submit', async (req, res) => {
