@@ -4,31 +4,22 @@ const cors = require('cors');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const ping = require('ping');
-const path = require('path'); // 🌟 นำเข้า path สำหรับจัดการตำแหน่งไฟล์
+const path = require('path'); // 🌟 เพิ่ม path module สำหรับอ่านไฟล์เว็บ
 
 const app = express();
 app.use(cors());
 app.use(express.json({ limit: '50mb' })); // ขยาย limit เผื่อไฟล์ CSV มีขนาดใหญ่
 
-// ===================================================================
-// 🌟 1. ตั้งค่าให้อ่านไฟล์ Frontend จากโฟลเดอร์ที่ถูกต้อง
-// ===================================================================
-// คำสั่งนี้บอกให้ server ถอยกลับไป 1 โฟลเดอร์ (..) แล้วเข้าไปที่โฟลเดอร์ frontend
+// 🌟 เพิ่มคำสั่งให้ Server แจกจ่ายหน้าเว็บ (Frontend) ไปที่ Render
 const frontendPath = path.join(__dirname, '../frontend');
-
-// อนุญาตให้อ่านไฟล์ Static (HTML, CSS, JS) ในโฟลเดอร์ frontend
 app.use(express.static(frontendPath));
-
-// เมื่อผู้ใช้เข้า URL หลัก (http://localhost:3000) ให้ส่งหน้า index.html ไปแสดง
 app.get('/', (req, res) => {
     res.sendFile(path.join(frontendPath, 'index.html'));
 });
 
 // --- Configuration ---
-
-// 🌟 เปลี่ยน Connection String เป็น MongoDB Atlas ของคุณ
-const mongoUri = "mongodb+srv://kaaom3:Kaaom321A@cluster0.fx7nlup.mongodb.net/inventoryDB_Cloned?appName=Cluster0"; 
-
+// 🌟 เปลี่ยนกลับเป็น MongoDB Atlas (Cloud)
+const mongoUri = "mongodb+srv://kaaom3:Kaaom321A@cluster0.fx7nlup.mongodb.net/inventoryDB_Cloned?appName=Cluster0";
 const dbName = "inventoryDB_Cloned"; 
 const jwtSecret = "your_super_secret_key_change_this"; 
 const API_SECRET_KEY = "KAAOM321A"; 
@@ -37,69 +28,14 @@ let db;
 
 // --- Connect to MongoDB ---
 MongoClient.connect(mongoUri)
-  .then(async client => {
-      } catch (e) {
-          console.error("Error creating default admin:", e);
-      }
-
-      // 🌟 เริ่มต้นระบบ Background Ping
-      startBackgroundPingService();
-    })
-    .catch(error => {
-      console.error("Failed to connect to MongoDB", error);
-      console.log("Server started but DB connection failed. Check MongoDB service.");
-    });
-
-// ===================================================================
-// 🌟 ระบบ Background Ping Service (สำหรับอุปกรณ์ที่มี IP Address)
-// ===================================================================
-async function startBackgroundPingService() {
-    console.log("[Ping Service] Starting background ping service for IP devices...");
-    
-    // รันทุกๆ 10 นาที (600000 ms)
-    setInterval(async () => {
-        if (!db) return;
-        
-        try {
-            // ดึงรายชื่อ Custom Menus เพื่อหา Collection ทั้งหมด
-            const customMenus = await db.collection('CustomMenus').find().toArray();
-            const customCollectionNames = customMenus.map(m => m.name);
-            
-            // Collection ที่น่าจะมี IP Address
-            const collectionsToCheck = ['Network', 'Printers', ...customCollectionNames];
-
-            for (const collectionName of collectionsToCheck) {
-                // หาอุปกรณ์ทั้งหมดใน Collection นั้นที่มี IP Address ระบุไว้ และไม่ใช่ 'N/A'
-                const devices = await db.collection(collectionName).find({
-                    IPAddress: { $exists: true, $ne: "", $ne: "N/A" }
-                }).toArray();
-
-                for (const device of devices) {
-                    try {
-                        const targetIp = device.IPAddress;
-                        // ทำการ Ping ไปยัง IP นั้น
-                        const res = await ping.promise.probe(targetIp, { timeout: 2 });
-                        
-                        if (res.alive) {
-                            // ถ้า Ping เจอ ให้อัปเดตเวลา lastSeenOnline
-                            await db.collection(collectionName).updateOne(
-                                { _id: device._id },
-                                { $set: { lastSeenOnline: new Date() } }
-                            );
-                            // console.log(`[Ping Service] ${device.DeviceName || device.Name || targetIp} is ONLINE`);
-                        } else {
-                            // console.log(`[Ping Service] ${device.DeviceName || device.Name || targetIp} is OFFLINE`);
-                        }
-                    } catch (pingError) {
-                        console.error(`[Ping Service] Error pinging ${device.IPAddress}:`, pingError);
-                    }
-                }
-            }
-        } catch (error) {
-            console.error("[Ping Service] Error in ping cycle:", error);
-        }
-    }, 600000); // 10 นาที
-}
+  .then(client => {
+    console.log("Successfully connected to MongoDB!");
+    db = client.db(dbName);
+  })
+  .catch(error => {
+    console.error("Failed to connect to MongoDB", error);
+    console.log("Server started but DB connection failed. Check MongoDB service.");
+  });
 
 // --- Middleware ---
 const verifyToken = (req, res, next) => {
@@ -253,6 +189,65 @@ app.post('/api/inventory/sync', verifyApiKey, async (req, res) => {
 });
 
 // ===================================================================
+// 🌟 LOCAL PING RELAY ROUTES (สำหรับให้ Script ภายใน LAN รายงานผล)
+// ===================================================================
+app.get('/api/relay/devices', verifyApiKey, async (req, res) => {
+    if (!db) return res.status(500).json({ message: "Database not connected" });
+    try {
+        // ค้นหา Collection ที่เป็นไปได้ว่าจะมี IP
+        const customMenus = await db.collection('CustomMenus').find().toArray();
+        const customCollectionNames = customMenus.map(m => m.name);
+        const collectionsToCheck = ['Network', 'Printers', ...customCollectionNames];
+
+        let allIpDevices = [];
+
+        for (const collectionName of collectionsToCheck) {
+            // ดึงเฉพาะอุปกรณ์ที่มีฟิลด์ IPAddress และไม่เป็นค่าว่าง
+            const devices = await db.collection(collectionName).find({
+                IPAddress: { $exists: true, $ne: "", $ne: "N/A" }
+            }).toArray();
+
+            devices.forEach(d => {
+                allIpDevices.push({
+                    _id: d._id,
+                    collection: collectionName,
+                    IPAddress: d.IPAddress,
+                    Name: d.DeviceName || d.Name || d.ComputerName || d.ItemName || 'Unknown Device'
+                });
+            });
+        }
+
+        res.status(200).json(allIpDevices);
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+});
+
+app.post('/api/relay/heartbeat', verifyApiKey, async (req, res) => {
+    if (!db) return res.status(500).json({ message: "Database not connected" });
+    try {
+        const { devices } = req.body;
+        if (!devices || !Array.isArray(devices)) return res.status(400).json({ message: "Invalid payload" });
+
+        let updatedCount = 0;
+        const now = new Date();
+
+        // อัปเดตเวลา lastSeenOnline ให้อุปกรณ์ที่ส่งเข้ามาว่าออนไลน์
+        for (const dev of devices) {
+            await db.collection(dev.collection).updateOne(
+                { _id: new ObjectId(dev.id) },
+                { $set: { lastSeenOnline: now } }
+            );
+            updatedCount++;
+        }
+
+        res.status(200).json({ message: `Updated ${updatedCount} devices as online.` });
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+});
+
+// ===================================================================
 // API Routes (Authenticated) - Core Functionality
 // ===================================================================
 
@@ -373,55 +368,24 @@ app.get('/api/ping/:hostname', verifyToken, async (req, res) => {
 
         if (!hostname) return res.status(400).json({ message: "Hostname/IP is required." });
 
-        // 🌟 แก้ไข: ยกเลิกการใช้ ICMP Ping เปลี่ยนเป็นเช็คเวลาจากฐานข้อมูลแทน
-        let query = {};
-        if (collectionName === 'Computers') {
-            query = { ComputerName: hostname };
-        } else {
-            query = { IPAddress: hostname };
-        }
+        const result = await ping.promise.probe(hostname, { timeout: 2 });
 
-        const device = await db.collection(collectionName).findOne(query);
-        let isAlive = false;
-
-        if (device) {
-            // เช็คเวลาอัปเดตล่าสุด (lastSeenOnline หรือ Timestamp)
-            const lastSeen = device.lastSeenOnline || device.Timestamp;
-            if (lastSeen) {
-                // คำนวณหาความต่างของเวลาเป็น "นาที"
-                const diffMinutes = (new Date() - new Date(lastSeen)) / 1000 / 60;
-                
-                // ถ้ามีการส่งสัญญาณมาภายใน 15 นาที ถือว่าเครื่องนี้ "ออนไลน์"
-                if (diffMinutes <= 15) {
-                    isAlive = true;
-                }
+        if (result.alive) {
+            let query = {};
+            if (collectionName === 'Computers') {
+                query = { ComputerName: hostname };
+            } else {
+                query = { IPAddress: hostname };
             }
+
+            await db.collection(collectionName).updateOne(
+                query, 
+                { $set: { lastSeenOnline: new Date() } }
+            );
         }
-
-        // ส่งสถานะกลับไปให้หน้าเว็บแสดงผล (เขียว/แดง)
-        res.status(200).json({ alive: isAlive });
+        res.status(200).json({ alive: result.alive });
     } catch (error) {
-        res.status(500).json({ message: 'Error checking status', error: error.message, alive: false });
-    }
-});
-
-// 🌟 เพิ่ม API ใหม่: สำหรับรับสัญญาณชีพจร (Heartbeat) จากคอมพิวเตอร์พนักงาน
-app.post('/api/heartbeat', async (req, res) => {
-    if (!db) return res.status(500).json({ message: "Database not connected" });
-    try {
-        const { hostname, collectionName = 'Computers' } = req.body;
-        if (!hostname) return res.status(400).json({ message: "Hostname required" });
-
-        let query = collectionName === 'Computers' ? { ComputerName: hostname } : { IPAddress: hostname };
-        
-        // อัปเดตเวลาล่าสุดที่เจอเครื่องนี้
-        await db.collection(collectionName).updateOne(
-            query,
-            { $set: { lastSeenOnline: new Date() } }
-        );
-        res.status(200).json({ status: "success" });
-    } catch (error) {
-        res.status(500).json({ message: error.message });
+        res.status(500).json({ message: 'Error during ping process', error: error.message, alive: false });
     }
 });
 
@@ -692,7 +656,8 @@ app.post('/api/loans/return', async (req, res) => {
     }
 });
 
+// 🌟 ตั้งค่าพอร์ตให้รองรับระบบ Cloud ของ Render
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
-  console.log(`Cloned project server running on port ${PORT}`);
+  console.log(`Server running on port ${PORT}`);
 });
