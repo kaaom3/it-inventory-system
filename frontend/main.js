@@ -1,6 +1,6 @@
 // ===================================================================
 // Frontend Logic for IT Inventory System (Full Complete Version)
-// Merged with: Advanced Ping System + Composite QR + New Card UI
+// Merged with: Advanced Ping System + Composite QR + New Card UI + Rapid Scan Mode
 // ===================================================================
 
 // 🌟 ล็อก URL ไปที่เซิร์ฟเวอร์บน Cloud ของคุณ 100%
@@ -81,6 +81,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
         initTheme();
         initPrintStyles(); 
+        injectRapidEntryModal(); // 🌟 ฝังหน้าต่างสแกนบาร์โค้ด
         initializeAppLogic();
     } else {
         window.location.replace('login.html');
@@ -348,7 +349,7 @@ function initPrintStyles() {
 }
 
 // ==========================================
-// --- 🌟 PERIODIC PING FUNCTION (UPDATED) ---
+// --- PERIODIC PING FUNCTION (UPDATED) ---
 // ==========================================
 async function runPeriodicPing() {
     const pingPromises = [];
@@ -356,28 +357,24 @@ async function runPeriodicPing() {
         const items = allData[colName] || [];
         const config = collectionConfigs[colName];
         
-        // เราจะเช็คว่าอุปกรณ์นี้มี IPAddress หรือไม่ (รองรับทุกอุปกรณ์ไม่ใช่แค่คอมพิวเตอร์)
         const hasIP = config.formFields.includes('IPAddress');
         const isComputers = colName === 'Computers';
         
         if (hasIP || isComputers) {
             items.forEach(item => {
                 let target = null;
-                // ลำดับความสำคัญ: ถ้ามี IPAddress ให้ใช้ IP ก่อน, ถ้าไม่มี IP แต่เป็น Computer ค่อยใช้ ComputerName
                 if (item.IPAddress && item.IPAddress !== 'N/A' && item.IPAddress.trim() !== '') {
                     target = item.IPAddress;
                 } else if (isComputers && item.ComputerName && item.ComputerName.trim() !== '') {
                     target = item.ComputerName;
                 }
                 
-                // แจ้งให้ Backend ทำการส่ง Ping ไปเช็ค Target นี้
                 if (target) {
                     pingPromises.push(apiRequest(`/api/ping/${target}?collection=${colName}`).catch(e => null));
                 }
             });
         }
     });
-    // สั่งยิงพร้อมกันเบื้องหลังโดยไม่บล็อกหน้าจอ
     await Promise.allSettled(pingPromises);
 }
 
@@ -509,14 +506,14 @@ function generateDynamicPages() {
             <div class="flex flex-wrap justify-between items-center gap-2 mb-6">
                 <h2 class="text-2xl md:text-3xl font-bold text-gray-900 dark:text-white">${displayName}</h2>
                 <div class="flex gap-2">
+                    <!-- 🌟 ปุ่ม Rapid Scan ยิงบาร์โค้ดเข้าคลังแบบรัวๆ -->
+                    <button onclick="window.openRapidEntryModal('${colName}')" class="bg-blue-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-blue-700 shadow-sm flex items-center transition-colors"><i class="fas fa-barcode mr-2"></i>Rapid Scan</button>
                     <button onclick="window.openImportModal('${colName}')" class="bg-green-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-green-700 shadow-sm"><i class="fas fa-file-import mr-2"></i>Import CSV</button>
                     <button onclick="window.openModal('add', '${colName}')" class="bg-indigo-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-indigo-700 shadow-sm"><i class="fas fa-plus mr-2"></i>Add New</button>
                 </div>
             </div>
             
-            <!-- 🌟 เพิ่มกล่องสรุปข้อมูล (Summary Cards) สำหรับแต่ละหน้า -->
             <div class="grid grid-cols-2 md:grid-cols-5 gap-4 mb-6" id="${colName}SummaryCards">
-                <!-- ข้อมูลสรุปจะถูกวาดด้วย JavaScript (buildTable) -->
             </div>
             
             <div class="mb-4 flex flex-col md:flex-row gap-2">
@@ -548,6 +545,119 @@ function generateDynamicPages() {
         </div>`;
     });
 }
+
+// ==========================================
+// --- 🌟 RAPID SCAN ENTRY MODE ---
+// ==========================================
+function injectRapidEntryModal() {
+    if (document.getElementById('rapidEntryModal')) return;
+    const modalHtml = `
+    <div id="rapidEntryModal" class="modal opacity-0 pointer-events-none fixed inset-0 z-50 flex items-center justify-center p-4 backdrop-blur-md bg-gray-900/60 transition-opacity duration-300">
+        <div class="modal-content bg-gray-100 dark:bg-gray-900 rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden flex flex-col border border-gray-200 dark:border-gray-700 transition-all transform scale-95">
+            <div class="px-6 py-5 bg-white dark:bg-gray-800 flex justify-between items-start border-b border-gray-200 dark:border-gray-700 relative z-10 shadow-sm">
+                <div class="flex items-center">
+                    <div class="w-12 h-12 rounded-full bg-blue-100 dark:bg-blue-900/50 flex items-center justify-center mr-4 shadow-inner">
+                        <i class="fas fa-barcode text-blue-600 dark:text-blue-400 text-xl"></i>
+                    </div>
+                    <div>
+                        <h3 class="text-xl font-bold text-gray-900 dark:text-white leading-tight">Rapid Scan Mode</h3>
+                        <p class="text-xs text-gray-500 font-medium mt-1 uppercase tracking-widest" id="rapidCollectionName">Category</p>
+                    </div>
+                </div>
+                <button onclick="window.closeRapidEntryModal()" class="absolute top-5 right-6 w-8 h-8 flex items-center justify-center rounded-full bg-gray-100 dark:bg-gray-700 text-gray-500 hover:bg-red-100 hover:text-red-500 transition-colors">
+                    <i class="fas fa-times text-lg"></i>
+                </button>
+            </div>
+            <div class="p-6 bg-white dark:bg-gray-800 flex-1">
+                <p class="text-sm text-gray-600 dark:text-gray-400 mb-4">สแกนบาร์โค้ด หรือพิมพ์ Serial Number แล้วกด Enter ระบบจะเพิ่มเข้าคลังเป็นสถานะ <span class="font-bold text-blue-600">Storage</span> ทันที</p>
+                <div class="relative mb-6">
+                    <div class="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
+                        <i class="fas fa-search text-gray-400"></i>
+                    </div>
+                    <input type="text" id="rapidScanInput" onkeypress="window.handleRapidScan(event)" class="block w-full pl-11 pr-4 py-4 bg-gray-50 border-2 border-blue-200 focus:border-blue-500 focus:ring-blue-500 text-lg font-mono rounded-xl dark:bg-gray-700 dark:border-gray-600 dark:text-white transition-all shadow-inner" placeholder="Scan Barcode here..." autocomplete="off">
+                </div>
+                <h4 class="text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">Recent Scans (รอบนี้)</h4>
+                <div id="rapidScanLog" class="space-y-2 max-h-48 overflow-y-auto custom-scrollbar border border-gray-100 dark:border-gray-700 rounded-lg p-2 bg-gray-50 dark:bg-gray-900/50">
+                </div>
+            </div>
+        </div>
+    </div>`;
+    document.body.insertAdjacentHTML('beforeend', modalHtml);
+}
+
+window.currentRapidCollection = null;
+
+window.openRapidEntryModal = function(collectionName) {
+    window.currentRapidCollection = collectionName;
+    const modal = document.getElementById('rapidEntryModal');
+    document.getElementById('rapidCollectionName').innerText = collectionConfigs[collectionName].displayName || collectionName;
+    document.getElementById('rapidScanInput').value = '';
+    document.getElementById('rapidScanLog').innerHTML = '';
+    
+    modal.classList.remove('opacity-0', 'pointer-events-none');
+    modal.querySelector('.modal-content').classList.remove('scale-95');
+    modal.querySelector('.modal-content').classList.add('scale-100');
+    
+    setTimeout(() => document.getElementById('rapidScanInput').focus(), 100);
+};
+
+window.closeRapidEntryModal = async function() {
+    const modal = document.getElementById('rapidEntryModal');
+    modal.classList.add('opacity-0', 'pointer-events-none');
+    modal.querySelector('.modal-content').classList.remove('scale-100');
+    modal.querySelector('.modal-content').classList.add('scale-95');
+    
+    // ดึงข้อมูลใหม่หลังจากสแกนเสร็จ แล้วรีเฟรชหน้า
+    await refreshAllData();
+    window.buildTable(window.currentRapidCollection);
+    window.updateDashboard();
+};
+
+window.handleRapidScan = async function(event) {
+    if (event.key === 'Enter') {
+        event.preventDefault();
+        const inputEl = document.getElementById('rapidScanInput');
+        const serial = inputEl.value.trim();
+        if (!serial) return;
+        
+        inputEl.value = ''; // เคลียร์ช่องทันทีเพื่อรับตัวถัดไป
+        inputEl.disabled = true; // ป้องกันการกดย้ำซ้อน
+        
+        await window.processRapidEntry(serial);
+        
+        inputEl.disabled = false;
+        inputEl.focus();
+    }
+};
+
+window.processRapidEntry = async function(serial) {
+    const col = window.currentRapidCollection;
+    const config = collectionConfigs[col];
+    const logEl = document.getElementById('rapidScanLog');
+    
+    // ตั้งค่า Default ที่จะยัดเข้า DB
+    let payload = {
+        Status: 'Storage',
+        Description: 'Added via Rapid Scan Mode'
+    };
+    
+    payload[config.serialField] = serial;
+    if (config.nameField && config.nameField !== config.serialField) {
+        payload[config.nameField] = `New-${serial}`;
+    }
+
+    // สร้างกล่องแสดงผลในช่อง Log
+    const logId = 'log-' + Date.now();
+    logEl.insertAdjacentHTML('afterbegin', `<div id="${logId}" class="text-sm text-gray-500 flex justify-between items-center bg-white dark:bg-gray-800 p-3 rounded-lg shadow-sm border border-gray-100 dark:border-gray-700 mb-2"><span class="font-mono dark:text-gray-200">${serial}</span><span class="text-yellow-500"><i class="fas fa-spinner fa-spin"></i> Saving...</span></div>`);
+
+    try {
+        await apiRequest(`/api/inventory/${col}`, 'POST', payload);
+        document.getElementById(logId).innerHTML = `<span class="font-mono text-gray-800 dark:text-gray-200">${serial}</span><span class="text-green-500 font-bold"><i class="fas fa-check-circle"></i> Success</span>`;
+    } catch (error) {
+        document.getElementById(logId).innerHTML = `<span class="font-mono text-red-500">${serial}</span><span class="text-red-500 font-bold" title="${error.message}"><i class="fas fa-times-circle"></i> Failed</span>`;
+    }
+};
+// ==========================================
 
 // ==========================================
 // --- PAGE LOAD & SWITCHING ---
@@ -868,36 +978,32 @@ window.buildTable = function(collectionName) {
     
     let filteredData = fullData.filter(i => i.Status !== 'Disposed');
     
-    // 🌟 คำนวณสรุปข้อมูล (Summary) ของหน้านี้ (คำนวณจาก filteredData เพื่อให้เปลี่ยนตาม Filter ด้วยถ้าต้องการ หรือจะใช้ fullData เพื่อดูรวมๆ ทั้งหมดก็ได้ ในที่นี้จะคำนวณจาก fullData เพื่อให้เห็นภาพรวมของหมวดหมู่นี้)
     const summaryContainer = document.getElementById(`${collectionName}SummaryCards`);
     if (summaryContainer) {
-        const rawData = fullData.filter(i => i.Status !== 'Disposed'); // ไม่นับของแทงจำหน่าย
+        const rawData = fullData.filter(i => i.Status !== 'Disposed');
         const total = rawData.length;
         
         let onlineCount = 0;
         let offlineCount = 0;
         let storageCount = 0;
         let activeCount = 0;
-        let issueCount = 0; // Repair, Damaged
+        let issueCount = 0; 
 
         rawData.forEach(item => {
-            // นับสถานะ
             if (item.Status === 'Storage') storageCount++;
             else if (item.Status === 'Active' || item.Status === 'On Loan') activeCount++;
             else if (item.Status === 'Repair' || item.Status === 'Damaged') issueCount++;
             
-            // นับ Online/Offline
             const lastSeen = item.lastSeenOnline || item.Timestamp;
             if (lastSeen) {
                 const diffMins = (new Date() - new Date(lastSeen)) / 60000;
                 if (diffMins <= 15) onlineCount++;
                 else offlineCount++;
             } else {
-                offlineCount++; // ถ้าไม่เคยเห็นถือว่า Offline
+                offlineCount++; 
             }
         });
 
-        // วาดกล่อง Summary
         summaryContainer.innerHTML = `
             <div class="bg-white dark:bg-gray-800 p-4 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700 flex items-center space-x-3">
                 <div class="bg-indigo-100 dark:bg-indigo-900/50 p-2 rounded-lg text-indigo-600 dark:text-indigo-400"><i class="fas fa-cubes text-xl w-6 text-center"></i></div>
@@ -1804,4 +1910,161 @@ window.switchHandoverTab = function(tab, btn) {
     document.getElementById('return-tab-content').style.display = tab==='return'?'block':'none';
     document.querySelectorAll('#handover-tabs button').forEach(b => { b.classList.remove('border-indigo-600', 'text-indigo-600', 'dark:text-indigo-400'); b.classList.add('border-transparent', 'text-gray-500'); });
     btn.classList.add('border-indigo-600', 'text-indigo-600', 'dark:text-indigo-400'); btn.classList.remove('border-transparent', 'text-gray-500');
+};
+
+// 🌟 สร้างฟังก์ชันดาวน์โหลดรูป QR แบบมีรายละเอียดแทรกด้านล่าง
+window.downloadLoanQR = function(loanId, borrowerName, loanDate) {
+    const qrCanvas = document.getElementById(`qr-loan-${loanId}`);
+    if(qrCanvas) {
+        // สร้าง Canvas พิเศษในหน่วยความจำเพื่อนำภาพ QR และข้อความมารวมกัน
+        const compositeCanvas = document.createElement('canvas');
+        const ctx = compositeCanvas.getContext('2d');
+        
+        const qrSize = qrCanvas.width;
+        const textHeight = 80; // ความสูงพื้นที่สำหรับตัวหนังสือด้านล่าง
+        
+        compositeCanvas.width = qrSize;
+        compositeCanvas.height = qrSize + textHeight;
+        
+        // 1. ถมพื้นหลังสีขาวให้เต็มก่อน
+        ctx.fillStyle = '#ffffff';
+        ctx.fillRect(0, 0, compositeCanvas.width, compositeCanvas.height);
+        
+        // 2. วาดรูปรหัส QR Code ไว้ด้านบน
+        ctx.drawImage(qrCanvas, 0, 0);
+        
+        // 3. ตั้งค่าการวาดข้อความ
+        ctx.fillStyle = '#1f2937'; // สีตัวอักษรเทาเข้ม
+        ctx.textAlign = 'center';
+        
+        // บรรทัดที่ 1: รหัสยืม
+        ctx.font = 'bold 13px sans-serif';
+        ctx.fillText(`รหัสยืม: ${loanId}`, qrSize / 2, qrSize + 20);
+        
+        // บรรทัดที่ 2: ชื่อผู้ยืม
+        ctx.font = '12px sans-serif';
+        ctx.fillText(`ผู้ยืม: ${borrowerName}`, qrSize / 2, qrSize + 40);
+        
+        // บรรทัดที่ 3: วันที่ทำรายการ
+        ctx.fillStyle = '#6b7280'; // สีตัวอักษรเทาอ่อน
+        ctx.fillText(`วันที่ยืม: ${loanDate}`, qrSize / 2, qrSize + 60);
+
+        // แปลงเป็นรูปภาพแล้วสั่งดาวน์โหลด
+        const link = document.createElement('a');
+        link.download = `Return_QRCode_${loanId}.png`;
+        link.href = compositeCanvas.toDataURL("image/png");
+        link.click();
+    }
+};
+
+// ==========================================
+// --- 🌟 RAPID SCAN ENTRY MODE ---
+// ==========================================
+function injectRapidEntryModal() {
+    if (document.getElementById('rapidEntryModal')) return;
+    const modalHtml = `
+    <div id="rapidEntryModal" class="modal opacity-0 pointer-events-none fixed inset-0 z-50 flex items-center justify-center p-4 backdrop-blur-md bg-gray-900/60 transition-opacity duration-300">
+        <div class="modal-content bg-gray-100 dark:bg-gray-900 rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden flex flex-col border border-gray-200 dark:border-gray-700 transition-all transform scale-95">
+            <div class="px-6 py-5 bg-white dark:bg-gray-800 flex justify-between items-start border-b border-gray-200 dark:border-gray-700 relative z-10 shadow-sm">
+                <div class="flex items-center">
+                    <div class="w-12 h-12 rounded-full bg-blue-100 dark:bg-blue-900/50 flex items-center justify-center mr-4 shadow-inner">
+                        <i class="fas fa-barcode text-blue-600 dark:text-blue-400 text-xl"></i>
+                    </div>
+                    <div>
+                        <h3 class="text-xl font-bold text-gray-900 dark:text-white leading-tight">Rapid Scan Mode</h3>
+                        <p class="text-xs text-gray-500 font-medium mt-1 uppercase tracking-widest" id="rapidCollectionName">Category</p>
+                    </div>
+                </div>
+                <button onclick="window.closeRapidEntryModal()" class="absolute top-5 right-6 w-8 h-8 flex items-center justify-center rounded-full bg-gray-100 dark:bg-gray-700 text-gray-500 hover:bg-red-100 hover:text-red-500 transition-colors">
+                    <i class="fas fa-times text-lg"></i>
+                </button>
+            </div>
+            <div class="p-6 bg-white dark:bg-gray-800 flex-1">
+                <p class="text-sm text-gray-600 dark:text-gray-400 mb-4">สแกนบาร์โค้ด หรือพิมพ์ Serial Number แล้วกด Enter ระบบจะเพิ่มเข้าคลังเป็นสถานะ <span class="font-bold text-blue-600">Storage</span> ทันที</p>
+                <div class="relative mb-6">
+                    <div class="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
+                        <i class="fas fa-search text-gray-400"></i>
+                    </div>
+                    <input type="text" id="rapidScanInput" onkeypress="window.handleRapidScan(event)" class="block w-full pl-11 pr-4 py-4 bg-gray-50 border-2 border-blue-200 focus:border-blue-500 focus:ring-blue-500 text-lg font-mono rounded-xl dark:bg-gray-700 dark:border-gray-600 dark:text-white transition-all shadow-inner" placeholder="Scan Barcode here..." autocomplete="off">
+                </div>
+                <h4 class="text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">Recent Scans (รอบนี้)</h4>
+                <div id="rapidScanLog" class="space-y-2 max-h-48 overflow-y-auto custom-scrollbar border border-gray-100 dark:border-gray-700 rounded-lg p-2 bg-gray-50 dark:bg-gray-900/50">
+                </div>
+            </div>
+        </div>
+    </div>`;
+    document.body.insertAdjacentHTML('beforeend', modalHtml);
+}
+
+window.currentRapidCollection = null;
+
+window.openRapidEntryModal = function(collectionName) {
+    window.currentRapidCollection = collectionName;
+    const modal = document.getElementById('rapidEntryModal');
+    document.getElementById('rapidCollectionName').innerText = collectionConfigs[collectionName].displayName || collectionName;
+    document.getElementById('rapidScanInput').value = '';
+    document.getElementById('rapidScanLog').innerHTML = '';
+    
+    modal.classList.remove('opacity-0', 'pointer-events-none');
+    modal.querySelector('.modal-content').classList.remove('scale-95');
+    modal.querySelector('.modal-content').classList.add('scale-100');
+    
+    setTimeout(() => document.getElementById('rapidScanInput').focus(), 100);
+};
+
+window.closeRapidEntryModal = async function() {
+    const modal = document.getElementById('rapidEntryModal');
+    modal.classList.add('opacity-0', 'pointer-events-none');
+    modal.querySelector('.modal-content').classList.remove('scale-100');
+    modal.querySelector('.modal-content').classList.add('scale-95');
+    
+    // ดึงข้อมูลใหม่หลังจากสแกนเสร็จ แล้วรีเฟรชหน้า
+    await refreshAllData();
+    window.buildTable(window.currentRapidCollection);
+    window.updateDashboard();
+};
+
+window.handleRapidScan = async function(event) {
+    if (event.key === 'Enter') {
+        event.preventDefault();
+        const inputEl = document.getElementById('rapidScanInput');
+        const serial = inputEl.value.trim();
+        if (!serial) return;
+        
+        inputEl.value = ''; // เคลียร์ช่องทันทีเพื่อรับตัวถัดไป
+        inputEl.disabled = true; // ป้องกันการกดย้ำซ้อน
+        
+        await window.processRapidEntry(serial);
+        
+        inputEl.disabled = false;
+        inputEl.focus();
+    }
+};
+
+window.processRapidEntry = async function(serial) {
+    const col = window.currentRapidCollection;
+    const config = collectionConfigs[col];
+    const logEl = document.getElementById('rapidScanLog');
+    
+    // ตั้งค่า Default ที่จะยัดเข้า DB
+    let payload = {
+        Status: 'Storage',
+        Description: 'Added via Rapid Scan Mode'
+    };
+    
+    payload[config.serialField] = serial;
+    if (config.nameField && config.nameField !== config.serialField) {
+        payload[config.nameField] = `New-${serial}`;
+    }
+
+    // สร้างกล่องแสดงผลในช่อง Log
+    const logId = 'log-' + Date.now();
+    logEl.insertAdjacentHTML('afterbegin', `<div id="${logId}" class="text-sm text-gray-500 flex justify-between items-center bg-white dark:bg-gray-800 p-3 rounded-lg shadow-sm border border-gray-100 dark:border-gray-700 mb-2"><span class="font-mono dark:text-gray-200">${serial}</span><span class="text-yellow-500"><i class="fas fa-spinner fa-spin"></i> Saving...</span></div>`);
+
+    try {
+        await apiRequest(`/api/inventory/${col}`, 'POST', payload);
+        document.getElementById(logId).innerHTML = `<span class="font-mono text-gray-800 dark:text-gray-200">${serial}</span><span class="text-green-500 font-bold"><i class="fas fa-check-circle"></i> Success</span>`;
+    } catch (error) {
+        document.getElementById(logId).innerHTML = `<span class="font-mono text-red-500">${serial}</span><span class="text-red-500 font-bold" title="${error.message}"><i class="fas fa-times-circle"></i> Failed</span>`;
+    }
 };
