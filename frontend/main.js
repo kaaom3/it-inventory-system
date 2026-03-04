@@ -514,6 +514,11 @@ function generateDynamicPages() {
                 </div>
             </div>
             
+            <!-- 🌟 เพิ่มกล่องสรุปข้อมูล (Summary Cards) สำหรับแต่ละหน้า -->
+            <div class="grid grid-cols-2 md:grid-cols-5 gap-4 mb-6" id="${colName}SummaryCards">
+                <!-- ข้อมูลสรุปจะถูกวาดด้วย JavaScript (buildTable) -->
+            </div>
+            
             <div class="mb-4 flex flex-col md:flex-row gap-2">
                 <div class="w-full md:w-1/4">
                     <select onchange="window.handleStatusFilter('${colName}', this.value)" class="w-full px-4 py-2 border rounded-lg dark:bg-gray-700 dark:border-gray-600 dark:text-gray-200">
@@ -862,6 +867,61 @@ window.buildTable = function(collectionName) {
     const config = collectionConfigs[collectionName];
     
     let filteredData = fullData.filter(i => i.Status !== 'Disposed');
+    
+    // 🌟 คำนวณสรุปข้อมูล (Summary) ของหน้านี้ (คำนวณจาก filteredData เพื่อให้เปลี่ยนตาม Filter ด้วยถ้าต้องการ หรือจะใช้ fullData เพื่อดูรวมๆ ทั้งหมดก็ได้ ในที่นี้จะคำนวณจาก fullData เพื่อให้เห็นภาพรวมของหมวดหมู่นี้)
+    const summaryContainer = document.getElementById(`${collectionName}SummaryCards`);
+    if (summaryContainer) {
+        const rawData = fullData.filter(i => i.Status !== 'Disposed'); // ไม่นับของแทงจำหน่าย
+        const total = rawData.length;
+        
+        let onlineCount = 0;
+        let offlineCount = 0;
+        let storageCount = 0;
+        let activeCount = 0;
+        let issueCount = 0; // Repair, Damaged
+
+        rawData.forEach(item => {
+            // นับสถานะ
+            if (item.Status === 'Storage') storageCount++;
+            else if (item.Status === 'Active' || item.Status === 'On Loan') activeCount++;
+            else if (item.Status === 'Repair' || item.Status === 'Damaged') issueCount++;
+            
+            // นับ Online/Offline
+            const lastSeen = item.lastSeenOnline || item.Timestamp;
+            if (lastSeen) {
+                const diffMins = (new Date() - new Date(lastSeen)) / 60000;
+                if (diffMins <= 15) onlineCount++;
+                else offlineCount++;
+            } else {
+                offlineCount++; // ถ้าไม่เคยเห็นถือว่า Offline
+            }
+        });
+
+        // วาดกล่อง Summary
+        summaryContainer.innerHTML = `
+            <div class="bg-white dark:bg-gray-800 p-4 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700 flex items-center space-x-3">
+                <div class="bg-indigo-100 dark:bg-indigo-900/50 p-2 rounded-lg text-indigo-600 dark:text-indigo-400"><i class="fas fa-cubes text-xl w-6 text-center"></i></div>
+                <div><p class="text-xs text-gray-500 dark:text-gray-400 font-semibold uppercase">Total</p><p class="text-xl font-bold text-gray-800 dark:text-white leading-none">${total}</p></div>
+            </div>
+            <div class="bg-white dark:bg-gray-800 p-4 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700 flex items-center space-x-3">
+                <div class="bg-green-100 dark:bg-green-900/50 p-2 rounded-lg text-green-600 dark:text-green-400"><i class="fas fa-signal text-xl w-6 text-center"></i></div>
+                <div><p class="text-xs text-gray-500 dark:text-gray-400 font-semibold uppercase">Online</p><p class="text-xl font-bold text-gray-800 dark:text-white leading-none">${onlineCount}</p></div>
+            </div>
+            <div class="bg-white dark:bg-gray-800 p-4 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700 flex items-center space-x-3">
+                <div class="bg-gray-100 dark:bg-gray-700 p-2 rounded-lg text-gray-600 dark:text-gray-400"><i class="fas fa-power-off text-xl w-6 text-center"></i></div>
+                <div><p class="text-xs text-gray-500 dark:text-gray-400 font-semibold uppercase">Offline</p><p class="text-xl font-bold text-gray-800 dark:text-white leading-none">${offlineCount}</p></div>
+            </div>
+            <div class="bg-white dark:bg-gray-800 p-4 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700 flex items-center space-x-3">
+                <div class="bg-blue-100 dark:bg-blue-900/50 p-2 rounded-lg text-blue-600 dark:text-blue-400"><i class="fas fa-box text-xl w-6 text-center"></i></div>
+                <div><p class="text-xs text-gray-500 dark:text-gray-400 font-semibold uppercase">Storage</p><p class="text-xl font-bold text-gray-800 dark:text-white leading-none">${storageCount}</p></div>
+            </div>
+            <div class="bg-white dark:bg-gray-800 p-4 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700 flex items-center space-x-3">
+                <div class="bg-red-100 dark:bg-red-900/50 p-2 rounded-lg text-red-600 dark:text-red-400"><i class="fas fa-tools text-xl w-6 text-center"></i></div>
+                <div><p class="text-xs text-gray-500 dark:text-gray-400 font-semibold uppercase">Issues</p><p class="text-xl font-bold text-gray-800 dark:text-white leading-none">${issueCount}</p></div>
+            </div>
+        `;
+    }
+
     if (state.statusFilter) filteredData = filteredData.filter(i => i.Status === state.statusFilter);
     if (state.categoryFilter && config.categoryFilterField) filteredData = filteredData.filter(item => item[config.categoryFilterField] === state.categoryFilter);
     if (state.filterText) filteredData = filteredData.filter(i => JSON.stringify(Object.values(i)).toUpperCase().includes(state.filterText.toUpperCase()));
