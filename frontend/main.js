@@ -349,7 +349,7 @@ function initPrintStyles() {
 }
 
 // ==========================================
-// --- PERIODIC PING FUNCTION (UPDATED) ---
+// --- PERIODIC PING FUNCTION ---
 // ==========================================
 async function runPeriodicPing() {
     const pingPromises = [];
@@ -506,7 +506,6 @@ function generateDynamicPages() {
             <div class="flex flex-wrap justify-between items-center gap-2 mb-6">
                 <h2 class="text-2xl md:text-3xl font-bold text-gray-900 dark:text-white">${displayName}</h2>
                 <div class="flex gap-2">
-                    <!-- 🌟 ปุ่ม Rapid Scan ยิงบาร์โค้ดเข้าคลังแบบรัวๆ -->
                     <button onclick="window.openRapidEntryModal('${colName}')" class="bg-blue-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-blue-700 shadow-sm flex items-center transition-colors"><i class="fas fa-barcode mr-2"></i>Rapid Scan</button>
                     <button onclick="window.openImportModal('${colName}')" class="bg-green-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-green-700 shadow-sm"><i class="fas fa-file-import mr-2"></i>Import CSV</button>
                     <button onclick="window.openModal('add', '${colName}')" class="bg-indigo-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-indigo-700 shadow-sm"><i class="fas fa-plus mr-2"></i>Add New</button>
@@ -607,7 +606,6 @@ window.closeRapidEntryModal = async function() {
     modal.querySelector('.modal-content').classList.remove('scale-100');
     modal.querySelector('.modal-content').classList.add('scale-95');
     
-    // ดึงข้อมูลใหม่หลังจากสแกนเสร็จ แล้วรีเฟรชหน้า
     await refreshAllData();
     window.buildTable(window.currentRapidCollection);
     window.updateDashboard();
@@ -620,8 +618,8 @@ window.handleRapidScan = async function(event) {
         const serial = inputEl.value.trim();
         if (!serial) return;
         
-        inputEl.value = ''; // เคลียร์ช่องทันทีเพื่อรับตัวถัดไป
-        inputEl.disabled = true; // ป้องกันการกดย้ำซ้อน
+        inputEl.value = ''; 
+        inputEl.disabled = true; 
         
         await window.processRapidEntry(serial);
         
@@ -635,18 +633,13 @@ window.processRapidEntry = async function(serial) {
     const config = collectionConfigs[col];
     const logEl = document.getElementById('rapidScanLog');
     
-    // ตั้งค่า Default ที่จะยัดเข้า DB
-    let payload = {
-        Status: 'Storage',
-        Description: 'Added via Rapid Scan Mode'
-    };
+    let payload = { Status: 'Storage', Description: 'Added via Rapid Scan Mode' };
     
     payload[config.serialField] = serial;
     if (config.nameField && config.nameField !== config.serialField) {
         payload[config.nameField] = `New-${serial}`;
     }
 
-    // สร้างกล่องแสดงผลในช่อง Log
     const logId = 'log-' + Date.now();
     logEl.insertAdjacentHTML('afterbegin', `<div id="${logId}" class="text-sm text-gray-500 flex justify-between items-center bg-white dark:bg-gray-800 p-3 rounded-lg shadow-sm border border-gray-100 dark:border-gray-700 mb-2"><span class="font-mono dark:text-gray-200">${serial}</span><span class="text-yellow-500"><i class="fas fa-spinner fa-spin"></i> Saving...</span></div>`);
 
@@ -657,7 +650,6 @@ window.processRapidEntry = async function(serial) {
         document.getElementById(logId).innerHTML = `<span class="font-mono text-red-500">${serial}</span><span class="text-red-500 font-bold" title="${error.message}"><i class="fas fa-times-circle"></i> Failed</span>`;
     }
 };
-// ==========================================
 
 // ==========================================
 // --- PAGE LOAD & SWITCHING ---
@@ -1912,51 +1904,6 @@ window.switchHandoverTab = function(tab, btn) {
     btn.classList.add('border-indigo-600', 'text-indigo-600', 'dark:text-indigo-400'); btn.classList.remove('border-transparent', 'text-gray-500');
 };
 
-// 🌟 สร้างฟังก์ชันดาวน์โหลดรูป QR แบบมีรายละเอียดแทรกด้านล่าง
-window.downloadLoanQR = function(loanId, borrowerName, loanDate) {
-    const qrCanvas = document.getElementById(`qr-loan-${loanId}`);
-    if(qrCanvas) {
-        // สร้าง Canvas พิเศษในหน่วยความจำเพื่อนำภาพ QR และข้อความมารวมกัน
-        const compositeCanvas = document.createElement('canvas');
-        const ctx = compositeCanvas.getContext('2d');
-        
-        const qrSize = qrCanvas.width;
-        const textHeight = 80; // ความสูงพื้นที่สำหรับตัวหนังสือด้านล่าง
-        
-        compositeCanvas.width = qrSize;
-        compositeCanvas.height = qrSize + textHeight;
-        
-        // 1. ถมพื้นหลังสีขาวให้เต็มก่อน
-        ctx.fillStyle = '#ffffff';
-        ctx.fillRect(0, 0, compositeCanvas.width, compositeCanvas.height);
-        
-        // 2. วาดรูปรหัส QR Code ไว้ด้านบน
-        ctx.drawImage(qrCanvas, 0, 0);
-        
-        // 3. ตั้งค่าการวาดข้อความ
-        ctx.fillStyle = '#1f2937'; // สีตัวอักษรเทาเข้ม
-        ctx.textAlign = 'center';
-        
-        // บรรทัดที่ 1: รหัสยืม
-        ctx.font = 'bold 13px sans-serif';
-        ctx.fillText(`รหัสยืม: ${loanId}`, qrSize / 2, qrSize + 20);
-        
-        // บรรทัดที่ 2: ชื่อผู้ยืม
-        ctx.font = '12px sans-serif';
-        ctx.fillText(`ผู้ยืม: ${borrowerName}`, qrSize / 2, qrSize + 40);
-        
-        // บรรทัดที่ 3: วันที่ทำรายการ
-        ctx.fillStyle = '#6b7280'; // สีตัวอักษรเทาอ่อน
-        ctx.fillText(`วันที่ยืม: ${loanDate}`, qrSize / 2, qrSize + 60);
-
-        // แปลงเป็นรูปภาพแล้วสั่งดาวน์โหลด
-        const link = document.createElement('a');
-        link.download = `Return_QRCode_${loanId}.png`;
-        link.href = compositeCanvas.toDataURL("image/png");
-        link.click();
-    }
-};
-
 // ==========================================
 // --- 🌟 RAPID SCAN ENTRY MODE ---
 // ==========================================
@@ -2018,7 +1965,6 @@ window.closeRapidEntryModal = async function() {
     modal.querySelector('.modal-content').classList.remove('scale-100');
     modal.querySelector('.modal-content').classList.add('scale-95');
     
-    // ดึงข้อมูลใหม่หลังจากสแกนเสร็จ แล้วรีเฟรชหน้า
     await refreshAllData();
     window.buildTable(window.currentRapidCollection);
     window.updateDashboard();
@@ -2031,8 +1977,8 @@ window.handleRapidScan = async function(event) {
         const serial = inputEl.value.trim();
         if (!serial) return;
         
-        inputEl.value = ''; // เคลียร์ช่องทันทีเพื่อรับตัวถัดไป
-        inputEl.disabled = true; // ป้องกันการกดย้ำซ้อน
+        inputEl.value = ''; 
+        inputEl.disabled = true; 
         
         await window.processRapidEntry(serial);
         
@@ -2046,18 +1992,13 @@ window.processRapidEntry = async function(serial) {
     const config = collectionConfigs[col];
     const logEl = document.getElementById('rapidScanLog');
     
-    // ตั้งค่า Default ที่จะยัดเข้า DB
-    let payload = {
-        Status: 'Storage',
-        Description: 'Added via Rapid Scan Mode'
-    };
+    let payload = { Status: 'Storage', Description: 'Added via Rapid Scan Mode' };
     
     payload[config.serialField] = serial;
     if (config.nameField && config.nameField !== config.serialField) {
         payload[config.nameField] = `New-${serial}`;
     }
 
-    // สร้างกล่องแสดงผลในช่อง Log
     const logId = 'log-' + Date.now();
     logEl.insertAdjacentHTML('afterbegin', `<div id="${logId}" class="text-sm text-gray-500 flex justify-between items-center bg-white dark:bg-gray-800 p-3 rounded-lg shadow-sm border border-gray-100 dark:border-gray-700 mb-2"><span class="font-mono dark:text-gray-200">${serial}</span><span class="text-yellow-500"><i class="fas fa-spinner fa-spin"></i> Saving...</span></div>`);
 
