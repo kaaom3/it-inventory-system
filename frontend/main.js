@@ -234,7 +234,7 @@ async function refreshAllData() {
 }
 
 // ==========================================
-// 2. DISPOSAL SYSTEM HELPERS (แทงจำหน่าย)
+// 2. DISPOSAL SYSTEM HELPERS
 // ==========================================
 async function convertFileToBase64(file) {
     return new Promise((resolve, reject) => {
@@ -351,7 +351,7 @@ function initPrintStyles() {
 }
 
 // ==========================================
-// --- PERIODIC PING FUNCTION (FIXED ERROR SPAM) ---
+// --- PERIODIC PING FUNCTION (FIXED) ---
 // ==========================================
 async function runPeriodicPing() {
     const pingPromises = [];
@@ -498,113 +498,7 @@ function renderSidebarDynamic() {
 }
 
 // ==========================================
-// --- 🌟 RAPID SCAN ENTRY MODE ---
-// ==========================================
-function injectRapidEntryModal() {
-    if (document.getElementById('rapidEntryModal')) return;
-    const modalHtml = `
-    <div id="rapidEntryModal" class="modal opacity-0 pointer-events-none fixed inset-0 z-50 flex items-center justify-center p-4 backdrop-blur-md bg-gray-900/60 transition-opacity duration-300">
-        <div class="modal-content bg-gray-100 dark:bg-gray-900 rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden flex flex-col border border-gray-200 dark:border-gray-700 transition-all transform scale-95">
-            <div class="px-6 py-5 bg-white dark:bg-gray-800 flex justify-between items-start border-b border-gray-200 dark:border-gray-700 relative z-10 shadow-sm">
-                <div class="flex items-center">
-                    <div class="w-12 h-12 rounded-full bg-blue-100 dark:bg-blue-900/50 flex items-center justify-center mr-4 shadow-inner">
-                        <i class="fas fa-barcode text-blue-600 dark:text-blue-400 text-xl"></i>
-                    </div>
-                    <div>
-                        <h3 class="text-xl font-bold text-gray-900 dark:text-white leading-tight">Rapid Scan Mode</h3>
-                        <p class="text-xs text-gray-500 font-medium mt-1 uppercase tracking-widest" id="rapidCollectionName">Category</p>
-                    </div>
-                </div>
-                <button onclick="window.closeRapidEntryModal()" class="absolute top-5 right-6 w-8 h-8 flex items-center justify-center rounded-full bg-gray-100 dark:bg-gray-700 text-gray-500 hover:bg-red-100 hover:text-red-500 transition-colors">
-                    <i class="fas fa-times text-lg"></i>
-                </button>
-            </div>
-            <div class="p-6 bg-white dark:bg-gray-800 flex-1">
-                <p class="text-sm text-gray-600 dark:text-gray-400 mb-4">สแกนบาร์โค้ด หรือพิมพ์ Serial Number แล้วกด Enter ระบบจะเพิ่มเข้าคลังเป็นสถานะ <span class="font-bold text-blue-600">Storage</span> ทันที</p>
-                <div class="relative mb-6">
-                    <div class="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
-                        <i class="fas fa-search text-gray-400"></i>
-                    </div>
-                    <input type="text" id="rapidScanInput" onkeypress="window.handleRapidScan(event)" class="block w-full pl-11 pr-4 py-4 bg-gray-50 border-2 border-blue-200 focus:border-blue-500 focus:ring-blue-500 text-lg font-mono rounded-xl dark:bg-gray-700 dark:border-gray-600 dark:text-white transition-all shadow-inner" placeholder="Scan Barcode here..." autocomplete="off">
-                </div>
-                <h4 class="text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">Recent Scans (รอบนี้)</h4>
-                <div id="rapidScanLog" class="space-y-2 max-h-48 overflow-y-auto custom-scrollbar border border-gray-100 dark:border-gray-700 rounded-lg p-2 bg-gray-50 dark:bg-gray-900/50">
-                </div>
-            </div>
-        </div>
-    </div>`;
-    document.body.insertAdjacentHTML('beforeend', modalHtml);
-}
-
-window.currentRapidCollection = null;
-
-window.openRapidEntryModal = function(collectionName) {
-    window.currentRapidCollection = collectionName;
-    const modal = document.getElementById('rapidEntryModal');
-    document.getElementById('rapidCollectionName').innerText = collectionConfigs[collectionName].displayName || collectionName;
-    document.getElementById('rapidScanInput').value = '';
-    document.getElementById('rapidScanLog').innerHTML = '';
-    
-    modal.classList.remove('opacity-0', 'pointer-events-none');
-    modal.querySelector('.modal-content').classList.remove('scale-95');
-    modal.querySelector('.modal-content').classList.add('scale-100');
-    
-    setTimeout(() => document.getElementById('rapidScanInput').focus(), 100);
-};
-
-window.closeRapidEntryModal = async function() {
-    const modal = document.getElementById('rapidEntryModal');
-    modal.classList.add('opacity-0', 'pointer-events-none');
-    modal.querySelector('.modal-content').classList.remove('scale-100');
-    modal.querySelector('.modal-content').classList.add('scale-95');
-    
-    await refreshAllData();
-    window.buildTable(window.currentRapidCollection);
-    window.updateDashboard();
-};
-
-window.handleRapidScan = async function(event) {
-    if (event.key === 'Enter') {
-        event.preventDefault();
-        const inputEl = document.getElementById('rapidScanInput');
-        const serial = inputEl.value.trim();
-        if (!serial) return;
-        
-        inputEl.value = ''; 
-        inputEl.disabled = true; 
-        
-        await window.processRapidEntry(serial);
-        
-        inputEl.disabled = false;
-        inputEl.focus();
-    }
-};
-
-window.processRapidEntry = async function(serial) {
-    const col = window.currentRapidCollection;
-    const config = collectionConfigs[col];
-    const logEl = document.getElementById('rapidScanLog');
-    
-    let payload = { Status: 'Storage', Description: 'Added via Rapid Scan Mode' };
-    
-    payload[config.serialField] = serial;
-    if (config.nameField && config.nameField !== config.serialField) {
-        payload[config.nameField] = `New-${serial}`;
-    }
-
-    const logId = 'log-' + Date.now();
-    logEl.insertAdjacentHTML('afterbegin', `<div id="${logId}" class="text-sm text-gray-500 flex justify-between items-center bg-white dark:bg-gray-800 p-3 rounded-lg shadow-sm border border-gray-100 dark:border-gray-700 mb-2"><span class="font-mono dark:text-gray-200">${serial}</span><span class="text-yellow-500"><i class="fas fa-spinner fa-spin"></i> Saving...</span></div>`);
-
-    try {
-        await apiRequest(`/api/inventory/${col}`, 'POST', payload);
-        document.getElementById(logId).innerHTML = `<span class="font-mono text-gray-800 dark:text-gray-200">${serial}</span><span class="text-green-500 font-bold"><i class="fas fa-check-circle"></i> Success</span>`;
-    } catch (error) {
-        document.getElementById(logId).innerHTML = `<span class="font-mono text-red-500">${serial}</span><span class="text-red-500 font-bold" title="${error.message}"><i class="fas fa-times-circle"></i> Failed</span>`;
-    }
-};
-
-// ==========================================
-// --- PAGE LOAD & DYNAMIC PAGES ---
+// --- DYNAMIC PAGES & SUMMARY CARDS ---
 // ==========================================
 function generateDynamicPages() {
     const container = document.getElementById('dynamic-pages-container');
@@ -661,6 +555,9 @@ function generateDynamicPages() {
     });
 }
 
+// ==========================================
+// --- PAGE ROUTING ---
+// ==========================================
 window.loadPage = function(pageName, navElement) {
     document.querySelectorAll('.nav-link').forEach(l => {
         l.classList.remove('bg-indigo-50', 'text-indigo-600', 'dark:bg-gray-700', 'dark:text-white', 'font-semibold');
@@ -725,7 +622,7 @@ window.loadPage = function(pageName, navElement) {
 };
 
 // ==========================================
-// --- CUSTOM MENU MODAL LOGIC & SETTINGS ---
+// --- SETTINGS & CUSTOM MENUS ---
 // ==========================================
 window.renderSettings = function() {
     const area = document.getElementById('settings-content-area');
@@ -899,7 +796,7 @@ window.deleteCustomMenu = async function(menuName, event) {
 };
 
 // ==========================================
-// --- BULK SELECTION & MANAGEMENT ---
+// --- BULK SELECTION & ACTIONS ---
 // ==========================================
 window.toggleSelectAll = function(collectionName, checkbox) {
     const isChecked = checkbox.checked;
@@ -967,7 +864,9 @@ window.saveBulkEdit = async function() {
     } catch (error) { showNotificationModal('warning', 'Bulk Update Failed', error.message); }
 };
 
-// --- Table Building Logic ---
+// ==========================================
+// --- DATA TABLES ---
+// ==========================================
 window.buildTable = function(collectionName) {
     const table = document.getElementById(collectionName + 'Table');
     if (!table) return;
@@ -1090,7 +989,7 @@ window.renderPaginationControls = function(collectionName, totalRows) {
 };
 
 // ==========================================
-// --- NEW REDESIGNED CRUD MODAL ---
+// --- ADD/EDIT MODAL FORMS ---
 // ==========================================
 window.openModal = function(mode, collectionName, id = null) {
     currentEdit = { mode, collection: collectionName, id };
@@ -1252,7 +1151,7 @@ window.deleteItem = async function(collectionName, id) {
 };
 
 // ==========================================
-// --- Dashboard ---
+// --- DASHBOARD ---
 // ==========================================
 window.updateDashboard = function() {
     let total = 0, active = 0, storage = 0, issues = 0;
@@ -1352,7 +1251,9 @@ window.renderCategoryChart = function(data) {
     else { categoryChart = new Chart(ctx, { type: 'bar', data: { labels: Object.keys(data), datasets: [{ label: 'Assets', data: Object.values(data), backgroundColor: '#6366f1' }] }, options: { responsive: true, maintainAspectRatio: false } }); }
 };
 
-// --- Modals ---
+// ==========================================
+// --- UTILS & MODALS ---
+// ==========================================
 window.showNotificationModal = function(type, title, msg) {
     document.getElementById('modalTitle').textContent = title;
     document.getElementById('modalMessage').textContent = msg;
@@ -1373,8 +1274,24 @@ window.hideModal = function(id) {
     }
 };
 
+window.switchModalTab = function(tab, btn) {
+    document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+    document.getElementById(tab+'-tab').classList.add('active');
+    document.querySelectorAll('.tab-button').forEach(b => {
+        b.classList.remove('active', 'bg-white', 'dark:bg-gray-700', 'text-indigo-600', 'dark:text-indigo-400', 'shadow-sm');
+        b.classList.add('text-gray-500');
+    });
+    btn.classList.remove('text-gray-500');
+    btn.classList.add('active', 'bg-white', 'dark:bg-gray-700', 'text-indigo-600', 'dark:text-indigo-400', 'shadow-sm');
+};
+
+window.changeRowsPerPage = function(col, el) { paginationState[col].rowsPerPage = parseInt(el.value); paginationState[col].currentPage=1; window.buildTable(col); };
+window.changePage = function(col, dir) { paginationState[col].currentPage += dir; window.buildTable(col); };
+window.handleSearch = function(col, val) { paginationState[col].filterText = val; paginationState[col].currentPage=1; window.buildTable(col); };
+window.handleStatusFilter = function(col, val) { paginationState[col].statusFilter = val; paginationState[col].currentPage=1; window.buildTable(col); };
+
 // ==========================================
-// --- Management Logic (Handover, Staff, Admin, Maintenance) ---
+// --- MANAGEMENT PAGES ---
 // ==========================================
 window.buildHandoverReturnPage = function() {
     const handoverTab = document.getElementById('handover-tab-content');
@@ -1475,6 +1392,16 @@ window.confirmReturn = async function() {
         document.getElementById('returnDeviceList').innerHTML = ''; showNotificationModal('success', 'Success', 'Items returned.');
     }
 };
+
+window.switchHandoverTab = function(tab, btn) {
+    document.getElementById('handover-tab-content').style.display = tab==='handover'?'block':'none';
+    document.getElementById('return-tab-content').style.display = tab==='return'?'block':'none';
+    document.querySelectorAll('#handover-tabs button').forEach(b => { b.classList.remove('border-indigo-600', 'text-indigo-600', 'dark:text-indigo-400'); b.classList.add('border-transparent', 'text-gray-500'); });
+    btn.classList.add('border-indigo-600', 'text-indigo-600', 'dark:text-indigo-400'); btn.classList.remove('border-transparent', 'text-gray-500');
+};
+
+window.filterStaffList = function(input, listId) { const term = input.value.toUpperCase(); document.querySelectorAll(`#${listId} .staff-item`).forEach(el => el.style.display = el.textContent.toUpperCase().includes(term) ? '' : 'none'); };
+window.filterDeviceList = function(input, listId) { const term = input.value.toUpperCase(); document.querySelectorAll(`#${listId} .device-item`).forEach(el => el.style.display = el.textContent.toUpperCase().includes(term) ? '' : 'none'); };
 
 window.buildStaffManagementPage = function() {
     const page = document.getElementById('staffmanagement-page');
@@ -1719,6 +1646,10 @@ window.buildMaintenancePage = function() {
     });
 };
 
+window.filterLoanHistory = function(val) { const term=val.toUpperCase(); document.querySelectorAll('#LoanHistoryContainer > div').forEach(el => el.style.display = el.textContent.toUpperCase().includes(term)?'':'none'); };
+window.filterMaintenanceHistory = function(val) { const term=val.toUpperCase(); document.querySelectorAll('#MaintenanceContainer > div').forEach(el => el.style.display = el.textContent.toUpperCase().includes(term)?'':'none'); };
+window.filterAssetsByUser = function(val) { const term=val.toUpperCase(); document.querySelectorAll('#AssetsByUserContainer > details').forEach(el => el.style.display = el.textContent.toUpperCase().includes(term)?'':'none'); };
+
 window.buildAssetsByUserPage = function() {
     const container = document.getElementById('AssetsByUserContainer');
     if(!container) return;
@@ -1887,38 +1818,6 @@ window.printLabel = function() {
     if (!dynamicStyle) { dynamicStyle = document.createElement('style'); dynamicStyle.id = 'dynamic-print-style'; document.head.appendChild(dynamicStyle); }
     dynamicStyle.innerHTML = `@media print { @page { size: ${w}mm ${h}mm; margin: 0mm; } }`;
     window.print();
-};
-
-// ==========================================
-// --- Global Utilities (UI Control) ---
-// ==========================================
-window.switchModalTab = function(tab, btn) {
-    document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
-    document.getElementById(tab+'-tab').classList.add('active');
-    
-    document.querySelectorAll('.tab-button').forEach(b => {
-        b.classList.remove('active', 'bg-white', 'dark:bg-gray-700', 'text-indigo-600', 'dark:text-indigo-400', 'shadow-sm');
-        b.classList.add('text-gray-500');
-    });
-    
-    btn.classList.remove('text-gray-500');
-    btn.classList.add('active', 'bg-white', 'dark:bg-gray-700', 'text-indigo-600', 'dark:text-indigo-400', 'shadow-sm');
-};
-
-window.changeRowsPerPage = function(col, el) { paginationState[col].rowsPerPage = parseInt(el.value); paginationState[col].currentPage=1; window.buildTable(col); };
-window.changePage = function(col, dir) { paginationState[col].currentPage += dir; window.buildTable(col); };
-window.handleSearch = function(col, val) { paginationState[col].filterText = val; paginationState[col].currentPage=1; window.buildTable(col); };
-window.handleStatusFilter = function(col, val) { paginationState[col].statusFilter = val; paginationState[col].currentPage=1; window.buildTable(col); };
-window.filterLoanHistory = function(val) { const term=val.toUpperCase(); document.querySelectorAll('#LoanHistoryContainer > div').forEach(el => el.style.display = el.textContent.toUpperCase().includes(term)?'':'none'); };
-window.filterMaintenanceHistory = function(val) { const term=val.toUpperCase(); document.querySelectorAll('#MaintenanceContainer > div').forEach(el => el.style.display = el.textContent.toUpperCase().includes(term)?'':'none'); };
-window.filterAssetsByUser = function(val) { const term=val.toUpperCase(); document.querySelectorAll('#AssetsByUserContainer > details').forEach(el => el.style.display = el.textContent.toUpperCase().includes(term)?'':'none'); };
-window.filterStaffList = function(input, listId) { const term = input.value.toUpperCase(); document.querySelectorAll(`#${listId} .staff-item`).forEach(el => el.style.display = el.textContent.toUpperCase().includes(term) ? '' : 'none'); };
-window.filterDeviceList = function(input, listId) { const term = input.value.toUpperCase(); document.querySelectorAll(`#${listId} .device-item`).forEach(el => el.style.display = el.textContent.toUpperCase().includes(term) ? '' : 'none'); };
-window.switchHandoverTab = function(tab, btn) {
-    document.getElementById('handover-tab-content').style.display = tab==='handover'?'block':'none';
-    document.getElementById('return-tab-content').style.display = tab==='return'?'block':'none';
-    document.querySelectorAll('#handover-tabs button').forEach(b => { b.classList.remove('border-indigo-600', 'text-indigo-600', 'dark:text-indigo-400'); b.classList.add('border-transparent', 'text-gray-500'); });
-    btn.classList.add('border-indigo-600', 'text-indigo-600', 'dark:text-indigo-400'); btn.classList.remove('border-transparent', 'text-gray-500');
 };
 
 // ==========================================
