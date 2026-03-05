@@ -63,7 +63,7 @@ let categoryChart = null;
 let paginationState = {};
 let handoverCart = [];
 let returnCart = [];
-let pingIntervalId = null; 
+let refreshIntervalId = null; 
 let currentImportCollection = null;
 let selectedItems = {}; 
 let collectionConfigs = {};
@@ -102,13 +102,10 @@ async function initializeAppLogic() {
         window.updateDashboard();
         window.loadPage('Dashboard');
         
-        // 🌟 ให้ระบบสั่ง Ping เพียงแค่ 1 ครั้งตอนที่คุณเพิ่งเปิดหน้าเว็บเท่านั้น
-        runPeriodicPing();
-
-        if (pingIntervalId) clearInterval(pingIntervalId);
+        if (refreshIntervalId) clearInterval(refreshIntervalId);
         
         // 🌟 แยกระบบรีเฟรชหน้าจอ (ดึงข้อมูลล่าสุด) ให้ทำงานทุกๆ 5 นาทีแทน
-        pingIntervalId = setInterval(async () => { 
+        refreshIntervalId = setInterval(async () => { 
             await refreshAllData();
             const visiblePage = document.querySelector('.page-content.active');
             if (visiblePage && visiblePage.id !== 'dashboard-page') {
@@ -348,42 +345,6 @@ function initPrintStyles() {
         }
     `;
     document.head.appendChild(style);
-}
-
-// ==========================================
-// --- PERIODIC PING FUNCTION (FIXED) ---
-// ==========================================
-async function runPeriodicPing() {
-    const pingPromises = [];
-    const token = localStorage.getItem('authToken');
-    const headers = token ? { 'Authorization': `Bearer ${token}` } : {};
-
-    Object.keys(collectionConfigs).forEach(colName => {
-        const items = allData[colName] || [];
-        const config = collectionConfigs[colName];
-        
-        const hasIP = config.formFields.includes('IPAddress');
-        const isComputers = colName === 'Computers';
-        
-        if (hasIP || isComputers) {
-            items.forEach(item => {
-                let target = null;
-                if (item.IPAddress && item.IPAddress !== 'N/A' && item.IPAddress.trim() !== '') {
-                    target = item.IPAddress;
-                } else if (isComputers && item.ComputerName && item.ComputerName.trim() !== '') {
-                    target = item.ComputerName;
-                }
-                
-                if (target) {
-                    pingPromises.push(
-                        fetch(`${API_BASE_URL}/api/ping/${target}?collection=${colName}`, { headers })
-                        .catch(() => null) 
-                    );
-                }
-            });
-        }
-    });
-    await Promise.allSettled(pingPromises);
 }
 
 window.formatTimeAgo = (dateString) => {
