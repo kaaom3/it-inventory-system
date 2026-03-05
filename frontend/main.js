@@ -107,7 +107,7 @@ async function initializeAppLogic() {
 
         if (pingIntervalId) clearInterval(pingIntervalId);
         
-        // 🌟 แยกระบบรีเฟรชหน้าจอ (ดึงข้อมูลล่าสุด) ให้ทำงานทุกๆ 5 นาทีแทน และเอาคำสั่ง Ping ออกจากรอบนี้
+        // 🌟 แยกระบบรีเฟรชหน้าจอ (ดึงข้อมูลล่าสุด) ให้ทำงานทุกๆ 5 นาทีแทน
         pingIntervalId = setInterval(async () => { 
             await refreshAllData();
             const visiblePage = document.querySelector('.page-content.active');
@@ -116,7 +116,7 @@ async function initializeAppLogic() {
                 const realKey = Object.keys(collectionConfigs).find(k => k.toLowerCase() === colName);
                 if(realKey) window.buildTable(realKey);
             }
-        }, 300000); // 300000 ms = 5 นาที (ของเดิม 60000 ms)
+        }, 300000); 
     }
 }
 
@@ -351,7 +351,7 @@ function initPrintStyles() {
 }
 
 // ==========================================
-// --- 🌟 PERIODIC PING FUNCTION (FIXED ERROR SPAM) ---
+// --- PERIODIC PING FUNCTION (FIXED ERROR SPAM) ---
 // ==========================================
 async function runPeriodicPing() {
     const pingPromises = [];
@@ -375,10 +375,9 @@ async function runPeriodicPing() {
                 }
                 
                 if (target) {
-                    // ใช้ fetch ตรงๆ เพื่อดักจับและซ่อน Error ของ Local IP ไม่ให้ขึ้นสีแดงใน Console ให้รำคาญตา
                     pingPromises.push(
                         fetch(`${API_BASE_URL}/api/ping/${target}?collection=${colName}`, { headers })
-                        .catch(() => null) // ซ่อน error เงียบๆ
+                        .catch(() => null) 
                     );
                 }
             });
@@ -498,62 +497,6 @@ function renderSidebarDynamic() {
     rootNodes.forEach(node => { if (node.type === 'header' || !node.parentId) container.insertAdjacentHTML('beforeend', createMenuHTML(node)); });
 }
 
-function generateDynamicPages() {
-    const container = document.getElementById('dynamic-pages-container');
-    if (!container) return;
-    container.innerHTML = ''; 
-
-    Object.keys(collectionConfigs).forEach(colName => {
-        const config = collectionConfigs[colName];
-        if (!config) return;
-        const pageId = `${colName.toLowerCase()}-page`;
-        const displayName = config.displayName || colName;
-        const statusOptions = config.dropdowns.Status ? config.dropdowns.Status.map(s => `<option value="${s}">${s}</option>`).join('') : '';
-        
-        container.innerHTML += `
-        <div id="${pageId}" class="page-content hidden">
-            <div class="flex flex-wrap justify-between items-center gap-2 mb-6">
-                <h2 class="text-2xl md:text-3xl font-bold text-gray-900 dark:text-white">${displayName}</h2>
-                <div class="flex gap-2">
-                    <button onclick="window.openRapidEntryModal('${colName}')" class="bg-blue-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-blue-700 shadow-sm flex items-center transition-colors"><i class="fas fa-barcode mr-2"></i>Rapid Scan</button>
-                    <button onclick="window.openImportModal('${colName}')" class="bg-green-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-green-700 shadow-sm"><i class="fas fa-file-import mr-2"></i>Import CSV</button>
-                    <button onclick="window.openModal('add', '${colName}')" class="bg-indigo-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-indigo-700 shadow-sm"><i class="fas fa-plus mr-2"></i>Add New</button>
-                </div>
-            </div>
-            
-            <div class="grid grid-cols-2 md:grid-cols-5 gap-4 mb-6" id="${colName}SummaryCards">
-            </div>
-            
-            <div class="mb-4 flex flex-col md:flex-row gap-2">
-                <div class="w-full md:w-1/4">
-                    <select onchange="window.handleStatusFilter('${colName}', this.value)" class="w-full px-4 py-2 border rounded-lg dark:bg-gray-700 dark:border-gray-600 dark:text-gray-200">
-                        <option value="">All Statuses</option>
-                        ${statusOptions}
-                    </select>
-                </div>
-                <div class="w-full md:w-3/4">
-                    <input type="text" id="${colName.toLowerCase()}SearchInput" onkeyup="window.handleSearch('${colName}', this.value)" placeholder="Search ${displayName}..." class="w-full px-4 py-2 border rounded-lg dark:bg-gray-700 dark:border-gray-600 dark:placeholder-gray-400">
-                </div>
-            </div>
-
-            <div id="${colName}BulkActions" class="hidden mb-4 p-3 bg-indigo-50 dark:bg-indigo-900/30 border border-indigo-200 dark:border-indigo-700 rounded-lg flex items-center justify-between">
-                <div class="text-indigo-800 dark:text-indigo-200 text-sm font-semibold">
-                    <i class="fas fa-check-square mr-1"></i> <span class="selected-count">0 item(s) selected</span>
-                </div>
-                <div class="flex space-x-2">
-                    <button onclick="window.openBulkEditModal('${colName}')" class="px-3 py-1.5 bg-indigo-600 text-white text-sm rounded hover:bg-indigo-700 shadow-sm"><i class="fas fa-edit mr-1"></i>Bulk Edit</button>
-                    <button onclick="window.bulkDelete('${colName}')" class="px-3 py-1.5 bg-red-600 text-white text-sm rounded hover:bg-red-700 shadow-sm"><i class="fas fa-trash mr-1"></i>Bulk Delete</button>
-                </div>
-            </div>
-
-            <div class="bg-white dark:bg-gray-800 rounded-lg shadow-sm overflow-hidden border border-gray-100 dark:border-gray-700">
-                <div class="overflow-x-auto"><table id="${colName}Table" class="min-w-full table-fixed"></table></div>
-            </div>
-            <div id="${colName}Pagination" class="flex items-center justify-between mt-4 text-sm text-gray-600 dark:text-gray-300"></div>
-        </div>`;
-    });
-}
-
 // ==========================================
 // --- 🌟 RAPID SCAN ENTRY MODE ---
 // ==========================================
@@ -661,8 +604,63 @@ window.processRapidEntry = async function(serial) {
 };
 
 // ==========================================
-// --- PAGE LOAD & SWITCHING ---
+// --- PAGE LOAD & DYNAMIC PAGES ---
 // ==========================================
+function generateDynamicPages() {
+    const container = document.getElementById('dynamic-pages-container');
+    if (!container) return;
+    container.innerHTML = ''; 
+
+    Object.keys(collectionConfigs).forEach(colName => {
+        const config = collectionConfigs[colName];
+        if (!config) return;
+        const pageId = `${colName.toLowerCase()}-page`;
+        const displayName = config.displayName || colName;
+        const statusOptions = config.dropdowns.Status ? config.dropdowns.Status.map(s => `<option value="${s}">${s}</option>`).join('') : '';
+        
+        container.innerHTML += `
+        <div id="${pageId}" class="page-content hidden">
+            <div class="flex flex-wrap justify-between items-center gap-2 mb-6">
+                <h2 class="text-2xl md:text-3xl font-bold text-gray-900 dark:text-white">${displayName}</h2>
+                <div class="flex gap-2">
+                    <button onclick="window.openRapidEntryModal('${colName}')" class="bg-blue-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-blue-700 shadow-sm flex items-center transition-colors"><i class="fas fa-barcode mr-2"></i>Rapid Scan</button>
+                    <button onclick="window.openImportModal('${colName}')" class="bg-green-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-green-700 shadow-sm"><i class="fas fa-file-import mr-2"></i>Import CSV</button>
+                    <button onclick="window.openModal('add', '${colName}')" class="bg-indigo-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-indigo-700 shadow-sm"><i class="fas fa-plus mr-2"></i>Add New</button>
+                </div>
+            </div>
+            
+            <div class="grid grid-cols-2 md:grid-cols-5 gap-4 mb-6" id="${colName}SummaryCards"></div>
+            
+            <div class="mb-4 flex flex-col md:flex-row gap-2">
+                <div class="w-full md:w-1/4">
+                    <select onchange="window.handleStatusFilter('${colName}', this.value)" class="w-full px-4 py-2 border rounded-lg dark:bg-gray-700 dark:border-gray-600 dark:text-gray-200">
+                        <option value="">All Statuses</option>
+                        ${statusOptions}
+                    </select>
+                </div>
+                <div class="w-full md:w-3/4">
+                    <input type="text" id="${colName.toLowerCase()}SearchInput" onkeyup="window.handleSearch('${colName}', this.value)" placeholder="Search ${displayName}..." class="w-full px-4 py-2 border rounded-lg dark:bg-gray-700 dark:border-gray-600 dark:placeholder-gray-400">
+                </div>
+            </div>
+
+            <div id="${colName}BulkActions" class="hidden mb-4 p-3 bg-indigo-50 dark:bg-indigo-900/30 border border-indigo-200 dark:border-indigo-700 rounded-lg flex items-center justify-between">
+                <div class="text-indigo-800 dark:text-indigo-200 text-sm font-semibold">
+                    <i class="fas fa-check-square mr-1"></i> <span class="selected-count">0 item(s) selected</span>
+                </div>
+                <div class="flex space-x-2">
+                    <button onclick="window.openBulkEditModal('${colName}')" class="px-3 py-1.5 bg-indigo-600 text-white text-sm rounded hover:bg-indigo-700 shadow-sm"><i class="fas fa-edit mr-1"></i>Bulk Edit</button>
+                    <button onclick="window.bulkDelete('${colName}')" class="px-3 py-1.5 bg-red-600 text-white text-sm rounded hover:bg-red-700 shadow-sm"><i class="fas fa-trash mr-1"></i>Bulk Delete</button>
+                </div>
+            </div>
+
+            <div class="bg-white dark:bg-gray-800 rounded-lg shadow-sm overflow-hidden border border-gray-100 dark:border-gray-700">
+                <div class="overflow-x-auto"><table id="${colName}Table" class="min-w-full table-fixed"></table></div>
+            </div>
+            <div id="${colName}Pagination" class="flex items-center justify-between mt-4 text-sm text-gray-600 dark:text-gray-300"></div>
+        </div>`;
+    });
+}
+
 window.loadPage = function(pageName, navElement) {
     document.querySelectorAll('.nav-link').forEach(l => {
         l.classList.remove('bg-indigo-50', 'text-indigo-600', 'dark:bg-gray-700', 'dark:text-white', 'font-semibold');
