@@ -1,6 +1,6 @@
 // ===================================================================
 // Frontend Logic for IT Inventory System (Full Complete Version)
-// Merged with: Advanced Ping System + Composite QR + New Card UI + Rapid Scan Mode
+// CLEANED & DEDUPLICATED VERSION
 // ===================================================================
 
 // 🌟 ล็อก URL ไปที่เซิร์ฟเวอร์บน Cloud ของคุณ 100%
@@ -81,7 +81,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
         initTheme();
         initPrintStyles(); 
-        injectRapidEntryModal(); // 🌟 ฝังหน้าต่างสแกนบาร์โค้ด
+        injectRapidEntryModal(); 
         initializeAppLogic();
     } else {
         window.location.replace('login.html');
@@ -544,112 +544,6 @@ function generateDynamicPages() {
         </div>`;
     });
 }
-
-// ==========================================
-// --- 🌟 RAPID SCAN ENTRY MODE ---
-// ==========================================
-function injectRapidEntryModal() {
-    if (document.getElementById('rapidEntryModal')) return;
-    const modalHtml = `
-    <div id="rapidEntryModal" class="modal opacity-0 pointer-events-none fixed inset-0 z-50 flex items-center justify-center p-4 backdrop-blur-md bg-gray-900/60 transition-opacity duration-300">
-        <div class="modal-content bg-gray-100 dark:bg-gray-900 rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden flex flex-col border border-gray-200 dark:border-gray-700 transition-all transform scale-95">
-            <div class="px-6 py-5 bg-white dark:bg-gray-800 flex justify-between items-start border-b border-gray-200 dark:border-gray-700 relative z-10 shadow-sm">
-                <div class="flex items-center">
-                    <div class="w-12 h-12 rounded-full bg-blue-100 dark:bg-blue-900/50 flex items-center justify-center mr-4 shadow-inner">
-                        <i class="fas fa-barcode text-blue-600 dark:text-blue-400 text-xl"></i>
-                    </div>
-                    <div>
-                        <h3 class="text-xl font-bold text-gray-900 dark:text-white leading-tight">Rapid Scan Mode</h3>
-                        <p class="text-xs text-gray-500 font-medium mt-1 uppercase tracking-widest" id="rapidCollectionName">Category</p>
-                    </div>
-                </div>
-                <button onclick="window.closeRapidEntryModal()" class="absolute top-5 right-6 w-8 h-8 flex items-center justify-center rounded-full bg-gray-100 dark:bg-gray-700 text-gray-500 hover:bg-red-100 hover:text-red-500 transition-colors">
-                    <i class="fas fa-times text-lg"></i>
-                </button>
-            </div>
-            <div class="p-6 bg-white dark:bg-gray-800 flex-1">
-                <p class="text-sm text-gray-600 dark:text-gray-400 mb-4">สแกนบาร์โค้ด หรือพิมพ์ Serial Number แล้วกด Enter ระบบจะเพิ่มเข้าคลังเป็นสถานะ <span class="font-bold text-blue-600">Storage</span> ทันที</p>
-                <div class="relative mb-6">
-                    <div class="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
-                        <i class="fas fa-search text-gray-400"></i>
-                    </div>
-                    <input type="text" id="rapidScanInput" onkeypress="window.handleRapidScan(event)" class="block w-full pl-11 pr-4 py-4 bg-gray-50 border-2 border-blue-200 focus:border-blue-500 focus:ring-blue-500 text-lg font-mono rounded-xl dark:bg-gray-700 dark:border-gray-600 dark:text-white transition-all shadow-inner" placeholder="Scan Barcode here..." autocomplete="off">
-                </div>
-                <h4 class="text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">Recent Scans (รอบนี้)</h4>
-                <div id="rapidScanLog" class="space-y-2 max-h-48 overflow-y-auto custom-scrollbar border border-gray-100 dark:border-gray-700 rounded-lg p-2 bg-gray-50 dark:bg-gray-900/50">
-                </div>
-            </div>
-        </div>
-    </div>`;
-    document.body.insertAdjacentHTML('beforeend', modalHtml);
-}
-
-window.currentRapidCollection = null;
-
-window.openRapidEntryModal = function(collectionName) {
-    window.currentRapidCollection = collectionName;
-    const modal = document.getElementById('rapidEntryModal');
-    document.getElementById('rapidCollectionName').innerText = collectionConfigs[collectionName].displayName || collectionName;
-    document.getElementById('rapidScanInput').value = '';
-    document.getElementById('rapidScanLog').innerHTML = '';
-    
-    modal.classList.remove('opacity-0', 'pointer-events-none');
-    modal.querySelector('.modal-content').classList.remove('scale-95');
-    modal.querySelector('.modal-content').classList.add('scale-100');
-    
-    setTimeout(() => document.getElementById('rapidScanInput').focus(), 100);
-};
-
-window.closeRapidEntryModal = async function() {
-    const modal = document.getElementById('rapidEntryModal');
-    modal.classList.add('opacity-0', 'pointer-events-none');
-    modal.querySelector('.modal-content').classList.remove('scale-100');
-    modal.querySelector('.modal-content').classList.add('scale-95');
-    
-    await refreshAllData();
-    window.buildTable(window.currentRapidCollection);
-    window.updateDashboard();
-};
-
-window.handleRapidScan = async function(event) {
-    if (event.key === 'Enter') {
-        event.preventDefault();
-        const inputEl = document.getElementById('rapidScanInput');
-        const serial = inputEl.value.trim();
-        if (!serial) return;
-        
-        inputEl.value = ''; 
-        inputEl.disabled = true; 
-        
-        await window.processRapidEntry(serial);
-        
-        inputEl.disabled = false;
-        inputEl.focus();
-    }
-};
-
-window.processRapidEntry = async function(serial) {
-    const col = window.currentRapidCollection;
-    const config = collectionConfigs[col];
-    const logEl = document.getElementById('rapidScanLog');
-    
-    let payload = { Status: 'Storage', Description: 'Added via Rapid Scan Mode' };
-    
-    payload[config.serialField] = serial;
-    if (config.nameField && config.nameField !== config.serialField) {
-        payload[config.nameField] = `New-${serial}`;
-    }
-
-    const logId = 'log-' + Date.now();
-    logEl.insertAdjacentHTML('afterbegin', `<div id="${logId}" class="text-sm text-gray-500 flex justify-between items-center bg-white dark:bg-gray-800 p-3 rounded-lg shadow-sm border border-gray-100 dark:border-gray-700 mb-2"><span class="font-mono dark:text-gray-200">${serial}</span><span class="text-yellow-500"><i class="fas fa-spinner fa-spin"></i> Saving...</span></div>`);
-
-    try {
-        await apiRequest(`/api/inventory/${col}`, 'POST', payload);
-        document.getElementById(logId).innerHTML = `<span class="font-mono text-gray-800 dark:text-gray-200">${serial}</span><span class="text-green-500 font-bold"><i class="fas fa-check-circle"></i> Success</span>`;
-    } catch (error) {
-        document.getElementById(logId).innerHTML = `<span class="font-mono text-red-500">${serial}</span><span class="text-red-500 font-bold" title="${error.message}"><i class="fas fa-times-circle"></i> Failed</span>`;
-    }
-};
 
 // ==========================================
 // --- PAGE LOAD & SWITCHING ---
@@ -1192,6 +1086,7 @@ window.openModal = function(mode, collectionName, id = null) {
     }
 };
 
+// 🌟 Event Listener for Disposal Evidence
 document.addEventListener('change', (e) => {
     if (e.target && e.target.id === 'edit-Status') {
         const disposalSection = document.getElementById('disposal-evidence-section');
@@ -1346,7 +1241,7 @@ window.renderCategoryChart = function(data) {
 };
 
 // --- Modals ---
-function showNotificationModal(type, title, msg) {
+window.showNotificationModal = function(type, title, msg) {
     document.getElementById('modalTitle').textContent = title;
     document.getElementById('modalMessage').textContent = msg;
     const icon = document.getElementById('modalIcon');
@@ -1354,7 +1249,17 @@ function showNotificationModal(type, title, msg) {
     else if(type === 'warning') icon.innerHTML = '<i class="fas fa-exclamation-triangle text-4xl text-yellow-500"></i>';
     else icon.innerHTML = '<i class="fas fa-info-circle text-4xl text-blue-500"></i>';
     document.getElementById('notificationModal').classList.remove('opacity-0', 'pointer-events-none');
-}
+};
+
+window.hideModal = function(id) { 
+    const modal = document.getElementById(id);
+    if (!modal) return;
+    modal.classList.add('opacity-0', 'pointer-events-none'); 
+    if (modal.querySelector('.modal-content')) {
+        modal.querySelector('.modal-content').classList.remove('scale-100');
+        modal.querySelector('.modal-content').classList.add('scale-95');
+    }
+};
 
 // ==========================================
 // --- Management Logic (Handover, Staff, Admin, Maintenance) ---
