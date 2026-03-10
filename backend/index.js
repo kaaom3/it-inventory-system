@@ -576,7 +576,85 @@ app.get('/api/inventory/find/:serial', async (req, res) => {
         res.status(404).json({ message: 'Device not found' });
     } catch (e) { res.status(500).json({ error: e.message }); }
 });
+// 1. API สำหรับโอนมอบอุปกรณ์ให้พนักงาน (Handover)
+app.post('/api/transactions/handover', verifyToken, async (req, res) => {
+    if (!db) return res.status(500).json({ message: "Database not connected" });
+    try {
+        const { staffUserName, devices } = req.body;
+        
+        if (!staffUserName || !devices || !Array.isArray(devices)) {
+            return res.status(400).json({ message: "Invalid payload" });
+        }
 
+        // วนลูปอัปเดตอุปกรณ์แต่ละชิ้นใน Database
+        for (const device of devices) {
+            const colName = device.collection;
+            const deviceId = device._id || device.id;
+            if (!colName || !deviceId) continue;
+
+            // อัปเดตสถานะเป็น Active และใส่ชื่อ UserName
+            await db.collection(colName).updateOne(
+                { _id: new ObjectId(deviceId) },
+                { $set: { Status: 'Active', UserName: staffUserName } }
+            );
+        }
+
+        // บันทึกประวัติลง TransactionHistory เพื่อให้โชว์ในหน้า Dashboard
+        await db.collection('TransactionHistory').insertOne({
+            type: 'Handover',
+            staffUserName: staffUserName,
+            devices: devices.map(d => ({ 
+                id: d._id || d.id, 
+                collection: d.collection, 
+                serial: d.SerialNumber || d.MonitorSerial || 'N/A' 
+            })),
+            timestamp: new Date()
+        });
+
+        res.status(200).json({ message: "Handover successful" });
+    } catch (error) {
+        console.error("Handover Error:", error);
+        res.status(500).json({ message: error.message });
+    }
+});
+
+// 2. API สำหรับรับคืนอุปกรณ์จากพนักงาน (Return)
+app.post('/api/transactions/return', verifyToken, async (req, res) => {
+    if (!db) return res.status(500).json({ message: "Database not connected" });
+    try {
+        const { devices } = req.body;
+        
+        if (!devices || !Array.isArray(devices)) {
+            return res.status(400).json({ message: "Invalid payload" });
+        }
+
+        // วนลูปอัปเดตอุปกรณ์แต่ละชิ้นกลับเข้าคลัง
+        for (const device of devices) {
+            const colName = device.collection;
+            const deviceId = device.id || device._id; // สังเกตว่าหน้า return จะส่ง .id มา
+            if (!colName || !deviceId) continue;
+
+            // อัปเดตสถานะกลับเป็น Storage และล้างชื่อ UserName ออก
+            await db.collection(colName).updateOne(
+                { _id: new ObjectId(deviceId) },
+                { $set: { Status: 'Storage', UserName: '' } }
+            );
+        }
+
+        // บันทึกประวัติลง TransactionHistory
+        await db.collection('TransactionHistory').insertOne({
+            type: 'Return',
+            staffUserName: 'System (Returned)', // หรือรับจาก Body ถ้ามีการส่งมา
+            devices: devices.map(d => ({ id: d.id, collection: d.collection })),
+            timestamp: new Date()
+        });
+
+        res.status(200).json({ message: "Return successful" });
+    } catch (error) {
+        console.error("Return Error:", error);
+        res.status(500).json({ message: error.message });
+    }
+});
 // --- Loans ---
 
 app.post('/api/loans/submit', async (req, res) => {
