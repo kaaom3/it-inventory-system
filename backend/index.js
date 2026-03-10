@@ -1,25 +1,19 @@
 const express = require('express');
-const { MongoClient, ObjectId } = require('mongodb');
 const cors = require('cors');
-const bcrypt = require('bcryptjs');
+const { MongoClient, ObjectId } = require('mongodb');
 const jwt = require('jsonwebtoken');
+const bcrypt = require('bcrypt');
 const ping = require('ping');
-const path = require('path'); // 🌟 เพิ่ม path module สำหรับอ่านไฟล์เว็บ
 
 const app = express();
+const port = process.env.PORT || 3000;
+
+// Middleware
 app.use(cors());
-app.use(express.json({ limit: '50mb' })); // ขยาย limit เผื่อไฟล์ CSV มีขนาดใหญ่
+app.use(express.json({ limit: '50mb' })); // รองรับข้อมูลขนาดใหญ่ (เช่น รูป Base64 ตอนแทงจำหน่าย)
 
-// 🌟 เพิ่มคำสั่งให้ Server แจกจ่ายหน้าเว็บ (Frontend) ไปที่ Render
-const frontendPath = path.join(__dirname, '../frontend');
-app.use(express.static(frontendPath));
-app.get('/', (req, res) => {
-    res.sendFile(path.join(frontendPath, 'index.html'));
-});
-
-// --- Configuration ---
-// 🌟 เปลี่ยนกลับเป็น MongoDB Atlas (Cloud)
-const mongoUri = "mongodb+srv://kaaom3:Kaaom321A@cluster0.fx7nlup.mongodb.net/inventoryDB_Cloned?appName=Cluster0";
+// 🌟 ตั้งค่า Database & Security
+const mongoUri = "mongodb+srv://kaaom3:Kaaom321A@cluster0.fx7nlup.mongodb.net/inventoryDB_Cloned?appName=Cluster0"; 
 const dbName = "inventoryDB_Cloned"; 
 const jwtSecret = "your_super_secret_key_change_this"; 
 const API_SECRET_KEY = "KAAOM321A"; 
@@ -28,173 +22,207 @@ let db;
 
 // --- Connect to MongoDB ---
 MongoClient.connect(mongoUri)
-  .then(client => {
-    console.log("Successfully connected to MongoDB!");
-    db = client.db(dbName);
-  })
-  .catch(error => {
-    console.error("Failed to connect to MongoDB", error);
-    console.log("Server started but DB connection failed. Check MongoDB service.");
-  });
+    .then(async client => {
+        db = client.db(dbName);
+        console.log(`Connected to MongoDB: ${dbName}`);
 
-// --- Middleware ---
-const verifyToken = (req, res, next) => {
-    const authHeader = req.headers['authorization'];
-    const token = authHeader && authHeader.split(' ')[1];
-    if (!token) return res.sendStatus(401);
+        // Create default admin if not exists
+        try {
+            const adminCollection = db.collection('admins');
+            const adminCount = await adminCollection.countDocuments();
+            if (adminCount === 0) {
+                const hashedPassword = await bcrypt.hash('admin123', 10);
+                await adminCollection.insertOne({ email: 'admin', password: hashedPassword });
+                console.log("Default admin created (admin / admin123)");
+            }
+        } catch (e) {
+            console.error("Error creating default admin:", e);
+        }
 
-    jwt.verify(token, jwtSecret, (err, user) => {
-        if (err) return res.sendStatus(403);
-        req.user = user;
-        next();
+        // เริ่มต้น Background Ping Service (สำหรับเซิร์ฟเวอร์ปิงเองถ้าทำได้)
+        startBackgroundPingService();
+    })
+    .catch(error => {
+        console.error("Failed to connect to MongoDB", error);
     });
+
+// ===================================================================
+// 🌟 Middleware สำหรับยืนยันตัวตน
+// ===================================================================
+const verifyToken = (req, res, next) => {
+    const bearerHeader = req.headers['authorization'];
+    if (typeof bearerHeader !== 'undefined') {
+        const bearer = bearerHeader.split(' ');
+        const token = bearer[1];
+        jwt.verify(token, jwtSecret, (err, decoded) => {
+            if (err) return res.sendStatus(403);
+            req.user = decoded;
+            next();
+        });
+    } else {
+        res.sendStatus(401);
+    }
 };
 
 const verifyApiKey = (req, res, next) => {
-    const apiKey = req.headers['x-api-key'];
-    if (!apiKey || apiKey !== API_SECRET_KEY) {
-        return res.status(401).json({ message: 'Unauthorized: Invalid API Key' });
+    const key = req.headers['x-api-key'];
+    if (key && key === API_SECRET_KEY) {
+        next();
+    } else {
+        res.status(401).json({ status: "error", message: "Unauthorized: Invalid API Key" });
     }
-    next();
 };
 
 // ===================================================================
-// **API Route for Automated Data Synchronization (PowerShell)**
+// 🌟 Authentication Routes
+// ===================================================================
+app.post('/api/login', async (req, res) => {
+    const { email, password } = req.body;
+    if (!db) return res.status(500).json({ message: "Database not connected" });
+    try {
+        const admin = await db.collection('admins').findOne({ email });
+        if (admin && await bcrypt.compare(password, admin.password)) {
+            const token = jwt.sign({ id: admin._id, email: admin.email }, jwtSecret, { expiresIn: '24h' });
+            res.json({ token, user: { email: admin.email } });
+        } else {
+            res.status(401).json({ message: "Invalid credentials" });
+        }
+    } catch (error) {
+        res.status(500).json({ message: error.message });
+    }
+});
+
+app.post('/api/admins', verifyToken, async (req, res) => {
+    if (!db) return res.status(500).json({ message: "Database not connected" });
+    try {
+        const { email, password } = req.body;
+        const existing = await db.collection('admins').findOne({ email });
+        if (existing) return res.status(400).json({ message: "Admin already exists" });
+        const hashedPassword = await bcrypt.hash(password, 10);
+        await db.collection('admins').insertOne({ email, password: hashedPassword });
+        res.status(201).json({ message: "Admin created" });
+    } catch (error) {
+        res.status(500).json({ message: error.message });
+    }
+});
+
+app.get('/api/admins/list', verifyToken, async (req, res) => {
+    if (!db) return res.status(500).json({ message: "Database not connected" });
+    try {
+        const users = await db.collection('admins').find({}, { projection: { password: 0 } }).toArray();
+        res.json({ users });
+    } catch (error) {
+        res.status(500).json({ message: error.message });
+    }
+});
+
+app.delete('/api/admins/delete', verifyToken, async (req, res) => {
+    if (!db) return res.status(500).json({ message: "Database not connected" });
+    try {
+        const { uid } = req.body;
+        await db.collection('admins').deleteOne({ _id: new ObjectId(uid) });
+        res.json({ message: "Admin deleted" });
+    } catch (error) {
+        res.status(500).json({ message: error.message });
+    }
+});
+
+// ===================================================================
+// 🌟 PowerShell Script Integration (Sync & Heartbeat)
 // ===================================================================
 app.post('/api/inventory/sync', verifyApiKey, async (req, res) => {
     if (!db) return res.status(500).json({ status: "error", message: "Database not connected" });
     try {
         const data = req.body;
-        console.log(`[SYNC] Processing data for: ${data.computerName}`);
+        if (!data || !data.computerName || !data.serialNumber) {
+            return res.status(400).json({ status: "error", message: "Invalid payload: missing computerName or serialNumber" });
+        }
+
+        const now = new Date();
+        const collection = db.collection('Computers');
         
-        // 1. Update/Insert User (Staff)
-        if (data.userName && data.userName.trim() !== "") {
-            await db.collection('Staff').updateOne(
-                { UserName: data.userName },
-                { $setOnInsert: { UserName: data.userName, FirstName: "", LastName: "", Department: "" } },
-                { upsert: true }
-            );
-        }
+        // อัปเดตข้อมูลคอมพิวเตอร์
+        await collection.updateOne(
+            { SerialNumber: data.serialNumber },
+            {
+                $set: {
+                    ComputerName: data.computerName,
+                    Manufacturer: data.manufacturer,
+                    Model: data.model,
+                    Type: data.type,
+                    Location: data.location,
+                    UserName: data.userName,
+                    CPU: data.cpu,
+                    RAM_GB: data.ramGB,
+                    DiskSize_GB: data.diskSizeGB,
+                    OS: data.os,
+                    IPAddress: data.ipAddress,
+                    Status: "Active",
+                    Timestamp: now,
+                    lastSeenOnline: now
+                }
+            },
+            { upsert: true }
+        );
 
-        // 2. Update/Insert Computer
-        const computerQuery = data.serialNumber ? { SerialNumber: data.serialNumber } : { ComputerName: data.computerName };
-        const computerData = {
-            $set: {
-                ComputerName: data.computerName,
-                Manufacturer: data.manufacturer,
-                Model: data.model,
-                Type: data.type || "Unknown",
-                Status: "Active",
-                UserName: data.userName,
-                CPU: data.cpu,
-                RAM_GB: data.ramGB,
-                DiskSize_GB: data.diskSizeGB,
-                OS: data.os,
-                IPAddress: data.ipAddress,
-                Timestamp: new Date(),
-                ...(data.warrantyStartDate ? { WarrantyStartDate: data.warrantyStartDate } : {}),
-                ...(data.warrantyEndDate ? { WarrantyEndDate: data.warrantyEndDate } : {}),
-                SerialNumber: data.serialNumber,
-                Location: data.location
-            }
-        };
-        await db.collection('Computers').updateOne(computerQuery, computerData, { upsert: true });
-
-        // 3. Process Monitors
+        // อัปเดต Monitors
         if (data.monitors && Array.isArray(data.monitors)) {
-            for (const monitor of data.monitors) {
-                if (!monitor.serial) continue;
-                await db.collection('Monitors').updateOne(
-                    { MonitorSerial: monitor.serial },
-                    { $set: {
-                        ComputerName: data.computerName,
-                        UserName: data.userName,
-                        Manufacturer: monitor.manufacturer,
-                        Model: monitor.model,
-                        MonitorSerial: monitor.serial,
-                        Status: "Active",
-                        Timestamp: new Date()
-                    }},
-                    { upsert: true }
-                );
+            const monitorCol = db.collection('Monitors');
+            for (const mon of data.monitors) {
+                if (mon.serial && mon.serial !== 'N/A') {
+                    await monitorCol.updateOne(
+                        { MonitorSerial: mon.serial },
+                        { $set: { Manufacturer: mon.manufacturer, Model: mon.model, AssignedComputer: data.computerName, Status: "Active", Timestamp: now } },
+                        { upsert: true }
+                    );
+                }
             }
         }
 
-        // 4. Process Accessories
+        // อัปเดต Accessories
         if (data.accessories && Array.isArray(data.accessories)) {
+            const accCol = db.collection('Accessory');
             for (const acc of data.accessories) {
-                 if (!acc.SerialNumber) continue;
-                 await db.collection('Accessory').updateOne(
-                    { SerialNumber: acc.SerialNumber },
-                    { $set: {
-                        AccessoryType: acc.AccessoryType,
-                        Model: acc.Model,
-                        SerialNumber: acc.SerialNumber,
-                        Manufacturer: acc.Manufacturer,
-                        Status: "Active",
-                        AssignedComputer: data.computerName,
-                        UserName: data.userName,
-                        Timestamp: new Date()
-                    }},
-                    { upsert: true }
-                );
+                if (acc.SerialNumber && acc.SerialNumber !== 'N/A') {
+                    await accCol.updateOne(
+                        { SerialNumber: acc.SerialNumber },
+                        { $set: { AccessoryType: acc.AccessoryType, Manufacturer: acc.Manufacturer, Model: acc.Model, AssignedComputer: data.computerName, Status: "Active", Timestamp: now } },
+                        { upsert: true }
+                    );
+                }
             }
         }
 
-        // 5. Process Printers
-        if (data.printers && Array.isArray(data.printers)) {
-            for (const printer of data.printers) {
-                if (!printer.SerialNumber || printer.SerialNumber === "N/A") continue;
-                await db.collection('Printers').updateOne(
-                    { SerialNumber: printer.SerialNumber },
-                    { $set: {
-                        Name: printer.Name,
-                        Manufacturer: printer.Manufacturer,
-                        Model: printer.Model,
-                        DriverName: printer.DriverName,
-                        PortName: printer.PortName,
-                        SerialNumber: printer.SerialNumber,
-                        Status: "Active",
-                        AssignedComputer: data.computerName,
-                        UserName: data.userName,
-                        Timestamp: new Date()
-                    }},
-                    { upsert: true }
-                );
-            }
-        }
-
-        // 6. Process Software
-        if (data.software && Array.isArray(data.software)) {
-            await db.collection('Software').deleteMany({ ComputerName: data.computerName });
-            
-            const softwareDocs = data.software.map(sw => ({
-                ComputerName: data.computerName,
-                SoftwareName: sw.name,
-                Version: sw.version,
-                UserName: data.userName,
-                Timestamp: new Date()
-            }));
-            
-            if(softwareDocs.length > 0) {
-                await db.collection('Software').insertMany(softwareDocs);
-            }
-        }
-
-        res.status(200).json({ status: "success", message: `Successfully synced data for ${data.computerName}` });
+        res.status(200).json({ status: "success", message: "Data synced successfully" });
     } catch (error) {
         console.error(`[SYNC] Error processing data:`, error);
         res.status(500).json({ status: "error", message: error.message });
     }
 });
 
+app.post('/api/heartbeat', async (req, res) => {
+    if (!db) return res.status(500).json({ status: "error", message: "Database not connected" });
+    try {
+        const { hostname, collectionName } = req.body;
+        if (!hostname) return res.status(400).json({ status: "error", message: "Missing hostname" });
+        
+        const col = collectionName || 'Computers';
+        await db.collection(col).updateOne(
+            { ComputerName: hostname },
+            { $set: { lastSeenOnline: new Date() } }
+        );
+        res.status(200).json({ status: "success", message: "Heartbeat updated" });
+    } catch (error) {
+        res.status(500).json({ status: "error", message: error.message });
+    }
+});
+
 // ===================================================================
-// 🌟 LOCAL PING RELAY ROUTES (สำหรับให้ Script ภายใน LAN รายงานผล)
+// 🌟 LOCAL PING RELAY ROUTES (สำหรับ Script Relay ในออฟฟิศ)
 // ===================================================================
 app.get('/api/relay/devices', verifyApiKey, async (req, res) => {
     if (!db) return res.status(500).json({ message: "Database not connected" });
     try {
-        // ค้นหา Collection ที่เป็นไปได้ว่าจะมี IP
         const customMenus = await db.collection('CustomMenus').find().toArray();
         const customCollectionNames = customMenus.map(m => m.name);
         const collectionsToCheck = ['Network', 'Printers', ...customCollectionNames];
@@ -202,7 +230,6 @@ app.get('/api/relay/devices', verifyApiKey, async (req, res) => {
         let allIpDevices = [];
 
         for (const collectionName of collectionsToCheck) {
-            // ดึงเฉพาะอุปกรณ์ที่มีฟิลด์ IPAddress และไม่เป็นค่าว่าง
             const devices = await db.collection(collectionName).find({
                 IPAddress: { $exists: true, $ne: "", $ne: "N/A" }
             }).toArray();
@@ -216,7 +243,6 @@ app.get('/api/relay/devices', verifyApiKey, async (req, res) => {
                 });
             });
         }
-
         res.status(200).json(allIpDevices);
     } catch (error) {
         res.status(500).json({ error: error.message });
@@ -232,7 +258,6 @@ app.post('/api/relay/heartbeat', verifyApiKey, async (req, res) => {
         let updatedCount = 0;
         const now = new Date();
 
-        // อัปเดตเวลา lastSeenOnline ให้อุปกรณ์ที่ส่งเข้ามาว่าออนไลน์
         for (const dev of devices) {
             await db.collection(dev.collection).updateOne(
                 { _id: new ObjectId(dev.id) },
@@ -240,466 +265,311 @@ app.post('/api/relay/heartbeat', verifyApiKey, async (req, res) => {
             );
             updatedCount++;
         }
-
         res.status(200).json({ message: `Updated ${updatedCount} devices as online.` });
     } catch (error) {
         res.status(500).json({ error: error.message });
     }
 });
 
+async function startBackgroundPingService() {
+    console.log("[Ping Service] Starting background ping service for IP devices...");
+    setInterval(async () => {
+        if (!db) return;
+        try {
+            const customMenus = await db.collection('CustomMenus').find().toArray();
+            const customCollectionNames = customMenus.map(m => m.name);
+            const collectionsToCheck = ['Network', 'Printers', ...customCollectionNames];
+
+            for (const collectionName of collectionsToCheck) {
+                const devices = await db.collection(collectionName).find({
+                    IPAddress: { $exists: true, $ne: "", $ne: "N/A" }
+                }).toArray();
+
+                for (const device of devices) {
+                    try {
+                        const targetIp = device.IPAddress;
+                        const res = await ping.promise.probe(targetIp, { timeout: 2 });
+                        
+                        if (res.alive) {
+                            await db.collection(collectionName).updateOne(
+                                { _id: device._id },
+                                { $set: { lastSeenOnline: new Date() } }
+                            );
+                        }
+                    } catch (pingError) { }
+                }
+            }
+        } catch (error) {}
+    }, 600000); // ทุก 10 นาที
+}
+
 // ===================================================================
-// API Routes (Authenticated) - Core Functionality
+// 🌟 Inventory General CRUD
 // ===================================================================
-
-// --- Custom Menu Management ---
-
-app.post('/api/custom-menus', verifyToken, async (req, res) => {
-    if (!db) return res.status(500).json({ message: "Database not connected" });
-    try {
-        const { name, displayName, icon, parentId, fields, order } = req.body;
-        
-        if (!name || !displayName || !fields || fields.length === 0) {
-            return res.status(400).json({ message: 'Missing required fields' });
-        }
-
-        const existing = await db.collection('CustomMenus').findOne({ name });
-        if (existing) return res.status(400).json({ message: 'Menu ID/Name already exists.' });
-
-        const newMenu = {
-            name, 
-            displayName,
-            icon,
-            parentId: parentId || null,
-            order: parseInt(order) || 0,
-            fields,
-            isSystem: false,
-            createdAt: new Date()
-        };
-
-        await db.collection('CustomMenus').insertOne(newMenu);
-        res.status(201).json({ message: 'Menu created successfully', menu: newMenu });
-    } catch (error) {
-        res.status(500).json({ message: 'Error creating menu', error: error.message });
-    }
-});
-
-app.put('/api/custom-menus/:name', verifyToken, async (req, res) => {
-    if (!db) return res.status(500).json({ message: "Database not connected" });
-    try {
-        const { name } = req.params;
-        const { displayName, icon, parentId, order, fields } = req.body;
-
-        if (!displayName) return res.status(400).json({ message: 'Display Name is required' });
-        if (parentId === name) return res.status(400).json({ message: 'Cannot set parent to self' });
-
-        const updateData = {
-            displayName,
-            icon,
-            parentId: parentId || null,
-            order: parseInt(order) || 0
-        };
-
-        if (fields && Array.isArray(fields) && fields.length > 0) {
-            updateData.fields = fields;
-        }
-
-        await db.collection('CustomMenus').updateOne(
-            { name }, 
-            { $set: updateData }
-        );
-        res.status(200).json({ message: 'Menu updated successfully' });
-    } catch (error) {
-        res.status(500).json({ message: 'Error updating menu', error: error.message });
-    }
-});
-
-app.delete('/api/custom-menus/:name', verifyToken, async (req, res) => {
-    if (!db) return res.status(500).json({ message: "Database not connected" });
-    try {
-        const { name } = req.params;
-        
-        const children = await db.collection('CustomMenus').find({ parentId: name }).toArray();
-        if (children.length > 0) return res.status(400).json({ message: 'Cannot delete menu that contains sub-menus.' });
-
-        const menu = await db.collection('CustomMenus').findOne({ name });
-        if (menu && menu.isSystem) return res.status(403).json({ message: 'Cannot delete system menus.' });
-
-        await db.collection('CustomMenus').deleteOne({ name });
-        res.status(200).json({ message: 'Menu deleted successfully' });
-    } catch (error) {
-        res.status(500).json({ message: 'Error deleting menu', error: error.message });
-    }
-});
-
-// --- Main Data Fetching ---
-
 app.get('/api/inventory/all', verifyToken, async (req, res) => {
     if (!db) return res.status(500).json({ message: "Database not connected" });
     try {
-        let customMenus = [];
-        try { customMenus = await db.collection('CustomMenus').find().toArray(); } catch (e) {}
-
-        const baseCollections = ['Computers', 'Monitors', 'Audio', 'Accessory', 'Printers', 'Network', 'Mobile', 'Storage', 'Projector', 'SpareParts', 'Software', 'LoanHistory', 'Maintenance Log', 'Staff', 'TransactionHistory'];
-        const customCollectionNames = customMenus.map(m => m.name);
-        const allCollectionsToFetch = [...new Set([...baseCollections, ...customCollectionNames])];
-
-        const promises = allCollectionsToFetch.map(c => db.collection(c).find().toArray());
-        const results = await Promise.all(promises);
-        
-        const allData = allCollectionsToFetch.reduce((acc, c, index) => {
-            acc[c] = results[index];
-            return acc;
-        }, {});
-
-        allData.CustomMenus = customMenus;
-        res.status(200).json(allData);
-    } catch (error) {
-        res.status(500).json({ message: 'Error fetching all data', error: error.message });
-    }
-});
-
-// --- Ping Status ---
-
-app.get('/api/ping/:hostname', verifyToken, async (req, res) => {
-    if (!db) return res.status(500).json({ message: "Database not connected" });
-    try {
-        const { hostname } = req.params;
-        const collectionName = req.query.collection || 'Computers';
-
-        if (!hostname) return res.status(400).json({ message: "Hostname/IP is required." });
-
-        const result = await ping.promise.probe(hostname, { timeout: 2 });
-
-        if (result.alive) {
-            let query = {};
-            if (collectionName === 'Computers') {
-                query = { ComputerName: hostname };
-            } else {
-                query = { IPAddress: hostname };
+        const collections = await db.listCollections().toArray();
+        const allData = {};
+        for (let col of collections) {
+            if (col.name !== 'admins') {
+                allData[col.name] = await db.collection(col.name).find().toArray();
             }
-
-            await db.collection(collectionName).updateOne(
-                query, 
-                { $set: { lastSeenOnline: new Date() } }
-            );
         }
-        res.status(200).json({ alive: result.alive });
+        res.json(allData);
     } catch (error) {
-        res.status(500).json({ message: 'Error during ping process', error: error.message, alive: false });
+        res.status(500).json({ message: error.message });
     }
 });
-
-// --- Transactions (Handover/Return) ---
-
-app.post('/api/transactions/handover', verifyToken, async (req, res) => {
-    if (!db) return res.status(500).json({ message: "Database not connected" });
-    try {
-        const { staffUserName, devices } = req.body;
-        const adminEmail = req.user.email;
-        for (const device of devices) {
-            await db.collection(device.collection).updateOne({ _id: new ObjectId(device.id) }, { $set: { Status: 'Active', UserName: staffUserName } });
-        }
-        await db.collection('TransactionHistory').insertOne({ type: 'Handover', adminEmail, staffUserName, devices, timestamp: new Date() });
-        res.status(200).json({ message: 'Handover successful' });
-    } catch (error) { res.status(500).json({ message: 'Error', error: error.message }); }
-});
-
-app.post('/api/transactions/return', verifyToken, async (req, res) => {
-    if (!db) return res.status(500).json({ message: "Database not connected" });
-    try {
-        const { devices } = req.body;
-        const adminEmail = req.user.email;
-        for (const device of devices) {
-            await db.collection(device.collection).updateOne({ _id: new ObjectId(device.id) }, { $set: { Status: 'Storage', UserName: '' } });
-        }
-        await db.collection('TransactionHistory').insertOne({ type: 'Return', adminEmail, staffUserName: devices.length > 0 ? devices[0].userName : 'N/A', devices, timestamp: new Date() });
-        res.status(200).json({ message: 'Return successful' });
-    } catch (error) { res.status(500).json({ message: 'Error', error: error.message }); }
-});
-
-// --- Staff Management ---
-
-app.post('/api/staff', verifyToken, async (req, res) => {
-    if (!db) return res.status(500).json({ message: "Database not connected" });
-    try {
-        const { UserName, FirstName, LastName, Department } = req.body;
-        const existingStaff = await db.collection('Staff').findOne({ UserName });
-        if(existingStaff) return res.status(400).json({ message: 'Username already exists.' });
-        await db.collection('Staff').insertOne({ UserName, FirstName, LastName, Department });
-        res.status(201).json({ message: 'Staff member created.'});
-    } catch (error) { res.status(500).json({ message: 'Error', error: error.message }); }
-});
-
-app.put('/api/staff/:id', verifyToken, async (req, res) => {
-    if (!db) return res.status(500).json({ message: "Database not connected" });
-    try { await db.collection('Staff').updateOne({ _id: new ObjectId(req.params.id) }, { $set: req.body }); res.status(200).json({ message: 'Updated' }); } catch (e) { res.status(500).json({ error: e.message }); }
-});
-
-app.delete('/api/staff/:id', verifyToken, async (req, res) => {
-    if (!db) return res.status(500).json({ message: "Database not connected" });
-    try { await db.collection('Staff').deleteOne({ _id: new ObjectId(req.params.id) }); res.status(200).json({ message: 'Deleted' }); } catch (e) { res.status(500).json({ error: e.message }); }
-});
-
-// --- Generic CRUD ---
 
 app.post('/api/inventory/:collection', verifyToken, async (req, res) => {
     if (!db) return res.status(500).json({ message: "Database not connected" });
-    try { const result = await db.collection(req.params.collection).insertOne(req.body); res.status(201).json(result); } catch (e) { res.status(500).json({ error: e.message }); }
+    try {
+        const collectionName = req.params.collection;
+        const data = req.body;
+        data.Timestamp = new Date();
+        const result = await db.collection(collectionName).insertOne(data);
+        res.status(201).json(result);
+    } catch (error) {
+        res.status(500).json({ message: error.message });
+    }
 });
 
+app.put('/api/inventory/:collection/:id', verifyToken, async (req, res) => {
+    if (!db) return res.status(500).json({ message: "Database not connected" });
+    try {
+        const { collection, id } = req.params;
+        const data = req.body;
+        delete data._id; // ป้องกันเขียนทับ _id
+        
+        await db.collection(collection).updateOne(
+            { _id: new ObjectId(id) },
+            { $set: data }
+        );
+        res.json({ message: "Updated successfully" });
+    } catch (error) {
+        res.status(500).json({ message: error.message });
+    }
+});
+
+app.delete('/api/inventory/:collection/:id', verifyToken, async (req, res) => {
+    if (!db) return res.status(500).json({ message: "Database not connected" });
+    try {
+        const { collection, id } = req.params;
+        await db.collection(collection).deleteOne({ _id: new ObjectId(id) });
+        res.json({ message: "Deleted successfully" });
+    } catch (error) {
+        res.status(500).json({ message: error.message });
+    }
+});
+
+// Bulk Operations
 app.post('/api/inventory/:collection/bulk', verifyToken, async (req, res) => {
     if (!db) return res.status(500).json({ message: "Database not connected" });
-    try { 
-        const items = req.body.filter(i => Object.keys(i).length > 0);
-        if(items.length===0) return res.status(400).json({message:"No valid data"});
-        const result = await db.collection(req.params.collection).insertMany(items); 
-        res.status(201).json(result); 
-    } catch (e) { res.status(500).json({ error: e.message }); }
+    try {
+        const collectionName = req.params.collection;
+        const dataArray = req.body;
+        if (!Array.isArray(dataArray) || dataArray.length === 0) return res.status(400).json({ message: "Invalid payload" });
+        
+        dataArray.forEach(d => { d.Timestamp = new Date(); if(!d.Status) d.Status = 'Storage'; });
+        await db.collection(collectionName).insertMany(dataArray);
+        res.status(201).json({ message: `Imported ${dataArray.length} items` });
+    } catch (error) {
+        res.status(500).json({ message: error.message });
+    }
 });
-
-// =========================================================================
-// *** BULK UPDATE & BULK DELETE MUST BE DEFINED BEFORE /:collection/:id ***
-// =========================================================================
 
 app.post('/api/inventory/:collection/bulk-delete', verifyToken, async (req, res) => {
     if (!db) return res.status(500).json({ message: "Database not connected" });
     try {
+        const collectionName = req.params.collection;
         const { ids } = req.body;
-        if (!ids || !Array.isArray(ids)) return res.status(400).json({ message: 'Invalid data format' });
-        
+        if (!Array.isArray(ids) || ids.length === 0) return res.status(400).json({ message: "Invalid payload" });
+
         const objectIds = ids.map(id => new ObjectId(id));
-        const result = await db.collection(req.params.collection).deleteMany({ _id: { $in: objectIds } });
-        
-        res.json({ message: `Deleted ${result.deletedCount} items` });
-    } catch (e) { 
-        res.status(500).json({ error: e.message }); 
+        await db.collection(collectionName).deleteMany({ _id: { $in: objectIds } });
+        res.status(200).json({ message: `Deleted ${ids.length} items` });
+    } catch (error) {
+        res.status(500).json({ message: error.message });
     }
 });
 
 app.put('/api/inventory/:collection/bulk-update', verifyToken, async (req, res) => {
     if (!db) return res.status(500).json({ message: "Database not connected" });
     try {
+        const collectionName = req.params.collection;
         const { ids, updateData } = req.body;
-        if (!ids || !Array.isArray(ids) || !updateData) return res.status(400).json({ message: 'Invalid data format' });
-        
+        if (!Array.isArray(ids) || ids.length === 0 || !updateData) return res.status(400).json({ message: "Invalid payload" });
+
         const objectIds = ids.map(id => new ObjectId(id));
-        const result = await db.collection(req.params.collection).updateMany(
-            { _id: { $in: objectIds } }, 
+        await db.collection(collectionName).updateMany(
+            { _id: { $in: objectIds } },
             { $set: updateData }
         );
-        
-        res.json({ message: `Updated ${result.modifiedCount} items` });
-    } catch (e) { 
-        res.status(500).json({ error: e.message }); 
+        res.status(200).json({ message: `Updated ${ids.length} items` });
+    } catch (error) {
+        res.status(500).json({ message: error.message });
     }
 });
 
-// --- Regular Updates and Deletes (Single item) ---
-
-app.put('/api/inventory/:collection/:id', verifyToken, async (req, res) => {
-    if (!db) return res.status(500).json({ message: "Database not connected" });
-    try { const { _id, ...d } = req.body; const result = await db.collection(req.params.collection).updateOne({ _id: new ObjectId(req.params.id) }, { $set: d }); res.json(result); } catch (e) { res.status(500).json({ error: e.message }); }
-});
-
-app.delete('/api/inventory/:collection/:id', verifyToken, async (req, res) => {
-    if (!db) return res.status(500).json({ message: "Database not connected" });
-    try { const result = await db.collection(req.params.collection).deleteOne({ _id: new ObjectId(req.params.id) }); res.json(result); } catch (e) { res.status(500).json({ error: e.message }); }
-});
-
-
-app.post('/api/inventory/maintenance', verifyToken, async (req, res) => {
-    if (!db) return res.status(500).json({ message: "Database not connected" });
-    try { const logData = { ...req.body, timestamp: new Date() }; await db.collection('Maintenance Log').insertOne(logData); res.status(201).json({message:'Logged'}); } catch(e){ res.status(500).json({error:e.message}); }
-});
-
-// --- Admin Management ---
-
-app.post('/api/admins/create', verifyToken, async (req, res) => {
-    if (!db) return res.status(500).json({ message: "Database not connected" });
-    try { const { email, password } = req.body; const hashed = await bcrypt.hash(password, 10); await db.collection('admins').insertOne({ email, password: hashed, createdAt: new Date() }); res.status(201).json({message:'Created'}); } catch(e){ res.status(500).json({error:e.message}); }
-});
-
-app.get('/api/admins/list', verifyToken, async (req, res) => {
-    if (!db) return res.status(500).json({ message: "Database not connected" });
-    try { const users = await db.collection('admins').find({}, { projection: { password: 0 } }).toArray(); res.json({ users }); } catch(e){ res.status(500).json({error:e.message}); }
-});
-
-app.delete('/api/admins/delete', verifyToken, async (req, res) => {
-    if (!db) return res.status(500).json({ message: "Database not connected" });
-    try { await db.collection('admins').deleteOne({ _id: new ObjectId(req.body.uid) }); res.json({message:'Deleted'}); } catch(e){ res.status(500).json({error:e.message}); }
-});
-
-// --- Auth & Public ---
-
-app.post('/api/login', async (req, res) => {
+// ===================================================================
+// 🌟 Device Finder (Public/Scanner)
+// ===================================================================
+app.get('/api/inventory/find/:sn', async (req, res) => {
     if (!db) return res.status(500).json({ message: "Database not connected" });
     try {
-        const { email, password } = req.body;
-        const user = await db.collection('admins').findOne({ email });
-        if (!user) return res.status(401).json({ message: 'Invalid credentials' });
-        const isMatch = await bcrypt.compare(password, user.password);
-        if (!isMatch) return res.status(401).json({ message: 'Invalid credentials' });
-        const token = jwt.sign({ id: user._id, email: user.email }, jwtSecret, { expiresIn: '1d' });
-        res.json({ token, user: { id: user._id, email: user.email } });
-    } catch (e) { res.status(500).json({ error: e.message }); }
-});
-
-app.get('/api/public/loanable-items', async (req, res) => {
-    if (!db) return res.status(500).json({ message: "Database not connected" });
-    try {
-        let customMenus = [];
-        try { customMenus = await db.collection('CustomMenus').find().toArray(); } catch(e){}
-        const baseCollections = ['Computers', 'Monitors', 'Audio', 'Accessory', 'Network', 'Mobile', 'Storage', 'Projector'];
-        const collections = [...new Set([...baseCollections, ...customMenus.map(m=>m.name)])];
+        const sn = req.params.sn;
+        const collections = await db.listCollections().toArray();
         
-        const promises = collections.map(c => db.collection(c).find({Status: 'Storage'}).toArray());
-        const results = await Promise.all(promises);
-        const data = collections.reduce((acc, c, i) => { acc[c] = results[i]; return acc; }, {});
-        res.json(data);
-    } catch (e) { res.status(500).json({ error: e.message }); }
-});
+        for (let col of collections) {
+            const skipKeys = ['admins', 'CustomMenus', 'Staff', 'TransactionHistory', 'LoanHistory', 'Maintenance Log'];
+            if (skipKeys.includes(col.name)) continue;
 
-app.get('/api/inventory/find/:serial', async (req, res) => {
-    if (!db) return res.status(500).json({ message: "Database not connected" });
-    try {
-        const serial = req.params.serial;
-        let customMenus = [];
-        try { customMenus = await db.collection('CustomMenus').find().toArray(); } catch(e){}
-        const baseCollections = ['Computers', 'Monitors', 'Audio', 'Accessory', 'Printers', 'Network', 'Mobile', 'Storage', 'Projector', 'SpareParts'];
-        const collectionsToSearch = [...new Set([...baseCollections, ...customMenus.map(m=>m.name)])];
+            const item = await db.collection(col.name).findOne({
+                $or: [ { SerialNumber: sn }, { MonitorSerial: sn }, { _id: sn.length === 24 ? new ObjectId(sn) : null } ]
+            });
 
-        for (const col of collectionsToSearch) {
-            const serialField = col === 'Monitors' ? 'MonitorSerial' : 'SerialNumber';
-            const item = await db.collection(col).findOne({ [serialField]: serial });
-            if (item) return res.status(200).json({ item, collectionName: col });
+            if (item) {
+                return res.json({ item, collectionName: col.name });
+            }
         }
-        res.status(404).json({ message: 'Device not found' });
-    } catch (e) { res.status(500).json({ error: e.message }); }
+        res.status(404).json({ message: "Device not found" });
+    } catch (error) {
+        res.status(500).json({ message: error.message });
+    }
 });
-// 1. API สำหรับโอนมอบอุปกรณ์ให้พนักงาน (Handover)
+
+// ===================================================================
+// 🌟 Admin Handover & Return (เมนู Transactions ของผู้ดูแล)
+// ===================================================================
 app.post('/api/transactions/handover', verifyToken, async (req, res) => {
     if (!db) return res.status(500).json({ message: "Database not connected" });
     try {
         const { staffUserName, devices } = req.body;
-        
-        if (!staffUserName || !devices || !Array.isArray(devices)) {
-            return res.status(400).json({ message: "Invalid payload" });
-        }
+        if (!staffUserName || !devices || !Array.isArray(devices)) return res.status(400).json({ message: "Invalid payload" });
 
-        // วนลูปอัปเดตอุปกรณ์แต่ละชิ้นใน Database
         for (const device of devices) {
             const colName = device.collection;
             const deviceId = device._id || device.id;
             if (!colName || !deviceId) continue;
 
-            // อัปเดตสถานะเป็น Active และใส่ชื่อ UserName
             await db.collection(colName).updateOne(
                 { _id: new ObjectId(deviceId) },
                 { $set: { Status: 'Active', UserName: staffUserName } }
             );
         }
 
-        // บันทึกประวัติลง TransactionHistory เพื่อให้โชว์ในหน้า Dashboard
         await db.collection('TransactionHistory').insertOne({
             type: 'Handover',
             staffUserName: staffUserName,
-            devices: devices.map(d => ({ 
-                id: d._id || d.id, 
-                collection: d.collection, 
-                serial: d.SerialNumber || d.MonitorSerial || 'N/A' 
-            })),
+            devices: devices.map(d => ({ id: d._id || d.id, collection: d.collection, serial: d.SerialNumber || d.MonitorSerial || 'N/A' })),
             timestamp: new Date()
         });
 
         res.status(200).json({ message: "Handover successful" });
     } catch (error) {
-        console.error("Handover Error:", error);
         res.status(500).json({ message: error.message });
     }
 });
 
-// 2. API สำหรับรับคืนอุปกรณ์จากพนักงาน (Return)
 app.post('/api/transactions/return', verifyToken, async (req, res) => {
     if (!db) return res.status(500).json({ message: "Database not connected" });
     try {
         const { devices } = req.body;
-        
-        if (!devices || !Array.isArray(devices)) {
-            return res.status(400).json({ message: "Invalid payload" });
-        }
+        if (!devices || !Array.isArray(devices)) return res.status(400).json({ message: "Invalid payload" });
 
-        // วนลูปอัปเดตอุปกรณ์แต่ละชิ้นกลับเข้าคลัง
         for (const device of devices) {
             const colName = device.collection;
-            const deviceId = device.id || device._id; // สังเกตว่าหน้า return จะส่ง .id มา
+            const deviceId = device.id || device._id;
             if (!colName || !deviceId) continue;
 
-            // อัปเดตสถานะกลับเป็น Storage และล้างชื่อ UserName ออก
             await db.collection(colName).updateOne(
                 { _id: new ObjectId(deviceId) },
                 { $set: { Status: 'Storage', UserName: '' } }
             );
         }
 
-        // บันทึกประวัติลง TransactionHistory
         await db.collection('TransactionHistory').insertOne({
             type: 'Return',
-            staffUserName: 'System (Returned)', // หรือรับจาก Body ถ้ามีการส่งมา
+            staffUserName: 'System (Returned)',
             devices: devices.map(d => ({ id: d.id, collection: d.collection })),
             timestamp: new Date()
         });
 
         res.status(200).json({ message: "Return successful" });
     } catch (error) {
-        console.error("Return Error:", error);
         res.status(500).json({ message: error.message });
     }
 });
-// --- Loans ---
+
+// ===================================================================
+// 🌟 Public Loan System (หน้าระบบยืม loan.html)
+// ===================================================================
+app.get('/api/public/loanable-items', async (req, res) => {
+    if (!db) return res.status(500).json({ message: "Database not connected" });
+    try {
+        const collections = await db.listCollections().toArray();
+        const allData = {};
+        for (let col of collections) {
+            const skipKeys = ['admins', 'CustomMenus', 'Staff', 'TransactionHistory', 'LoanHistory', 'Maintenance Log'];
+            if (!skipKeys.includes(col.name)) {
+                // ส่งไปเฉพาะของที่อยู่ Storage
+                allData[col.name] = await db.collection(col.name).find({ Status: 'Storage' }).toArray();
+            }
+        }
+        res.json(allData);
+    } catch (error) {
+        res.status(500).json({ message: error.message });
+    }
+});
 
 app.post('/api/loans/submit', async (req, res) => {
     if (!db) return res.status(500).json({ message: "Database not connected" });
     try {
         const { borrowerName, dueDate, notes, items } = req.body;
-        const loanGroupId = `GRP-${Date.now()}`;
+        if (!borrowerName || !dueDate || !items || !items.length) return res.status(400).json({ message: "Missing required fields" });
+
+        const loanGroupId = "GRP-" + Date.now().toString().slice(-6);
+
         for (const item of items) {
+            await db.collection(item.deviceType).updateOne(
+                { _id: new ObjectId(item.deviceId) },
+                { $set: { Status: 'On Loan', UserName: borrowerName } }
+            );
+
             await db.collection('LoanHistory').insertOne({
-                LoanGroupID: loanGroupId, DeviceSerial: item.deviceSerial, DeviceType: item.deviceType,
-                BorrowerName: borrowerName, LoanDate: new Date(), DueDate: new Date(dueDate), Status: 'On Loan', Notes: notes || ""
+                LoanGroupID: loanGroupId,
+                DeviceId: item.deviceId,
+                DeviceSerial: item.deviceSerial,
+                DeviceType: item.deviceType,
+                BorrowerName: borrowerName,
+                LoanDate: new Date(),
+                DueDate: dueDate,
+                Notes: notes,
+                Status: 'On Loan'
             });
-            await db.collection(item.deviceType).updateOne({ _id: new ObjectId(item.deviceId) }, { $set: { Status: 'On Loan' } });
         }
-        res.status(201).json({ message: 'Loan submitted', loanGroupId });
-    } catch(e) { res.status(500).json({ error: e.message }); }
+        res.status(200).json({ message: "Loan submitted successfully", loanGroupId });
+    } catch (error) {
+        res.status(500).json({ message: error.message });
+    }
 });
 
 app.get('/api/loans/group/:id', async (req, res) => {
     if (!db) return res.status(500).json({ message: "Database not connected" });
     try {
-        const loanItems = await db.collection('LoanHistory').find({ LoanGroupID: req.params.id }).toArray();
-        if (!loanItems || loanItems.length === 0) return res.status(404).json({ message: 'Loan group not found' });
-        
-        const deviceSerials = loanItems.map(item => item.DeviceSerial);
-        let customMenus = [];
-        try { customMenus = await db.collection('CustomMenus').find().toArray(); } catch(e){}
-        const baseCollections = ['Computers', 'Monitors', 'Accessory', 'Audio', 'Printers', 'Network', 'Mobile', 'Storage', 'Projector', 'SpareParts'];
-        const collectionsToCheck = [...new Set([...baseCollections, ...customMenus.map(m => m.name)])];
-        
-        let allMatchedDevices = [];
-        for (const col of collectionsToCheck) {
-            const serialField = col === 'Monitors' ? 'MonitorSerial' : 'SerialNumber';
-            const matched = await db.collection(col).find({ [serialField]: { $in: deviceSerials } }).toArray();
-            allMatchedDevices = allMatchedDevices.concat(matched);
+        const loanGroupId = req.params.id;
+        const loanItems = await db.collection('LoanHistory').find({ LoanGroupID: loanGroupId }).toArray();
+        if (loanItems.length === 0) return res.status(404).json({ message: "Loan group not found" });
+
+        const devicesInfo = [];
+        for (const item of loanItems) {
+            const device = await db.collection(item.DeviceType).findOne({ _id: new ObjectId(item.DeviceId) });
+            if (device) devicesInfo.push(device);
         }
-
-        const devices = allMatchedDevices.map(d => ({
-            DeviceSerial: d.SerialNumber || d.MonitorSerial,
-            Name: d.ComputerName || d.DeviceName || d.ItemName || d.Model || d.Name || d.PartName
-        }));
-
-        res.status(200).json({ loanItems, devices });
+        res.status(200).json({ loanItems, devices: devicesInfo });
     } catch (error) {
-        res.status(500).json({ message: 'Error fetching loan group', error: error.message });
+        res.status(500).json({ message: error.message });
     }
 });
 
@@ -707,35 +577,123 @@ app.post('/api/loans/return', async (req, res) => {
     if (!db) return res.status(500).json({ message: "Database not connected" });
     try {
         const { transactionIds } = req.body;
-        const returnDate = new Date();
-        let updatedCount = 0;
+        if (!transactionIds || !transactionIds.length) return res.status(400).json({ message: "Missing transactionIds" });
 
-        for (const transId of transactionIds) {
-            const loanDoc = await db.collection('LoanHistory').findOneAndUpdate(
-                { _id: new ObjectId(transId) },
-                { $set: { Status: 'Returned', ReturnDate: returnDate } },
-                { returnDocument: 'after' } 
-            );
-
-            if (loanDoc) {
-                const serialField = loanDoc.DeviceType === 'Monitors' ? 'MonitorSerial' : 'SerialNumber';
-                await db.collection(loanDoc.DeviceType).updateOne(
-                    { [serialField]: loanDoc.DeviceSerial },
-                    { $set: { Status: 'Storage' } }
+        for (const id of transactionIds) {
+            const loanRecord = await db.collection('LoanHistory').findOne({ _id: new ObjectId(id) });
+            if (loanRecord && loanRecord.Status === 'On Loan') {
+                await db.collection(loanRecord.DeviceType).updateOne(
+                    { _id: new ObjectId(loanRecord.DeviceId) },
+                    { $set: { Status: 'Storage', UserName: '' } }
                 );
-                updatedCount++;
+                await db.collection('LoanHistory').updateOne(
+                    { _id: new ObjectId(id) },
+                    { $set: { Status: 'Returned', ReturnDate: new Date() } }
+                );
             }
         }
-        
-        if (updatedCount === 0) return res.status(404).json({ message: 'No matching loan records found to return.' });
-        res.status(200).json({ message: `Successfully returned ${updatedCount} items.` });
+        res.status(200).json({ message: "Return processed successfully" });
     } catch (error) {
-        res.status(500).json({ message: 'Error returning items', error: error.message });
+        res.status(500).json({ message: error.message });
     }
 });
 
-// 🌟 ตั้งค่าพอร์ตให้รองรับระบบ Cloud ของ Render
-const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => {
-  console.log(`Server running on port ${PORT}`);
+// ===================================================================
+// 🌟 Custom Menus Settings
+// ===================================================================
+app.post('/api/custom-menus', verifyToken, async (req, res) => {
+    if (!db) return res.status(500).json({ message: "Database not connected" });
+    try {
+        const menuData = req.body;
+        const existing = await db.collection('CustomMenus').findOne({ name: menuData.name });
+        if (existing) return res.status(400).json({ message: "Menu ID already exists." });
+        
+        await db.collection('CustomMenus').insertOne(menuData);
+        await db.createCollection(menuData.name).catch(()=>console.log("Collection already exists or auto-created."));
+        res.status(201).json({ message: "Menu created" });
+    } catch (error) {
+        res.status(500).json({ message: error.message });
+    }
+});
+
+app.put('/api/custom-menus/:id', verifyToken, async (req, res) => {
+    if (!db) return res.status(500).json({ message: "Database not connected" });
+    try {
+        const { id } = req.params;
+        const updateData = req.body;
+        await db.collection('CustomMenus').updateOne(
+            { name: id },
+            { $set: { displayName: updateData.displayName, icon: updateData.icon, parentId: updateData.parentId, order: updateData.order, fields: updateData.fields } }
+        );
+        res.json({ message: "Menu updated" });
+    } catch (error) {
+        res.status(500).json({ message: error.message });
+    }
+});
+
+app.delete('/api/custom-menus/:id', verifyToken, async (req, res) => {
+    if (!db) return res.status(500).json({ message: "Database not connected" });
+    try {
+        const { id } = req.params;
+        await db.collection('CustomMenus').deleteOne({ name: id });
+        res.json({ message: "Menu removed from sidebar" });
+    } catch (error) {
+        res.status(500).json({ message: error.message });
+    }
+});
+
+// ===================================================================
+// 🌟 Staff & Maintenance
+// ===================================================================
+app.post('/api/staff', verifyToken, async (req, res) => {
+    if (!db) return res.status(500).json({ message: "Database not connected" });
+    try {
+        await db.collection('Staff').insertOne(req.body);
+        res.status(201).json({ message: "Staff added" });
+    } catch (error) { res.status(500).json({ message: error.message }); }
+});
+
+app.put('/api/staff/:id', verifyToken, async (req, res) => {
+    if (!db) return res.status(500).json({ message: "Database not connected" });
+    try {
+        const data = req.body; delete data._id;
+        await db.collection('Staff').updateOne({ _id: new ObjectId(req.params.id) }, { $set: data });
+        res.json({ message: "Staff updated" });
+    } catch (error) { res.status(500).json({ message: error.message }); }
+});
+
+app.delete('/api/staff/:id', verifyToken, async (req, res) => {
+    if (!db) return res.status(500).json({ message: "Database not connected" });
+    try {
+        await db.collection('Staff').deleteOne({ _id: new ObjectId(req.params.id) });
+        res.json({ message: "Staff deleted" });
+    } catch (error) { res.status(500).json({ message: error.message }); }
+});
+
+app.post('/api/inventory/maintenance', verifyToken, async (req, res) => {
+    if (!db) return res.status(500).json({ message: "Database not connected" });
+    try {
+        const data = req.body;
+        data.Timestamp = new Date();
+        await db.collection('Maintenance Log').insertOne(data);
+        res.status(201).json({ message: "Maintenance log added" });
+    } catch (error) {
+        res.status(500).json({ message: error.message });
+    }
+});
+
+// Fallback Ping Route (ถ้าใช้เซิร์ฟเวอร์ปิงเอง)
+app.get('/api/ping/:target', verifyToken, async (req, res) => {
+    const target = req.params.target;
+    try {
+        const result = await ping.promise.probe(target, { timeout: 2 });
+        res.json({ alive: result.alive, time: result.time });
+    } catch (error) {
+        res.status(500).json({ error: "Ping failed" });
+    }
+});
+
+// Server Start
+app.listen(port, () => {
+    console.log(`Inventory Backend API listening on port ${port}`);
 });
