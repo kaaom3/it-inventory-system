@@ -4,6 +4,7 @@ const { MongoClient, ObjectId } = require('mongodb');
 const jwt = require('jsonwebtoken');
 const bcrypt = require('bcryptjs'); // เปลี่ยนเป็น bcryptjs
 const ping = require('ping');
+const path = require('path'); // เพิ่ม module path สำหรับจัดการที่อยู่ไฟล์
 
 const app = express();
 const port = process.env.PORT || 3000;
@@ -11,6 +12,13 @@ const port = process.env.PORT || 3000;
 // Middleware
 app.use(cors());
 app.use(express.json({ limit: '50mb' }));
+
+// 🌟 ตั้งค่าให้ Express ให้บริการไฟล์ Static (Frontend)
+// สมมติว่าไฟล์ HTML/JS ของคุณอยู่ในโฟลเดอร์เดียวกับ backend หรือโฟลเดอร์ frontend ที่แยกไว้
+// หากไฟล์ Frontend อยู่ในโฟลเดอร์ชื่อ 'frontend' ที่ระดับเดียวกับ 'backend' ให้ใช้ path.join(__dirname, '../frontend')
+// แต่ถ้าไฟล์ index.html อยู่ในโฟลเดอร์เดียวกับโฟลเดอร์รันโปรเจกต์ ใช้ path.join(__dirname, 'public') หรือโฟลเดอร์ที่ถูกต้อง
+// ในที่นี้สมมติให้ใช้โฟลเดอร์ 'public' (คุณต้องเอาไฟล์ frontend ทั้งหมดไปใส่ในโฟลเดอร์นี้) หรือปรับ path ให้ตรงกับโครงสร้างจริงของคุณ
+app.use(express.static(path.join(__dirname, '../frontend'))); // ปรับบรรทัดนี้ให้ตรงกับโครงสร้างโฟลเดอร์โปรเจกต์ของคุณ
 
 // Configuration
 const mongoUri = "mongodb+srv://kaaom3:Kaaom321A@cluster0.fx7nlup.mongodb.net/inventoryDB_Cloned?appName=Cluster0"; 
@@ -668,6 +676,13 @@ app.get('/api/ping/:target', verifyToken, async (req, res) => {
     } catch (error) {
         res.status(500).json({ error: "Ping failed" });
     }
+});
+
+// 🌟 ตั้งค่าให้รองรับ SPA (Single Page Application) Routing 
+// หากเข้า URL อื่นๆ ที่ไม่ใช่ /api ให้ทำการส่งไฟล์ index.html กลับไป
+app.get('*', (req, res) => {
+    // แก้ไข path ให้ชี้ไปยังไฟล์ index.html ที่ถูกต้อง
+    res.sendFile(path.join(__dirname, '../frontend/index.html'));
 });
 
 // Start Server
