@@ -1252,7 +1252,7 @@ window.handleSearch = function(col, val) { paginationState[col].filterText = val
 window.handleStatusFilter = function(col, val) { paginationState[col].statusFilter = val; paginationState[col].currentPage=1; window.buildTable(col); };
 
 // ==========================================
-// --- MANAGEMENT PAGES ---
+// --- MANAGEMENT PAGES (HANDOVER / RETURN) ---
 // ==========================================
 window.buildHandoverReturnPage = function() {
     const handoverTab = document.getElementById('handover-tab-content');
@@ -1338,19 +1338,39 @@ window.updateHandoverButtonState = function() {
     document.getElementById('confirmHandoverBtn').disabled = !(staffSelected && handoverCart.length > 0); 
 };
 
+// 🌟 แก้ไข: ดึงข้อมูล Data ชุดใหม่ทุกครั้งหลังกด Handover สำเร็จ
 window.confirmHandover = async function() {
     const staff = document.getElementById('selectedHandoverStaff').textContent;
     if(confirm(`Handover ${handoverCart.length} items to ${staff}?`)) {
-        await apiRequest('/api/transactions/handover', 'POST', { staffUserName: staff, devices: handoverCart });
-        handoverCart = []; window.renderHandoverCart(); window.populateHandoverDeviceList(); showNotificationModal('success', 'Success', 'Items assigned.');
+        try {
+            await apiRequest('/api/transactions/handover', 'POST', { staffUserName: staff, devices: handoverCart });
+            handoverCart = []; 
+            await refreshAllData(); 
+            window.renderHandoverCart(); 
+            window.populateHandoverDeviceList(); 
+            window.updateDashboard();
+            showNotificationModal('success', 'Success', 'Items assigned successfully.');
+        } catch (error) {
+            showNotificationModal('warning', 'Error', error.message);
+        }
     }
 };
 
+// 🌟 แก้ไข: ดึงข้อมูล Data ชุดใหม่ทุกครั้งหลังกด Return สำเร็จ
 window.confirmReturn = async function() {
     const items = Array.from(document.querySelectorAll('.return-checkbox:checked')).map(cb => ({ id: cb.value, collection: cb.dataset.col }));
     if(confirm(`Return ${items.length} items?`)) {
-        await apiRequest('/api/transactions/return', 'POST', { devices: items });
-        document.getElementById('returnDeviceList').innerHTML = ''; showNotificationModal('success', 'Success', 'Items returned.');
+        try {
+            await apiRequest('/api/transactions/return', 'POST', { devices: items });
+            await refreshAllData(); 
+            document.getElementById('returnDeviceList').innerHTML = '<p class="text-center text-gray-400 p-4">Select staff first.</p>'; 
+            document.getElementById('selectedReturnStaff').textContent = 'None';
+            window.populateStaffLists('returnStaffList', 'selectedReturnStaff', true);
+            window.updateDashboard();
+            showNotificationModal('success', 'Success', 'Items returned successfully.');
+        } catch (error) {
+            showNotificationModal('warning', 'Error', error.message);
+        }
     }
 };
 
