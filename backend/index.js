@@ -2,7 +2,7 @@ const express = require('express');
 const cors = require('cors');
 const { MongoClient, ObjectId } = require('mongodb');
 const jwt = require('jsonwebtoken');
-const bcrypt = require('bcrypt');
+const bcrypt = require('bcryptjs'); // เปลี่ยนเป็น bcryptjs
 const ping = require('ping');
 
 const app = express();
@@ -10,9 +10,9 @@ const port = process.env.PORT || 3000;
 
 // Middleware
 app.use(cors());
-app.use(express.json({ limit: '50mb' })); // รองรับข้อมูลขนาดใหญ่ (เช่น รูป Base64 ตอนแทงจำหน่าย)
+app.use(express.json({ limit: '50mb' }));
 
-// 🌟 ตั้งค่า Database & Security
+// Configuration
 const mongoUri = "mongodb+srv://kaaom3:Kaaom321A@cluster0.fx7nlup.mongodb.net/inventoryDB_Cloned?appName=Cluster0"; 
 const dbName = "inventoryDB_Cloned"; 
 const jwtSecret = "your_super_secret_key_change_this"; 
@@ -39,28 +39,27 @@ MongoClient.connect(mongoUri)
             console.error("Error creating default admin:", e);
         }
 
-        // เริ่มต้น Background Ping Service (สำหรับเซิร์ฟเวอร์ปิงเองถ้าทำได้)
+        // เริ่มต้น Background Ping Service
         startBackgroundPingService();
     })
     .catch(error => {
         console.error("Failed to connect to MongoDB", error);
+        // อย่าใช้ process.exit(1) ตรงนี้ เพราะจะทำให้เซิร์ฟเวอร์ตายไปเลย ปล่อยให้มันรันต่อไปเผื่อ DB จะกลับมาเชื่อมต่อได้ในภายหลัง
     });
 
-// ===================================================================
-// 🌟 Middleware สำหรับยืนยันตัวตน
-// ===================================================================
+// --- Middleware สำหรับยืนยันตัวตน ---
 const verifyToken = (req, res, next) => {
     const bearerHeader = req.headers['authorization'];
     if (typeof bearerHeader !== 'undefined') {
         const bearer = bearerHeader.split(' ');
         const token = bearer[1];
         jwt.verify(token, jwtSecret, (err, decoded) => {
-            if (err) return res.sendStatus(403);
+            if (err) return res.status(403).json({ message: "Invalid token" });
             req.user = decoded;
             next();
         });
     } else {
-        res.sendStatus(401);
+        res.status(401).json({ message: "No token provided" });
     }
 };
 
@@ -73,9 +72,7 @@ const verifyApiKey = (req, res, next) => {
     }
 };
 
-// ===================================================================
-// 🌟 Authentication Routes
-// ===================================================================
+// --- Authentication Routes ---
 app.post('/api/login', async (req, res) => {
     const { email, password } = req.body;
     if (!db) return res.status(500).json({ message: "Database not connected" });
@@ -127,9 +124,7 @@ app.delete('/api/admins/delete', verifyToken, async (req, res) => {
     }
 });
 
-// ===================================================================
-// 🌟 PowerShell Script Integration (Sync & Heartbeat)
-// ===================================================================
+// --- PowerShell Script Integration (Sync & Heartbeat) ---
 app.post('/api/inventory/sync', verifyApiKey, async (req, res) => {
     if (!db) return res.status(500).json({ status: "error", message: "Database not connected" });
     try {
@@ -141,7 +136,6 @@ app.post('/api/inventory/sync', verifyApiKey, async (req, res) => {
         const now = new Date();
         const collection = db.collection('Computers');
         
-        // อัปเดตข้อมูลคอมพิวเตอร์
         await collection.updateOne(
             { SerialNumber: data.serialNumber },
             {
@@ -165,7 +159,6 @@ app.post('/api/inventory/sync', verifyApiKey, async (req, res) => {
             { upsert: true }
         );
 
-        // อัปเดต Monitors
         if (data.monitors && Array.isArray(data.monitors)) {
             const monitorCol = db.collection('Monitors');
             for (const mon of data.monitors) {
@@ -179,7 +172,6 @@ app.post('/api/inventory/sync', verifyApiKey, async (req, res) => {
             }
         }
 
-        // อัปเดต Accessories
         if (data.accessories && Array.isArray(data.accessories)) {
             const accCol = db.collection('Accessory');
             for (const acc of data.accessories) {
@@ -217,9 +209,7 @@ app.post('/api/heartbeat', async (req, res) => {
     }
 });
 
-// ===================================================================
-// 🌟 LOCAL PING RELAY ROUTES (สำหรับ Script Relay ในออฟฟิศ)
-// ===================================================================
+// --- LOCAL PING RELAY ROUTES ---
 app.get('/api/relay/devices', verifyApiKey, async (req, res) => {
     if (!db) return res.status(500).json({ message: "Database not connected" });
     try {
@@ -300,12 +290,10 @@ async function startBackgroundPingService() {
                 }
             }
         } catch (error) {}
-    }, 600000); // ทุก 10 นาที
+    }, 600000); 
 }
 
-// ===================================================================
-// 🌟 Inventory General CRUD
-// ===================================================================
+// --- Inventory General CRUD ---
 app.get('/api/inventory/all', verifyToken, async (req, res) => {
     if (!db) return res.status(500).json({ message: "Database not connected" });
     try {
@@ -340,7 +328,7 @@ app.put('/api/inventory/:collection/:id', verifyToken, async (req, res) => {
     try {
         const { collection, id } = req.params;
         const data = req.body;
-        delete data._id; // ป้องกันเขียนทับ _id
+        delete data._id; 
         
         await db.collection(collection).updateOne(
             { _id: new ObjectId(id) },
@@ -412,9 +400,7 @@ app.put('/api/inventory/:collection/bulk-update', verifyToken, async (req, res) 
     }
 });
 
-// ===================================================================
-// 🌟 Device Finder (Public/Scanner)
-// ===================================================================
+// --- Device Finder (Public/Scanner) ---
 app.get('/api/inventory/find/:sn', async (req, res) => {
     if (!db) return res.status(500).json({ message: "Database not connected" });
     try {
@@ -439,9 +425,7 @@ app.get('/api/inventory/find/:sn', async (req, res) => {
     }
 });
 
-// ===================================================================
-// 🌟 Admin Handover & Return (เมนู Transactions ของผู้ดูแล)
-// ===================================================================
+// --- Admin Handover & Return ---
 app.post('/api/transactions/handover', verifyToken, async (req, res) => {
     if (!db) return res.status(500).json({ message: "Database not connected" });
     try {
@@ -502,9 +486,7 @@ app.post('/api/transactions/return', verifyToken, async (req, res) => {
     }
 });
 
-// ===================================================================
-// 🌟 Public Loan System (หน้าระบบยืม loan.html)
-// ===================================================================
+// --- Public Loan System ---
 app.get('/api/public/loanable-items', async (req, res) => {
     if (!db) return res.status(500).json({ message: "Database not connected" });
     try {
@@ -513,7 +495,6 @@ app.get('/api/public/loanable-items', async (req, res) => {
         for (let col of collections) {
             const skipKeys = ['admins', 'CustomMenus', 'Staff', 'TransactionHistory', 'LoanHistory', 'Maintenance Log'];
             if (!skipKeys.includes(col.name)) {
-                // ส่งไปเฉพาะของที่อยู่ Storage
                 allData[col.name] = await db.collection(col.name).find({ Status: 'Storage' }).toArray();
             }
         }
@@ -598,9 +579,7 @@ app.post('/api/loans/return', async (req, res) => {
     }
 });
 
-// ===================================================================
-// 🌟 Custom Menus Settings
-// ===================================================================
+// --- Custom Menus Settings ---
 app.post('/api/custom-menus', verifyToken, async (req, res) => {
     if (!db) return res.status(500).json({ message: "Database not connected" });
     try {
@@ -642,9 +621,7 @@ app.delete('/api/custom-menus/:id', verifyToken, async (req, res) => {
     }
 });
 
-// ===================================================================
-// 🌟 Staff & Maintenance
-// ===================================================================
+// --- Staff & Maintenance ---
 app.post('/api/staff', verifyToken, async (req, res) => {
     if (!db) return res.status(500).json({ message: "Database not connected" });
     try {
@@ -682,7 +659,7 @@ app.post('/api/inventory/maintenance', verifyToken, async (req, res) => {
     }
 });
 
-// Fallback Ping Route (ถ้าใช้เซิร์ฟเวอร์ปิงเอง)
+// Fallback Ping Route
 app.get('/api/ping/:target', verifyToken, async (req, res) => {
     const target = req.params.target;
     try {
@@ -693,7 +670,7 @@ app.get('/api/ping/:target', verifyToken, async (req, res) => {
     }
 });
 
-// Server Start
+// Start Server
 app.listen(port, () => {
     console.log(`Inventory Backend API listening on port ${port}`);
 });
