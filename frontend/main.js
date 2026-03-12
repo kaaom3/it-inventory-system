@@ -1,6 +1,6 @@
 // ===================================================================
 // Frontend Logic for IT Inventory System (Full Complete Version)
-// CLEANED & DEDUPLICATED VERSION
+// CLEANED & DEDUPLICATED VERSION + BULK CLONE FEATURE
 // ===================================================================
 
 // 🌟 ล็อก URL ไปที่เซิร์ฟเวอร์บน Cloud ของคุณ 100%
@@ -67,6 +67,9 @@ let refreshIntervalId = null;
 let currentImportCollection = null;
 let selectedItems = {}; 
 let collectionConfigs = {};
+let currentRapidCollection = null;
+let currentLabelItems = []; 
+let currentLabelCategory = null;
 
 // ==========================================
 // 1. Initialization & Core Logic
@@ -345,6 +348,40 @@ function initPrintStyles() {
         }
     `;
     document.head.appendChild(style);
+}
+
+// --- PERIODIC PING FUNCTION (SILENT) ---
+async function runPeriodicPing() {
+    const pingPromises = [];
+    const token = localStorage.getItem('authToken');
+    const headers = token ? { 'Authorization': `Bearer ${token}` } : {};
+
+    Object.keys(collectionConfigs).forEach(colName => {
+        const items = allData[colName] || [];
+        const config = collectionConfigs[colName];
+        
+        const hasIP = config.formFields.includes('IPAddress');
+        const isComputers = colName === 'Computers';
+        
+        if (hasIP || isComputers) {
+            items.forEach(item => {
+                let target = null;
+                if (item.IPAddress && item.IPAddress !== 'N/A' && item.IPAddress.trim() !== '') {
+                    target = item.IPAddress;
+                } else if (isComputers && item.ComputerName && item.ComputerName.trim() !== '') {
+                    target = item.ComputerName;
+                }
+                
+                if (target) {
+                    pingPromises.push(
+                        fetch(`${API_BASE_URL}/api/ping/${target}?collection=${colName}`, { headers })
+                        .catch(() => null) 
+                    );
+                }
+            });
+        }
+    });
+    await Promise.allSettled(pingPromises);
 }
 
 window.formatTimeAgo = (dateString) => {
@@ -901,7 +938,7 @@ window.buildTable = function(collectionName) {
         const fieldDef = AVAILABLE_FIELDS.find(f => f.id === h);
         html += `<th class="px-6 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-300 uppercase tracking-wider">${fieldDef ? fieldDef.label : h}</th>`
     });
-    html += `<th class="px-6 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-300 uppercase tracking-wider">Actions</th></tr></thead><tbody class="divide-y divide-gray-200 dark:divide-gray-700">`;
+    html += `<th class="px-6 py-3 text-center text-xs font-semibold text-gray-500 dark:text-gray-300 uppercase tracking-wider">Actions</th></tr></thead><tbody class="divide-y divide-gray-200 dark:divide-gray-700">`;
     
     if (paginatedData.length === 0) html += `<tr><td colspan="${config.headers.length + 2}" class="px-6 py-4 text-center text-gray-500">No data found.</td></tr>`;
     else {
@@ -930,7 +967,13 @@ window.buildTable = function(collectionName) {
                 }
                 html += `<td class="px-6 py-4 text-sm text-gray-700 dark:text-gray-200 whitespace-nowrap max-w-xs truncate" title="${String(val).replace(/<[^>]*>?/gm, '')}">${val}</td>`;
             });
-            html += `<td class="px-6 py-4 text-sm font-medium space-x-3 whitespace-nowrap"><button onclick="window.openModal('edit', '${collectionName}', '${id}')" class="text-indigo-600 hover:text-indigo-900 dark:text-indigo-400 dark:hover:text-indigo-300"><i class="fas fa-edit"></i></button><button onclick="window.deleteItem('${collectionName}', '${id}')" class="text-red-600 hover:text-red-900 dark:text-red-400 dark:hover:text-red-300"><i class="fas fa-trash"></i></button><button onclick="window.showQrModal('${item[config.serialField] || id}', '${item[config.nameField] || 'Asset'}')" class="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"><i class="fas fa-qrcode"></i></button></td></tr>`;
+            // 🌟 เพิ่มปุ่มโคลน (Clone) เข้าไปในคอลัมน์ Actions
+            html += `<td class="px-6 py-4 text-sm font-medium space-x-3 whitespace-nowrap text-center">
+                <button onclick="window.openModal('edit', '${collectionName}', '${id}')" class="text-indigo-600 hover:text-indigo-900 dark:text-indigo-400 dark:hover:text-indigo-300" title="Edit"><i class="fas fa-edit"></i></button>
+                <button onclick="window.openCloneModal('${collectionName}', '${id}')" class="text-blue-600 hover:text-blue-900 dark:text-blue-400 dark:hover:text-blue-300" title="Clone"><i class="fas fa-copy"></i></button>
+                <button onclick="window.deleteItem('${collectionName}', '${id}')" class="text-red-600 hover:text-red-900 dark:text-red-400 dark:hover:text-red-300" title="Delete"><i class="fas fa-trash"></i></button>
+                <button onclick="window.showQrModal('${item[config.serialField] || id}', '${item[config.nameField] || 'Asset'}')" class="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200" title="QR Code"><i class="fas fa-qrcode"></i></button>
+            </td></tr>`;
         });
         setTimeout(() => { const selectAllCb = document.getElementById(`selectAll_${collectionName}`); if (selectAllCb) selectAllCb.checked = paginatedData.length > 0 && allCurrentPageSelected; }, 10);
     }
@@ -1338,7 +1381,6 @@ window.updateHandoverButtonState = function() {
     document.getElementById('confirmHandoverBtn').disabled = !(staffSelected && handoverCart.length > 0); 
 };
 
-// 🌟 แก้ไข: ดึงข้อมูล Data ชุดใหม่ทุกครั้งหลังกด Handover สำเร็จ
 window.confirmHandover = async function() {
     const staff = document.getElementById('selectedHandoverStaff').textContent;
     if(confirm(`Handover ${handoverCart.length} items to ${staff}?`)) {
@@ -1356,7 +1398,6 @@ window.confirmHandover = async function() {
     }
 };
 
-// 🌟 แก้ไข: ดึงข้อมูล Data ชุดใหม่ทุกครั้งหลังกด Return สำเร็จ
 window.confirmReturn = async function() {
     const items = Array.from(document.querySelectorAll('.return-checkbox:checked')).map(cb => ({ id: cb.value, collection: cb.dataset.col }));
     if(confirm(`Return ${items.length} items?`)) {
@@ -1712,9 +1753,6 @@ window.buildLabelPrinterPage = function() {
     });
 };
 
-let currentLabelItems = []; 
-let currentLabelCategory = null;
-
 window.updateLabelItemDropdown = function() {
     const cat = document.getElementById('labelCategorySelect').value;
     currentLabelCategory = cat; currentLabelItems = [];
@@ -1840,8 +1878,6 @@ function injectRapidEntryModal() {
     document.body.insertAdjacentHTML('beforeend', modalHtml);
 }
 
-window.currentRapidCollection = null;
-
 window.openRapidEntryModal = function(collectionName) {
     window.currentRapidCollection = collectionName;
     const modal = document.getElementById('rapidEntryModal');
@@ -1904,5 +1940,55 @@ window.processRapidEntry = async function(serial) {
         document.getElementById(logId).innerHTML = `<span class="font-mono text-gray-800 dark:text-gray-200">${serial}</span><span class="text-green-500 font-bold"><i class="fas fa-check-circle"></i> Success</span>`;
     } catch (error) {
         document.getElementById(logId).innerHTML = `<span class="font-mono text-red-500">${serial}</span><span class="text-red-500 font-bold" title="${error.message}"><i class="fas fa-times-circle"></i> Failed</span>`;
+    }
+};
+
+// ==========================================
+// --- 🌟 BULK CLONE MODE ---
+// ==========================================
+window.openCloneModal = function(collectionName, id) {
+    const item = allData[collectionName].find(i => i._id === id || i.id === id);
+    if (!item) return;
+    
+    const config = collectionConfigs[collectionName];
+    const name = item[config.nameField] || item.ComputerName || item.ItemName || item.DeviceName || 'Unknown Device';
+    const serial = item[config.serialField] || item.SerialNumber || id;
+    
+    document.getElementById('cloneSourceInfo').textContent = `${name} (${serial})`;
+    document.getElementById('cloneCollection').value = collectionName;
+    document.getElementById('cloneSourceId').value = id;
+    document.getElementById('cloneSerialNumbers').value = '';
+    
+    const modal = document.getElementById('cloneModal');
+    modal.classList.remove('opacity-0', 'pointer-events-none');
+    modal.querySelector('.modal-content').classList.remove('scale-95');
+    modal.querySelector('.modal-content').classList.add('scale-100');
+};
+
+window.processClone = async function() {
+    const collectionName = document.getElementById('cloneCollection').value;
+    const sourceId = document.getElementById('cloneSourceId').value;
+    const serialsText = document.getElementById('cloneSerialNumbers').value;
+    
+    // ดึง SN และตัดช่องว่าง, ลบบรรทัดว่างทิ้ง
+    const serialNumbers = serialsText.split('\n').map(s => s.trim()).filter(s => s !== '');
+    
+    if (serialNumbers.length === 0) {
+        return showNotificationModal('warning', 'ไม่มีข้อมูล', 'กรุณาระบุ Serial Number อย่างน้อย 1 รายการ');
+    }
+    
+    try {
+        await apiRequest(`/api/inventory/${collectionName}/clone-bulk`, 'POST', {
+            sourceId: sourceId,
+            serialNumbers: serialNumbers
+        });
+        
+        showNotificationModal('success', 'โคลนสำเร็จ', `โคลนอุปกรณ์เสร็จสิ้นจำนวน ${serialNumbers.length} รายการ ระบบบันทึกเข้า Storage แล้ว`);
+        window.hideModal('cloneModal');
+        await refreshAllData();
+        window.buildTable(collectionName);
+        window.updateDashboard();
+    } catch (error) {
+        showNotificationModal('warning', 'การโคลนล้มเหลว', error.message);
     }
 };

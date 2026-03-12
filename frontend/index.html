@@ -312,6 +312,32 @@
     <!-- OTHER ESSENTIAL MODALS                                  -->
     <!-- ======================================================= -->
 
+    <!-- Clone Device Modal -->
+    <div id="cloneModal" class="modal opacity-0 pointer-events-none fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
+        <div class="modal-content bg-white dark:bg-gray-800 rounded-xl shadow-xl w-full max-w-md">
+            <div class="p-5 border-b dark:border-gray-700 flex justify-between items-center">
+                <h3 class="font-bold text-lg dark:text-white"><i class="fas fa-copy text-blue-500 mr-2"></i>โคลนข้อมูลอุปกรณ์</h3>
+                <button onclick="window.hideModal('cloneModal')" class="text-gray-400 hover:text-red-500"><i class="fas fa-times"></i></button>
+            </div>
+            <div class="p-5 space-y-4">
+                <div class="bg-blue-50 dark:bg-blue-900/30 p-3 rounded-lg border border-blue-100 dark:border-blue-800 text-sm text-gray-700 dark:text-gray-300">
+                    กำลังคัดลอกสเปคจาก: <strong id="cloneSourceInfo" class="text-blue-600 dark:text-blue-400 block mt-1"></strong>
+                </div>
+                <input type="hidden" id="cloneCollection">
+                <input type="hidden" id="cloneSourceId">
+                <div>
+                    <label class="block text-sm font-bold mb-2 dark:text-gray-300">ระบุ Serial Number ใหม่ <span class="text-xs font-normal text-gray-500">(1 บรรทัดต่อ 1 เครื่อง)</span></label>
+                    <textarea id="cloneSerialNumbers" rows="6" class="w-full border p-3 rounded-lg dark:bg-gray-700 dark:border-gray-600 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500 custom-scrollbar font-mono text-sm" placeholder="SN001&#10;SN002&#10;SN003"></textarea>
+                </div>
+                <p class="text-xs text-gray-500 bg-gray-50 dark:bg-gray-700 p-2 rounded"><i class="fas fa-info-circle mr-1"></i> อุปกรณ์ที่โคลนใหม่จะถูกบันทึกเข้าคลัง (Storage) อัตโนมัติ</p>
+            </div>
+            <div class="p-4 border-t dark:border-gray-700 flex justify-end gap-2 bg-gray-50 dark:bg-gray-800 rounded-b-xl">
+                <button onclick="window.hideModal('cloneModal')" class="px-4 py-2 border rounded-lg dark:border-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 font-medium">ยกเลิก</button>
+                <button onclick="window.processClone()" class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-bold flex items-center"><i class="fas fa-magic mr-2"></i> สร้างรายการใหม่</button>
+            </div>
+        </div>
+    </div>
+
     <!-- Bulk Edit Modal -->
     <div id="bulkEditModal" class="modal opacity-0 pointer-events-none fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
         <div class="modal-content bg-white dark:bg-gray-800 rounded-xl shadow-xl w-full max-w-md">
@@ -442,7 +468,7 @@
         </div>
     </div>
 
-    <!-- Staff Management Modal (RESTORED) -->
+    <!-- Staff Management Modal -->
     <div id="editStaffModal" class="modal opacity-0 pointer-events-none fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
         <div class="modal-content bg-white dark:bg-gray-800 rounded-xl w-full max-w-md shadow-xl">
             <div class="p-5 border-b dark:border-gray-700 flex justify-between items-center">
@@ -474,7 +500,7 @@
         </div>
     </div>
 
-    <!-- Admin Management Modal (RESTORED) -->
+    <!-- Admin Management Modal -->
     <div id="addUserModal" class="modal opacity-0 pointer-events-none fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
         <div class="modal-content bg-white dark:bg-gray-800 rounded-xl w-full max-w-md shadow-xl">
             <div class="p-5 border-b dark:border-gray-700 flex justify-between items-center">

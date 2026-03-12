@@ -408,6 +408,52 @@ app.put('/api/inventory/:collection/bulk-update', verifyToken, async (req, res) 
     }
 });
 
+// 🌟 --- Bulk Clone Device (โคลนอุปกรณ์เดิม แต่เปลี่ยน S/N) ---
+app.post('/api/inventory/:collection/clone-bulk', verifyToken, async (req, res) => {
+    if (!db) return res.status(500).json({ message: "Database not connected" });
+    try {
+        const collectionName = req.params.collection;
+        const { sourceId, serialNumbers, overrides } = req.body;
+
+        if (!sourceId || !serialNumbers || !Array.isArray(serialNumbers) || serialNumbers.length === 0) {
+            return res.status(400).json({ message: "Invalid payload. 'sourceId' and 'serialNumbers' array are required." });
+        }
+
+        // ค้นหาข้อมูลต้นฉบับ
+        const sourceDevice = await db.collection(collectionName).findOne({ _id: new ObjectId(sourceId) });
+        if (!sourceDevice) {
+            return res.status(404).json({ message: "Source device not found." });
+        }
+
+        // ตัด _id ของต้นฉบับทิ้งไปเพื่อสร้างใหม่
+        delete sourceDevice._id;
+
+        // สร้างข้อมูลอุปกรณ์ใหม่ทีละตัวตามจำนวน Serial Number ที่ส่งมา
+        const newDevices = serialNumbers.map(sn => {
+            const newDevice = { ...sourceDevice, ...overrides };
+            
+            // อัปเดตฟิลด์ SerialNumber หรือ MonitorSerial ให้เป็นค่าใหม่
+            if (newDevice.hasOwnProperty('SerialNumber')) newDevice.SerialNumber = sn;
+            if (newDevice.hasOwnProperty('MonitorSerial')) newDevice.MonitorSerial = sn;
+            
+            // อัปเดต Timestamp และเซ็ตค่าเริ่มต้น (เอาเข้าคลัง)
+            newDevice.Timestamp = new Date();
+            if(!overrides || !overrides.Status) newDevice.Status = 'Storage';
+            if(!overrides || !overrides.UserName) newDevice.UserName = '';
+            newDevice.DisposalDate = null;
+            newDevice.DisposalEvidence = null;
+
+            return newDevice;
+        });
+
+        await db.collection(collectionName).insertMany(newDevices);
+        res.status(201).json({ message: `Successfully cloned ${serialNumbers.length} devices.` });
+
+    } catch (error) {
+        res.status(500).json({ message: error.message });
+    }
+});
+
 // --- Device Finder (Public/Scanner) ---
 app.get('/api/inventory/find/:sn', async (req, res) => {
     if (!db) return res.status(500).json({ message: "Database not connected" });
