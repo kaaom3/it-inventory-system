@@ -1,6 +1,6 @@
 // ===================================================================
 // Frontend Logic for IT Inventory System (Full Complete Version)
-// CLEANED & DEDUPLICATED VERSION + BULK CLONE FEATURE
+// CLEANED & DEDUPLICATED VERSION + BULK CLONE FEATURE + AGGREGATED DASHBOARD
 // ===================================================================
 
 // 🌟 ล็อก URL ไปที่เซิร์ฟเวอร์บน Cloud ของคุณ 100%
@@ -1155,7 +1155,7 @@ window.deleteItem = async function(collectionName, id) {
 };
 
 // ==========================================
-// --- DASHBOARD ---
+// --- DASHBOARD (AGGREGATED MODE) ---
 // ==========================================
 window.updateDashboard = function() {
     let total = 0, active = 0, storage = 0, issues = 0;
@@ -1184,21 +1184,62 @@ window.updateDashboard = function() {
             topStatsGrid.parentNode.insertBefore(overviewGrid, topStatsGrid.nextSibling);
         }
     }
+
     if (overviewGrid) {
         overviewGrid.innerHTML = '';
+
+        // 🌟 1. หา Root Category (หมวดหมู่หลัก) ทั้งหมด
+        const rootCategories = {};
         Object.keys(collectionConfigs).forEach(colName => {
-            if (colName === 'Software') return; 
-            const config = collectionConfigs[colName];
-            const items = allData[colName] || [];
-            const displayName = config.displayName || colName;
+            if (colName === 'Software') return;
+            const menuDef = (allData.CustomMenus || []).find(m => m.name === colName);
+            const isDefaultRoot = ['Computers', 'Monitors', 'Accessory', 'Printers', 'Network'].includes(colName);
+            const isCustomRoot = menuDef && !menuDef.parentId;
+
+            if (isDefaultRoot || isCustomRoot) {
+                rootCategories[colName] = {
+                    config: collectionConfigs[colName],
+                    totalItems: 0
+                };
+            }
+        });
+
+        // 🌟 2. รวมยอดจากหมวดหมู่ย่อยเข้าหมวดหมู่หลัก
+        Object.keys(collectionConfigs).forEach(colName => {
+            if (colName === 'Software') return;
+
+            let rootName = colName;
+            let current = colName;
+            while (true) {
+                const mDef = (allData.CustomMenus || []).find(m => m.name === current);
+                if (!mDef || !mDef.parentId) {
+                    rootName = current;
+                    break;
+                }
+                current = mDef.parentId;
+            }
+
+            if (rootCategories[rootName]) {
+                const itemCount = (allData[colName] || []).length;
+                rootCategories[rootName].totalItems += itemCount;
+            }
+        });
+
+        // 🌟 3. สร้างการ์ดแสดงผลเฉพาะหมวดหมู่หลัก
+        Object.keys(rootCategories).forEach(rootName => {
+            const rootData = rootCategories[rootName];
+            const config = rootData.config;
+            const displayName = config.displayName || rootName;
+            const totalItems = rootData.totalItems;
+
             overviewGrid.innerHTML += `
-                <div class="bg-white dark:bg-gray-800 p-4 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700 flex items-center space-x-3 cursor-pointer hover:bg-indigo-50 dark:hover:bg-gray-700 transition-colors transform hover:-translate-y-1" onclick="window.loadPage('${colName}')">
+                <div class="bg-white dark:bg-gray-800 p-4 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700 flex items-center space-x-3 cursor-pointer hover:bg-indigo-50 dark:hover:bg-gray-700 transition-colors transform hover:-translate-y-1" onclick="window.loadPage('${rootName}')">
                     <div class="bg-indigo-100 dark:bg-indigo-900/50 w-10 h-10 rounded-full flex items-center justify-center shrink-0">
                         <i class="fas ${config.icon || 'fa-box'} text-indigo-600 dark:text-indigo-400"></i>
                     </div>
                     <div class="overflow-hidden">
                         <p class="text-xs text-gray-500 dark:text-gray-400 truncate">${displayName}</p>
-                        <p class="text-lg font-bold text-gray-800 dark:text-white">${items.length}</p>
+                        <p class="text-lg font-bold text-gray-800 dark:text-white">${totalItems}</p>
                     </div>
                 </div>`;
         });
@@ -1207,10 +1248,24 @@ window.updateDashboard = function() {
     const statusCounts = {}; allItems.forEach(i => { statusCounts[i.Status] = (statusCounts[i.Status] || 0) + 1; });
     window.renderStatusChart(statusCounts);
     
+    // 🌟 รวมยอดสำหรับกราฟแท่ง (Bar Chart) ด้วย
     const categoryCounts = {}; 
     for (const [key, items] of Object.entries(allData)) {
         if (skipKeys.includes(key)) continue;
-        if (Array.isArray(items)) categoryCounts[key] = items.length;
+        if (Array.isArray(items)) {
+            let rootName = key;
+            let current = key;
+            while (true) {
+                const mDef = (allData.CustomMenus || []).find(m => m.name === current);
+                if (!mDef || !mDef.parentId) {
+                    rootName = current;
+                    break;
+                }
+                current = mDef.parentId;
+            }
+            const displayName = collectionConfigs[rootName] ? collectionConfigs[rootName].displayName : rootName;
+            categoryCounts[displayName] = (categoryCounts[displayName] || 0) + items.length;
+        }
     }
     window.renderCategoryChart(categoryCounts);
 
