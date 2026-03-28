@@ -835,17 +835,35 @@ window.bulkDelete = async function(collectionName) {
         await apiRequest(`/api/inventory/${collectionName}/bulk-delete`, 'POST', { ids });
         showNotificationModal('success', 'Bulk Delete Successful', `Deleted ${ids.length} item(s).`);
         selectedItems[collectionName] = []; 
-        await refreshAllData(); window.buildTable(collectionName); window.updateDashboard();
+        await refreshAllData(); window.buildTable(collectionName); window.updateDashboard(currentDashboardFolder);
     } catch (error) { showNotificationModal('warning', 'Bulk Delete Failed', error.message); }
 };
 
 window.openBulkEditModal = function(collectionName) {
     const ids = selectedItems[collectionName] || [];
     if (ids.length === 0) return;
-    document.getElementById('bulkEditForm').reset();
+    
+    // เคลียร์ค่า input แบบ Manual เพื่อป้องกัน Error ถ้าหาฟอร์มไม่เจอ
+    const statusField = document.getElementById('bulkEditStatus');
+    if(statusField) statusField.value = '';
+    
+    const locationField = document.getElementById('bulkEditLocation');
+    if(locationField) locationField.value = '';
+    
+    const userField = document.getElementById('bulkEditUser');
+    if(userField) userField.value = '';
+
     document.getElementById('bulkEditCollection').value = collectionName;
     document.getElementById('bulkEditCount').textContent = ids.length;
-    document.getElementById('bulkEditModal').classList.remove('opacity-0', 'pointer-events-none');
+    
+    const modal = document.getElementById('bulkEditModal');
+    modal.classList.remove('opacity-0', 'pointer-events-none');
+    
+    // แสดงแอนิเมชันตอนเปิด Popup
+    if (modal.querySelector('.modal-content')) {
+        modal.querySelector('.modal-content').classList.remove('scale-95');
+        modal.querySelector('.modal-content').classList.add('scale-100');
+    }
 };
 
 window.saveBulkEdit = async function() {
