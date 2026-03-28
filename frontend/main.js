@@ -1,6 +1,6 @@
 // ===================================================================
 // Frontend Logic for IT Inventory System (Full Complete Version)
-// CLEANED & DEDUPLICATED VERSION + BULK CLONE FEATURE + AGGREGATED DASHBOARD
+// CLEANED & DEDUPLICATED VERSION + BULK CLONE FEATURE + DRILL-DOWN DASHBOARD
 // ===================================================================
 
 // 🌟 ล็อก URL ไปที่เซิร์ฟเวอร์บน Cloud ของคุณ 100%
@@ -70,6 +70,7 @@ let collectionConfigs = {};
 let currentRapidCollection = null;
 let currentLabelItems = []; 
 let currentLabelCategory = null;
+let currentDashboardFolder = null; // 🌟 ตัวแปรใหม่สำหรับจำหน้าโฟลเดอร์ Dashboard
 
 // ==========================================
 // 1. Initialization & Core Logic
@@ -591,7 +592,10 @@ window.loadPage = function(pageName, navElement) {
         pageDiv.classList.add('active');
         pageDiv.style.display = 'block';
 
-        if (pageName === 'Dashboard') window.updateDashboard();
+        if (pageName === 'Dashboard') {
+            // เมื่อกลับมาหน้า Dashboard ให้โชว์หน้าหลักเสมอ
+            window.updateDashboard(null);
+        }
         else if (pageName === 'LoanHistory') window.buildLoanHistoryCards();
         else if (pageName === 'Maintenance') window.buildMaintenancePage();
         else if (pageName === 'AssetsByUser') window.buildAssetsByUserPage();
@@ -1140,7 +1144,7 @@ window.saveData = async function() {
         if (mode === 'edit') await apiRequest(`/api/inventory/${collection}/${id}`, 'PUT', data);
         else await apiRequest(`/api/inventory/${collection}`, 'POST', data);
         showNotificationModal('success', 'Success', `Data saved successfully.`);
-        window.hideModal('editModal'); await refreshAllData(); window.buildTable(collection); window.updateDashboard();
+        window.hideModal('editModal'); await refreshAllData(); window.buildTable(collection); window.updateDashboard(currentDashboardFolder);
     } catch (error) { showNotificationModal('warning', 'Save Failed', error.message); }
 };
 
@@ -1149,19 +1153,25 @@ window.deleteItem = async function(collectionName, id) {
         try {
             await apiRequest(`/api/inventory/${collectionName}/${id}`, 'DELETE');
             showNotificationModal('success', 'Deleted', 'The item has been deleted.');
-            await refreshAllData(); window.buildTable(collectionName); window.updateDashboard();
+            await refreshAllData(); window.buildTable(collectionName); window.updateDashboard(currentDashboardFolder);
         } catch (error) {}
     }
 };
 
 // ==========================================
-// --- DASHBOARD (AGGREGATED MODE) ---
+// --- DASHBOARD (DRILL-DOWN FOLDER MODE) ---
 // ==========================================
-window.updateDashboard = function() {
+window.updateDashboard = function(folderId) {
+    // 🌟 รับค่าโฟลเดอร์ที่ผู้ใช้กดเข้ามา (ถ้าไม่ส่งมา ให้คงค่าเดิม)
+    if (folderId !== undefined) {
+        currentDashboardFolder = folderId;
+    }
+    
     let total = 0, active = 0, storage = 0, issues = 0;
     const skipKeys = ['Staff', 'CustomMenus', 'TransactionHistory', 'LoanHistory', 'Maintenance Log', 'admins', 'Software'];
     const allItems = [];
 
+    // อัปเดตตัวเลขรวมด้านบน (Top Stats)
     for (const [key, items] of Object.entries(allData)) {
         if (skipKeys.includes(key)) continue;
         if (Array.isArray(items)) allItems.push(...items);
@@ -1188,83 +1198,116 @@ window.updateDashboard = function() {
     if (overviewGrid) {
         overviewGrid.innerHTML = '';
 
-        // 🌟 1. หา Root Category (หมวดหมู่หลัก) ทั้งหมด
-        const rootCategories = {};
-        Object.keys(collectionConfigs).forEach(colName => {
-            if (colName === 'Software') return;
-            const menuDef = (allData.CustomMenus || []).find(m => m.name === colName);
-            const isDefaultRoot = ['Computers', 'Monitors', 'Accessory', 'Printers', 'Network'].includes(colName);
-            const isCustomRoot = menuDef && !menuDef.parentId;
+        // ฟังก์ชันช่วยหาว่าหมวดหมู่นี้มีเมนูย่อย (ลูก) หรือไม่
+        const getChildren = (pid) => {
+            return (allData.CustomMenus || []).filter(m => m.parentId === pid).map(m => m.name);
+        };
 
-            if (isDefaultRoot || isCustomRoot) {
-                rootCategories[colName] = {
-                    config: collectionConfigs[colName],
-                    totalItems: 0
-                };
-            }
-        });
+        if (currentDashboardFolder === null) {
+            // 🌟 กรณีอยู่หน้าแรกสุด (Root Level)
+            const rootCollections = [];
+            Object.keys(collectionConfigs).forEach(colName => {
+                if (colName === 'Software') return;
+                const menuDef = (allData.CustomMenus || []).find(m => m.name === colName);
+                const isDefaultRoot = ['Computers', 'Monitors', 'Accessory', 'Printers', 'Network'].includes(colName);
+                const isCustomRoot = menuDef && !menuDef.parentId;
 
-        // 🌟 2. รวมยอดจากหมวดหมู่ย่อยเข้าหมวดหมู่หลัก
-        Object.keys(collectionConfigs).forEach(colName => {
-            if (colName === 'Software') return;
-
-            let rootName = colName;
-            let current = colName;
-            while (true) {
-                const mDef = (allData.CustomMenus || []).find(m => m.name === current);
-                if (!mDef || !mDef.parentId) {
-                    rootName = current;
-                    break;
+                // ดึงเฉพาะเมนูที่ไม่มีแม่ (เมนูหลัก)
+                if (isDefaultRoot || isCustomRoot) {
+                    rootCollections.push(colName);
                 }
-                current = mDef.parentId;
-            }
+            });
 
-            if (rootCategories[rootName]) {
+            rootCollections.forEach(colName => {
+                const config = collectionConfigs[colName];
+                const displayName = config.displayName || colName;
+                const children = getChildren(colName);
                 const itemCount = (allData[colName] || []).length;
-                rootCategories[rootName].totalItems += itemCount;
-            }
-        });
+                
+                // ถ้ามีเมนูย่อย ให้กดแล้วอัปเดตหน้าต่าง (เจาะลึก) | ถ้าไม่มี ให้เปิดหน้าตารางปกติ
+                const action = children.length > 0 ? `window.updateDashboard('${colName}')` : `window.loadPage('${colName}')`;
+                const iconMarker = children.length > 0 ? `<div class="absolute top-2 right-2 text-xs text-indigo-400"><i class="fas fa-folder"></i></div>` : '';
 
-        // 🌟 3. สร้างการ์ดแสดงผลเฉพาะหมวดหมู่หลัก
-        Object.keys(rootCategories).forEach(rootName => {
-            const rootData = rootCategories[rootName];
-            const config = rootData.config;
-            const displayName = config.displayName || rootName;
-            const totalItems = rootData.totalItems;
+                overviewGrid.innerHTML += `
+                    <div class="relative bg-white dark:bg-gray-800 p-4 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700 flex items-center space-x-3 cursor-pointer hover:bg-indigo-50 dark:hover:bg-gray-700 transition-colors transform hover:-translate-y-1" onclick="${action}">
+                        ${iconMarker}
+                        <div class="bg-indigo-100 dark:bg-indigo-900/50 w-10 h-10 rounded-full flex items-center justify-center shrink-0">
+                            <i class="fas ${config.icon || 'fa-box'} text-indigo-600 dark:text-indigo-400"></i>
+                        </div>
+                        <div class="overflow-hidden">
+                            <p class="text-xs text-gray-500 dark:text-gray-400 truncate">${displayName}</p>
+                            <p class="text-lg font-bold text-gray-800 dark:text-white">${itemCount}</p>
+                        </div>
+                    </div>`;
+            });
+        } else {
+            // 🌟 กรณีเจาะลึกเข้ามาในหมวดหมู่หลักแล้ว (Sub-Level)
+            const parentConfig = collectionConfigs[currentDashboardFolder];
+            const parentDisplayName = parentConfig ? parentConfig.displayName : currentDashboardFolder;
+            const parentItemCount = (allData[currentDashboardFolder] || []).length;
 
+            let mDef = (allData.CustomMenus || []).find(m => m.name === currentDashboardFolder);
+            const goBackId = mDef && mDef.parentId ? `'${mDef.parentId}'` : `null`;
+
+            // 1. ปุ่ม ย้อนกลับ (Back Button)
             overviewGrid.innerHTML += `
-                <div class="bg-white dark:bg-gray-800 p-4 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700 flex items-center space-x-3 cursor-pointer hover:bg-indigo-50 dark:hover:bg-gray-700 transition-colors transform hover:-translate-y-1" onclick="window.loadPage('${rootName}')">
-                    <div class="bg-indigo-100 dark:bg-indigo-900/50 w-10 h-10 rounded-full flex items-center justify-center shrink-0">
-                        <i class="fas ${config.icon || 'fa-box'} text-indigo-600 dark:text-indigo-400"></i>
+                <div class="bg-gray-100 dark:bg-gray-700 p-4 rounded-xl shadow-sm border border-gray-200 dark:border-gray-600 flex items-center space-x-3 cursor-pointer hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors transform hover:-translate-y-1" onclick="window.updateDashboard(${goBackId})">
+                    <div class="bg-gray-200 dark:bg-gray-600 w-10 h-10 rounded-full flex items-center justify-center shrink-0">
+                        <i class="fas fa-arrow-left text-gray-600 dark:text-gray-300"></i>
                     </div>
                     <div class="overflow-hidden">
-                        <p class="text-xs text-gray-500 dark:text-gray-400 truncate">${displayName}</p>
-                        <p class="text-lg font-bold text-gray-800 dark:text-white">${totalItems}</p>
+                        <p class="text-xs text-gray-500 dark:text-gray-400 truncate">ย้อนกลับ</p>
+                        <p class="text-sm font-bold text-gray-800 dark:text-white truncate">Back</p>
                     </div>
                 </div>`;
-        });
+
+            // 2. ปุ่มสำหรับเปิดตารางอุปกรณ์ของหมวดหมู่หลักนี้
+            overviewGrid.innerHTML += `
+                <div class="bg-indigo-50 dark:bg-indigo-900/30 p-4 rounded-xl shadow-sm border border-indigo-200 dark:border-indigo-700 flex items-center space-x-3 cursor-pointer hover:bg-indigo-100 dark:hover:bg-indigo-800/50 transition-colors transform hover:-translate-y-1" onclick="window.loadPage('${currentDashboardFolder}')">
+                    <div class="bg-indigo-200 dark:bg-indigo-800 w-10 h-10 rounded-full flex items-center justify-center shrink-0">
+                        <i class="fas fa-list text-indigo-700 dark:text-indigo-300"></i>
+                    </div>
+                    <div class="overflow-hidden">
+                        <p class="text-xs text-indigo-500 dark:text-indigo-400 truncate">ดูรายการในหมวดนี้</p>
+                        <p class="text-sm font-bold text-indigo-900 dark:text-indigo-100 truncate">${parentDisplayName} (${parentItemCount})</p>
+                    </div>
+                </div>`;
+
+            // 3. แสดงหมวดหมู่ย่อย (Children)
+            const children = getChildren(currentDashboardFolder);
+            children.forEach(colName => {
+                const config = collectionConfigs[colName];
+                const displayName = config.displayName || colName;
+                const subChildren = getChildren(colName);
+                const itemCount = (allData[colName] || []).length;
+                const action = subChildren.length > 0 ? `window.updateDashboard('${colName}')` : `window.loadPage('${colName}')`;
+                const iconMarker = subChildren.length > 0 ? `<div class="absolute top-2 right-2 text-xs text-indigo-400"><i class="fas fa-folder"></i></div>` : '';
+
+                overviewGrid.innerHTML += `
+                    <div class="relative bg-white dark:bg-gray-800 p-4 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700 flex items-center space-x-3 cursor-pointer hover:bg-indigo-50 dark:hover:bg-gray-700 transition-colors transform hover:-translate-y-1" onclick="${action}">
+                        ${iconMarker}
+                        <div class="bg-indigo-100 dark:bg-indigo-900/50 w-10 h-10 rounded-full flex items-center justify-center shrink-0">
+                            <i class="fas ${config.icon || 'fa-box'} text-indigo-600 dark:text-indigo-400"></i>
+                        </div>
+                        <div class="overflow-hidden">
+                            <p class="text-xs text-gray-500 dark:text-gray-400 truncate">${displayName}</p>
+                            <p class="text-lg font-bold text-gray-800 dark:text-white">${itemCount}</p>
+                        </div>
+                    </div>`;
+            });
+        }
     }
 
     const statusCounts = {}; allItems.forEach(i => { statusCounts[i.Status] = (statusCounts[i.Status] || 0) + 1; });
     window.renderStatusChart(statusCounts);
     
-    // 🌟 รวมยอดสำหรับกราฟแท่ง (Bar Chart) ด้วย
+    // 🌟 กราฟแท่ง (Bar Chart) แสดงเฉพาะหมวดหมู่ทั้งหมด ไม่นำยอดมารวมกัน
     const categoryCounts = {}; 
     for (const [key, items] of Object.entries(allData)) {
         if (skipKeys.includes(key)) continue;
         if (Array.isArray(items)) {
-            let rootName = key;
-            let current = key;
-            while (true) {
-                const mDef = (allData.CustomMenus || []).find(m => m.name === current);
-                if (!mDef || !mDef.parentId) {
-                    rootName = current;
-                    break;
-                }
-                current = mDef.parentId;
-            }
-            const displayName = collectionConfigs[rootName] ? collectionConfigs[rootName].displayName : rootName;
-            categoryCounts[displayName] = (categoryCounts[displayName] || 0) + items.length;
+            const displayName = collectionConfigs[key] ? collectionConfigs[key].displayName : key;
+            categoryCounts[displayName] = items.length;
         }
     }
     window.renderCategoryChart(categoryCounts);
@@ -1445,7 +1488,7 @@ window.confirmHandover = async function() {
             await refreshAllData(); 
             window.renderHandoverCart(); 
             window.populateHandoverDeviceList(); 
-            window.updateDashboard();
+            window.updateDashboard(currentDashboardFolder);
             showNotificationModal('success', 'Success', 'Items assigned successfully.');
         } catch (error) {
             showNotificationModal('warning', 'Error', error.message);
@@ -1462,7 +1505,7 @@ window.confirmReturn = async function() {
             document.getElementById('returnDeviceList').innerHTML = '<p class="text-center text-gray-400 p-4">Select staff first.</p>'; 
             document.getElementById('selectedReturnStaff').textContent = 'None';
             window.populateStaffLists('returnStaffList', 'selectedReturnStaff', true);
-            window.updateDashboard();
+            window.updateDashboard(currentDashboardFolder);
             showNotificationModal('success', 'Success', 'Items returned successfully.');
         } catch (error) {
             showNotificationModal('warning', 'Error', error.message);
