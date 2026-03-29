@@ -133,19 +133,11 @@ async function apiRequest(endpoint, method = 'GET', body = null) {
     const token = localStorage.getItem('authToken');
     if (token) headers['Authorization'] = `Bearer ${token}`;
 
-    // 🌟 ป้องกัน Browser Cache สำหรับการดึงข้อมูล (แก้ปัญหาอัปเดตแล้วหน้าเว็บข้อมูลไม่เปลี่ยน)
-    let fetchUrl = `${API_BASE_URL}${endpoint}`;
-    if (method === 'GET') {
-        headers['Cache-Control'] = 'no-cache, no-store, must-revalidate';
-        const separator = fetchUrl.includes('?') ? '&' : '?';
-        fetchUrl += `${separator}_t=${new Date().getTime()}`; 
-    }
-
     const config = { method, headers };
     if (body) config.body = JSON.stringify(body);
 
     try {
-        const response = await fetch(fetchUrl, config);
+        const response = await fetch(`${API_BASE_URL}${endpoint}`, config);
         if (response.status === 401 || response.status === 403) { window.logout(); return; }
         if (!response.ok) {
             let errorMessage = `API Error ${response.status}`;
@@ -810,42 +802,21 @@ window.updateBulkActionBar = function(collectionName) {
 };
 
 window.bulkDelete = async function(collectionName) {
-    const checkedBoxes = document.querySelectorAll(`.${collectionName}-row-cb:checked`);
-    let ids = Array.from(checkedBoxes).map(cb => cb.value);
-    if (ids.length === 0) ids = selectedItems[collectionName] || [];
-
-    if (ids.length === 0) {
-        return showNotificationModal('warning', 'ไม่มีอุปกรณ์', 'กรุณาเลือกอุปกรณ์อย่างน้อย 1 รายการ');
-    }
-
-    if (!confirm(`ยืนยันการลบอุปกรณ์จำนวน ${ids.length} รายการอย่างถาวรหรือไม่?`)) return;
-
+    const ids = selectedItems[collectionName] || [];
+    if (ids.length === 0) return;
+    if (!confirm(`Are you sure you want to permanently delete ${ids.length} selected item(s)?`)) return;
     try {
         await apiRequest(`/api/inventory/${collectionName}/bulk-delete`, 'POST', { ids });
-        showNotificationModal('success', 'ลบข้อมูลสำเร็จ', `ลบอุปกรณ์จำนวน ${ids.length} รายการเรียบร้อยแล้ว`);
-        
+        showNotificationModal('success', 'Bulk Delete Successful', `Deleted ${ids.length} item(s).`);
         selectedItems[collectionName] = []; 
-        document.querySelectorAll(`.${collectionName}-row-cb:checked`).forEach(cb => cb.checked = false);
-        const selectAll = document.getElementById(`selectAll_${collectionName}`);
-        if(selectAll) selectAll.checked = false;
-        window.updateBulkActionBar(collectionName);
-
-        await refreshAllData(); 
-        window.buildTable(collectionName); 
-        window.updateDashboard(currentDashboardFolder);
-    } catch (error) { 
-        showNotificationModal('warning', 'ลบข้อมูลล้มเหลว', error.message); 
-    }
+        await refreshAllData(); window.buildTable(collectionName); window.updateDashboard(currentDashboardFolder);
+    } catch (error) { showNotificationModal('warning', 'Bulk Delete Failed', error.message); }
 };
 
+// 🌟 เปิดหน้าต่าง Bulk Edit แบบสร้างช่องกรอกอัตโนมัติตามหมวดหมู่
 window.openBulkEditModal = function(collectionName) {
-    const checkedBoxes = document.querySelectorAll(`.${collectionName}-row-cb:checked`);
-    let ids = Array.from(checkedBoxes).map(cb => cb.value);
-    if (ids.length === 0) ids = selectedItems[collectionName] || [];
-    
-    if (ids.length === 0) {
-        return showNotificationModal('warning', 'ไม่พบอุปกรณ์', 'กรุณาเลือกอุปกรณ์อย่างน้อย 1 รายการเพื่อทำการแก้ไข');
-    }
+    const ids = selectedItems[collectionName] || [];
+    if (ids.length === 0) return;
     
     const config = collectionConfigs[collectionName];
     if (!config) return;
@@ -860,6 +831,7 @@ window.openBulkEditModal = function(collectionName) {
     formHtml += '<div class="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-4">';
     
     config.formFields.forEach(fieldId => {
+        // ข้ามช่องที่ไม่ควรแก้แบบ Bulk
         if (fieldId === 'SerialNumber' || fieldId === 'MonitorSerial') return;
 
         const fieldDef = AVAILABLE_FIELDS.find(f => f.id === fieldId) || { label: fieldId, type: 'text' };
@@ -868,7 +840,7 @@ window.openBulkEditModal = function(collectionName) {
         formHtml += `<div class="col-span-1 relative">`;
         formHtml += `<label class="block text-xs font-bold text-gray-600 dark:text-gray-400 mb-1">${fieldDef.label}</label>`;
         
-        const inputClasses = `w-full px-4 py-2.5 bg-white dark:bg-gray-700/50 border border-gray-300 dark:border-gray-600 text-gray-900 dark:text-white text-sm rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-colors shadow-sm`;
+        const inputClasses = `bulk-edit-input w-full px-4 py-2.5 bg-white dark:bg-gray-700/50 border border-gray-300 dark:border-gray-600 text-gray-900 dark:text-white text-sm rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-colors shadow-sm`;
 
         if (dropdown) {
             formHtml += `<select name="${fieldId}" class="${inputClasses} appearance-none"><option value="">-- ไม่เปลี่ยนแปลง --</option>${dropdown.map(opt => `<option value="${opt}">${opt}</option>`).join('')}</select>`;
@@ -891,59 +863,35 @@ window.openBulkEditModal = function(collectionName) {
     window.openModalWindow('bulkEditModal');
 };
 
-// 🌟 บันทึก Bulk Edit แบบ Dynamic และปลอดภัย 100%
+// 🌟 บันทึก Bulk Edit แบบ Dynamic
 window.saveBulkEdit = async function() {
     const collectionName = document.getElementById('bulkEditCollection').value;
-    
-    const checkedBoxes = document.querySelectorAll(`.${collectionName}-row-cb:checked`);
-    let ids = Array.from(checkedBoxes).map(cb => cb.value);
-    if (ids.length === 0) ids = selectedItems[collectionName] || [];
-
-    if (ids.length === 0) {
-        window.hideModal('bulkEditModal');
-        return showNotificationModal('warning', 'ข้อผิดพลาด', 'กรุณาเลือกอุปกรณ์อย่างน้อย 1 ชิ้นเพื่อแก้ไขข้อมูล');
-    }
-
-    const form = document.getElementById('bulkEditDynamicForm');
-    const formData = new FormData(form);
+    const ids = selectedItems[collectionName] || [];
     const updateData = {};
     
-    for (let [key, value] of formData.entries()) {
-        const val = value.toString().trim();
+    document.querySelectorAll('.bulk-edit-input').forEach(input => {
+        const val = input.value.trim();
         if (val !== '') {
-            const fieldDef = AVAILABLE_FIELDS.find(f => f.id === key);
-            if (fieldDef && fieldDef.type === 'number') {
-                updateData[key] = Number(val);
-            } else {
-                updateData[key] = val;
-            }
+            updateData[input.name] = val;
         }
-    }
+    });
     
     if (Object.keys(updateData).length === 0) { 
         window.hideModal('bulkEditModal');
-        return showNotificationModal('info', 'ไม่มีการเปลี่ยนแปลง', 'คุณไม่ได้กรอกข้อมูลใดๆ ระบบจึงยกเลิกคำสั่งแก้ไข');
+        return showNotificationModal('info', 'ไม่มีการเปลี่ยนแปลง', 'คุณไม่ได้กรอกข้อมูลใดๆ เพื่อแก้ไขระบบจึงยกเลิกคำสั่ง');
     }
 
     try {
-        const response = await apiRequest(`/api/inventory/${encodeURIComponent(collectionName)}/bulk-update`, 'PUT', { ids: ids, updateData: updateData });
+        const response = await apiRequest(`/api/inventory/${collectionName}/bulk-update`, 'PUT', { ids, updateData });
+        showNotificationModal('success', 'Bulk Update Successful', response.message || `อัปเดตข้อมูลเรียบร้อยแล้ว`);
         
         window.hideModal('bulkEditModal'); 
-        
         selectedItems[collectionName] = []; 
-        document.querySelectorAll(`.${collectionName}-row-cb:checked`).forEach(cb => cb.checked = false);
-        const selectAll = document.getElementById(`selectAll_${collectionName}`);
-        if(selectAll) selectAll.checked = false;
-        window.updateBulkActionBar(collectionName);
-
         await refreshAllData(); 
         window.buildTable(collectionName); 
         window.updateDashboard(currentDashboardFolder);
-
-        showNotificationModal('success', 'แก้ไขข้อมูลสำเร็จ', response?.message || `อัปเดตข้อมูล ${ids.length} รายการเรียบร้อยแล้ว`);
-        
     } catch (error) { 
-        showNotificationModal('warning', 'เกิดข้อผิดพลาดในการแก้ไข', error.message); 
+        showNotificationModal('warning', 'Bulk Update Failed', error.message); 
     }
 };
 
@@ -1053,6 +1001,7 @@ window.buildTable = function(collectionName) {
                 html += `<td class="px-6 py-4 text-sm text-gray-700 dark:text-gray-200 whitespace-nowrap max-w-xs truncate" title="${String(val).replace(/<[^>]*>?/gm, '')}">${val}</td>`;
             });
             
+            // 🌟 ปุ่มในคอลัมน์ Actions (รวมโคลน)
             html += `<td class="px-6 py-4 text-sm font-medium space-x-3 whitespace-nowrap text-center">
                 <button onclick="window.openModal('edit', '${collectionName}', '${id}')" class="text-indigo-600 hover:text-indigo-900 dark:text-indigo-400 dark:hover:text-indigo-300" title="Edit"><i class="fas fa-edit"></i></button>
                 <button onclick="window.openCloneModal('${collectionName}', '${id}')" class="text-blue-600 hover:text-blue-900 dark:text-blue-400 dark:hover:text-blue-300" title="Clone"><i class="fas fa-copy"></i></button>
@@ -1191,30 +1140,10 @@ document.addEventListener('change', (e) => {
     }
 });
 
-// 🌟 บันทึกการแก้ไข (Single Edit) โดยป้องกันปัญหา Mismatch
 window.saveData = async function() {
-    const form = document.getElementById('editForm');
-    const formData = new FormData(form);
-    const data = {};
-    
-    // วนลูปเก็บค่าจากฟอร์ม
-    for (let [key, value] of formData.entries()) {
-        const val = value.toString().trim();
-        const fieldDef = AVAILABLE_FIELDS.find(f => f.id === key);
-        
-        // แปลงชนิดข้อมูลให้ถูกต้อง ป้องกันไม่ให้ MongoDB ปฏิเสธการอัปเดต
-        if (fieldDef && fieldDef.type === 'number') {
-            data[key] = val === '' ? null : Number(val);
-        } else {
-            data[key] = val;
-        }
-    }
-
+    const formData = new FormData(document.getElementById('editForm'));
+    const data = Object.fromEntries(formData.entries());
     const { mode, collection, id } = currentEdit;
-
-    // เช็คความถูกต้องพื้นฐาน
-    if (!collection) return showNotificationModal('warning', 'ข้อผิดพลาด', 'ไม่พบชื่อหมวดหมู่อุปกรณ์');
-    if (mode === 'edit' && !id) return showNotificationModal('warning', 'ข้อผิดพลาด', 'ไม่พบรหัสอุปกรณ์ (ID) สำหรับการแก้ไข');
 
     const statusInput = document.getElementById('edit-Status');
     const fileInput = document.getElementById('disposalFileInput');
@@ -1223,51 +1152,31 @@ window.saveData = async function() {
     if (statusInput && statusInput.value === 'Disposed') {
         if (fileInput && fileInput.files.length > 0) {
             const file = fileInput.files[0];
-            if (file.size > 2 * 1024 * 1024) return showNotificationModal('warning', 'ข้อผิดพลาด', 'ไฟล์เอกสารต้องมีขนาดไม่เกิน 2MB');
-            try { 
-                data.DisposalEvidence = await convertFileToBase64(file); 
-                data.DisposalDate = new Date().toISOString(); 
-            } 
-            catch (err) { return showNotificationModal('warning', 'ข้อผิดพลาด', 'เกิดข้อผิดพลาดในการอ่านไฟล์แนบ'); }
+            if (file.size > 2 * 1024 * 1024) return alert("ไฟล์เอกสารต้องมีขนาดไม่เกิน 2MB");
+            try { data.DisposalEvidence = await convertFileToBase64(file); data.DisposalDate = new Date().toISOString(); } 
+            catch (err) { return alert("เกิดข้อผิดพลาดในการอ่านไฟล์"); }
         } 
-        else if (hiddenBase64 && hiddenBase64.value) {
-            data.DisposalEvidence = hiddenBase64.value;
-        }
+        else if (hiddenBase64 && hiddenBase64.value) data.DisposalEvidence = hiddenBase64.value;
         else {
             if (!confirm("คุณกำลังเปลี่ยนสถานะเป็น 'Disposed' แต่ไม่ได้แนบเอกสาร ต้องการดำเนินการต่อหรือไม่?")) return;
             data.DisposalDate = new Date().toISOString();
         }
     } else if (statusInput && statusInput.value !== 'Disposed') {
-        data.DisposalEvidence = null; 
-        data.DisposalDate = null;
+        data.DisposalEvidence = null; data.DisposalDate = null;
     }
 
     try {
-        let response;
-        if (mode === 'edit') {
-            // เข้ารหัส URL ป้องกันช่องว่างหรืออักขระพิเศษใน ID ที่ทำให้ URL ผิดพลาด
-            response = await apiRequest(`/api/inventory/${encodeURIComponent(collection)}/${encodeURIComponent(id)}`, 'PUT', data);
-        } else {
-            response = await apiRequest(`/api/inventory/${encodeURIComponent(collection)}`, 'POST', data);
-        }
-        
-        window.hideModal('editModal'); 
-        
-        // บังคับให้โหลดข้อมูลใหม่ทั้งหมด
-        await refreshAllData(); 
-        window.buildTable(collection); 
-        window.updateDashboard(currentDashboardFolder);
-
-        showNotificationModal('success', 'บันทึกสำเร็จ', response?.message || 'อัปเดตข้อมูลในระบบเรียบร้อยแล้ว');
-    } catch (error) { 
-        showNotificationModal('warning', 'บันทึกไม่สำเร็จ', error.message); 
-    }
+        if (mode === 'edit') await apiRequest(`/api/inventory/${collection}/${id}`, 'PUT', data);
+        else await apiRequest(`/api/inventory/${collection}`, 'POST', data);
+        showNotificationModal('success', 'Success', `Data saved successfully.`);
+        window.hideModal('editModal'); await refreshAllData(); window.buildTable(collection); window.updateDashboard(currentDashboardFolder);
+    } catch (error) { showNotificationModal('warning', 'Save Failed', error.message); }
 };
 
 window.deleteItem = async function(collectionName, id) {
     if (confirm(`Are you sure you want to delete this item?`)) {
         try {
-            await apiRequest(`/api/inventory/${encodeURIComponent(collectionName)}/${encodeURIComponent(id)}`, 'DELETE');
+            await apiRequest(`/api/inventory/${collectionName}/${id}`, 'DELETE');
             showNotificationModal('success', 'Deleted', 'The item has been deleted.');
             await refreshAllData(); window.buildTable(collectionName); window.updateDashboard(currentDashboardFolder);
         } catch (error) {}
@@ -1674,7 +1583,7 @@ window.saveStaffChanges = async function() {
     window.hideModal('editStaffModal'); await refreshAllData(); window.renderStaffTable();
 };
 
-window.deleteStaff = async function(id) { if(confirm("Delete this staff?")) { await apiRequest(`/api/staff/${encodeURIComponent(id)}`, 'DELETE'); await refreshAllData(); window.renderStaffTable(); } };
+window.deleteStaff = async function(id) { if(confirm("Delete this staff?")) { await apiRequest(`/api/staff/${id}`, 'DELETE'); await refreshAllData(); window.renderStaffTable(); } };
 
 window.buildAdminManagementPage = function() {
     const page = document.getElementById('adminmanagement-page');
@@ -1737,7 +1646,7 @@ window.processCsvImport = function() {
     Papa.parse(file, { header: true, skipEmptyLines: true, encoding: document.getElementById('csvEncoding').value, complete: async (results) => {
         try {
             if(results.data.length === 0) throw new Error("Empty CSV");
-            await apiRequest(`/api/inventory/${encodeURIComponent(currentImportCollection)}/bulk`, 'POST', results.data);
+            await apiRequest(`/api/inventory/${currentImportCollection}/bulk`, 'POST', results.data);
             showNotificationModal('success', 'Imported', `Imported ${results.data.length} items.`);
             window.hideModal('importModal'); refreshAllData();
         } catch (e) { showNotificationModal('warning', 'Error', e.message); }
@@ -2131,7 +2040,7 @@ window.processRapidEntry = async function(serial) {
     logEl.insertAdjacentHTML('afterbegin', `<div id="${logId}" class="text-sm text-gray-500 flex justify-between items-center bg-white dark:bg-gray-800 p-3 rounded-lg shadow-sm border border-gray-100 dark:border-gray-700 mb-2"><span class="font-mono dark:text-gray-200">${serial}</span><span class="text-yellow-500"><i class="fas fa-spinner fa-spin"></i> Saving...</span></div>`);
 
     try {
-        await apiRequest(`/api/inventory/${encodeURIComponent(col)}`, 'POST', payload);
+        await apiRequest(`/api/inventory/${col}`, 'POST', payload);
         document.getElementById(logId).innerHTML = `<span class="font-mono text-gray-800 dark:text-gray-200">${serial}</span><span class="text-green-500 font-bold"><i class="fas fa-check-circle"></i> Success</span>`;
     } catch (error) {
         document.getElementById(logId).innerHTML = `<span class="font-mono text-red-500">${serial}</span><span class="text-red-500 font-bold" title="${error.message}"><i class="fas fa-times-circle"></i> Failed</span>`;
@@ -2169,7 +2078,7 @@ window.processClone = async function() {
     }
     
     try {
-        await apiRequest(`/api/inventory/${encodeURIComponent(collectionName)}/clone-bulk`, 'POST', {
+        await apiRequest(`/api/inventory/${collectionName}/clone-bulk`, 'POST', {
             sourceId: sourceId,
             serialNumbers: serialNumbers
         });
