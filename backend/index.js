@@ -25,13 +25,19 @@ const API_SECRET_KEY = "KAAOM321A";
 
 let db;
 
-// 🌟 ฟังก์ชันป้องกัน Error กรณี ID ของอุปกรณ์ไม่ได้เป็นแบบ 24 ตัวอักษร (เช่น นำเข้าจาก CSV)
+// 🌟 ฟังก์ชันป้องกัน Error และครอบคลุม ID ทุกรูปแบบ (ObjectId, String _id, String id)
 const safeObjectId = (id) => {
-    try {
-        return new ObjectId(id);
-    } catch (error) {
-        return id; // ถ้าแปลงเป็น ObjectId ไม่ได้ ให้คืนค่าเป็น String ปกติกลับไป
-    }
+    try { return new ObjectId(id); } 
+    catch (error) { return id; }
+};
+
+const buildIdQuery = (id) => {
+    return { $or: [ { _id: safeObjectId(id) }, { _id: id }, { id: id } ] };
+};
+
+const buildBulkIdQuery = (ids) => {
+    const objectIds = ids.map(id => safeObjectId(id));
+    return { $or: [ { _id: { $in: objectIds } }, { _id: { $in: ids } }, { id: { $in: ids } } ] };
 };
 
 // --- Connect to MongoDB ---
@@ -111,7 +117,7 @@ app.get('/api/admins/list', verifyToken, async (req, res) => {
 app.delete('/api/admins/delete', verifyToken, async (req, res) => {
     if (!db) return res.status(500).json({ message: "Database not connected" });
     try {
-        await db.collection('admins').deleteOne({ _id: safeObjectId(req.body.uid) });
+        await db.collection('admins').deleteOne(buildIdQuery(req.body.uid));
         res.json({ message: "Admin deleted" });
     } catch (error) { res.status(500).json({ message: error.message }); }
 });
@@ -195,7 +201,7 @@ app.post('/api/relay/heartbeat', verifyApiKey, async (req, res) => {
         if (!devices || !Array.isArray(devices)) return res.status(400).json({ message: "Invalid payload" });
         const now = new Date();
         for (const dev of devices) {
-            await db.collection(dev.collection).updateOne({ _id: safeObjectId(dev.id) }, { $set: { lastSeenOnline: now } });
+            await db.collection(dev.collection).updateOne(buildIdQuery(dev.id), { $set: { lastSeenOnline: now } });
         }
         res.status(200).json({ message: `Updated ${devices.length} devices.` });
     } catch (error) { res.status(500).json({ error: error.message }); }
@@ -246,7 +252,7 @@ app.put('/api/inventory/:collection/:id', verifyToken, async (req, res) => {
     if (!db) return res.status(500).json({ message: "Database not connected" });
     try {
         const data = req.body; delete data._id; 
-        await db.collection(req.params.collection).updateOne({ _id: safeObjectId(req.params.id) }, { $set: data });
+        await db.collection(req.params.collection).updateOne(buildIdQuery(req.params.id), { $set: data });
         res.json({ message: "Updated successfully" });
     } catch (error) { res.status(500).json({ message: error.message }); }
 });
@@ -254,12 +260,12 @@ app.put('/api/inventory/:collection/:id', verifyToken, async (req, res) => {
 app.delete('/api/inventory/:collection/:id', verifyToken, async (req, res) => {
     if (!db) return res.status(500).json({ message: "Database not connected" });
     try {
-        await db.collection(req.params.collection).deleteOne({ _id: safeObjectId(req.params.id) });
+        await db.collection(req.params.collection).deleteOne(buildIdQuery(req.params.id));
         res.json({ message: "Deleted successfully" });
     } catch (error) { res.status(500).json({ message: error.message }); }
 });
 
-// 🌟 Bulk Operations (แก้ไขระบบ ID ให้ปลอดภัย)
+// 🌟 Bulk Operations
 app.post('/api/inventory/:collection/bulk', verifyToken, async (req, res) => {
     if (!db) return res.status(500).json({ message: "Database not connected" });
     try {
@@ -277,9 +283,8 @@ app.post('/api/inventory/:collection/bulk-delete', verifyToken, async (req, res)
         const { ids } = req.body;
         if (!Array.isArray(ids) || ids.length === 0) return res.status(400).json({ message: "Invalid payload" });
         
-        const objectIds = ids.map(id => safeObjectId(id));
-        await db.collection(req.params.collection).deleteMany({ _id: { $in: objectIds } });
-        res.status(200).json({ message: `Deleted ${ids.length} items` });
+        await db.collection(req.params.collection).deleteMany(buildBulkIdQuery(ids));
+        res.status(200).json({ message: `Deleted items successfully` });
     } catch (error) { res.status(500).json({ message: error.message }); }
 });
 
@@ -289,12 +294,11 @@ app.put('/api/inventory/:collection/bulk-update', verifyToken, async (req, res) 
         const { ids, updateData } = req.body;
         if (!Array.isArray(ids) || ids.length === 0 || !updateData) return res.status(400).json({ message: "Invalid payload" });
         
-        const objectIds = ids.map(id => safeObjectId(id));
         await db.collection(req.params.collection).updateMany(
-            { _id: { $in: objectIds } },
+            buildBulkIdQuery(ids),
             { $set: updateData }
         );
-        res.status(200).json({ message: `Updated ${ids.length} items` });
+        res.status(200).json({ message: `Updated items successfully` });
     } catch (error) { res.status(500).json({ message: error.message }); }
 });
 
@@ -304,7 +308,7 @@ app.post('/api/inventory/:collection/clone-bulk', verifyToken, async (req, res) 
         const { sourceId, serialNumbers, overrides } = req.body;
         if (!sourceId || !serialNumbers || !Array.isArray(serialNumbers)) return res.status(400).json({ message: "Invalid payload" });
 
-        const sourceDevice = await db.collection(req.params.collection).findOne({ _id: safeObjectId(sourceId) });
+        const sourceDevice = await db.collection(req.params.collection).findOne(buildIdQuery(sourceId));
         if (!sourceDevice) return res.status(404).json({ message: "Source device not found." });
 
         delete sourceDevice._id;
@@ -337,7 +341,7 @@ app.get('/api/inventory/find/:sn', async (req, res) => {
             if (skipKeys.includes(col.name)) continue;
 
             const item = await db.collection(col.name).findOne({
-                $or: [ { SerialNumber: sn }, { MonitorSerial: sn }, { _id: (sn.length === 24 ? safeObjectId(sn) : null) } ]
+                $or: [ { SerialNumber: sn }, { MonitorSerial: sn }, { _id: safeObjectId(sn) }, { _id: sn }, { id: sn } ]
             });
             if (item) return res.json({ item, collectionName: col.name });
         }
@@ -356,7 +360,7 @@ app.post('/api/transactions/handover', verifyToken, async (req, res) => {
             const colName = device.collection;
             const deviceId = device._id || device.id;
             if (!colName || !deviceId) continue;
-            await db.collection(colName).updateOne({ _id: safeObjectId(deviceId) }, { $set: { Status: 'Active', UserName: staffUserName } });
+            await db.collection(colName).updateOne(buildIdQuery(deviceId), { $set: { Status: 'Active', UserName: staffUserName } });
         }
 
         await db.collection('TransactionHistory').insertOne({
@@ -377,7 +381,7 @@ app.post('/api/transactions/return', verifyToken, async (req, res) => {
             const colName = device.collection;
             const deviceId = device.id || device._id;
             if (!colName || !deviceId) continue;
-            await db.collection(colName).updateOne({ _id: safeObjectId(deviceId) }, { $set: { Status: 'Storage', UserName: '' } });
+            await db.collection(colName).updateOne(buildIdQuery(deviceId), { $set: { Status: 'Storage', UserName: '' } });
         }
 
         await db.collection('TransactionHistory').insertOne({
@@ -410,7 +414,7 @@ app.post('/api/loans/submit', async (req, res) => {
 
         const loanGroupId = "GRP-" + Date.now().toString().slice(-6);
         for (const item of items) {
-            await db.collection(item.deviceType).updateOne({ _id: safeObjectId(item.deviceId) }, { $set: { Status: 'On Loan', UserName: borrowerName } });
+            await db.collection(item.deviceType).updateOne(buildIdQuery(item.deviceId), { $set: { Status: 'On Loan', UserName: borrowerName } });
             await db.collection('LoanHistory').insertOne({
                 LoanGroupID: loanGroupId, DeviceId: item.deviceId, DeviceSerial: item.deviceSerial, DeviceType: item.deviceType,
                 BorrowerName: borrowerName, LoanDate: new Date(), DueDate: dueDate, Notes: notes, Status: 'On Loan'
@@ -428,7 +432,7 @@ app.get('/api/loans/group/:id', async (req, res) => {
 
         const devicesInfo = [];
         for (const item of loanItems) {
-            const device = await db.collection(item.DeviceType).findOne({ _id: safeObjectId(item.DeviceId) });
+            const device = await db.collection(item.DeviceType).findOne(buildIdQuery(item.DeviceId));
             if (device) devicesInfo.push(device);
         }
         res.status(200).json({ loanItems, devices: devicesInfo });
@@ -442,10 +446,10 @@ app.post('/api/loans/return', async (req, res) => {
         if (!transactionIds || !transactionIds.length) return res.status(400).json({ message: "Missing transactionIds" });
 
         for (const id of transactionIds) {
-            const loanRecord = await db.collection('LoanHistory').findOne({ _id: safeObjectId(id) });
+            const loanRecord = await db.collection('LoanHistory').findOne(buildIdQuery(id));
             if (loanRecord && loanRecord.Status === 'On Loan') {
-                await db.collection(loanRecord.DeviceType).updateOne({ _id: safeObjectId(loanRecord.DeviceId) }, { $set: { Status: 'Storage', UserName: '' } });
-                await db.collection('LoanHistory').updateOne({ _id: safeObjectId(id) }, { $set: { Status: 'Returned', ReturnDate: new Date() } });
+                await db.collection(loanRecord.DeviceType).updateOne(buildIdQuery(loanRecord.DeviceId), { $set: { Status: 'Storage', UserName: '' } });
+                await db.collection('LoanHistory').updateOne(buildIdQuery(id), { $set: { Status: 'Returned', ReturnDate: new Date() } });
             }
         }
         res.status(200).json({ message: "Return processed successfully" });
@@ -487,12 +491,12 @@ app.post('/api/staff', verifyToken, async (req, res) => {
 
 app.put('/api/staff/:id', verifyToken, async (req, res) => {
     if (!db) return res.status(500).json({ message: "Database not connected" });
-    try { const d = req.body; delete d._id; await db.collection('Staff').updateOne({ _id: safeObjectId(req.params.id) }, { $set: d }); res.json({ message: "Staff updated" }); } catch (error) { res.status(500).json({ message: error.message }); }
+    try { const d = req.body; delete d._id; await db.collection('Staff').updateOne(buildIdQuery(req.params.id), { $set: d }); res.json({ message: "Staff updated" }); } catch (error) { res.status(500).json({ message: error.message }); }
 });
 
 app.delete('/api/staff/:id', verifyToken, async (req, res) => {
     if (!db) return res.status(500).json({ message: "Database not connected" });
-    try { await db.collection('Staff').deleteOne({ _id: safeObjectId(req.params.id) }); res.json({ message: "Staff deleted" }); } catch (error) { res.status(500).json({ message: error.message }); }
+    try { await db.collection('Staff').deleteOne(buildIdQuery(req.params.id)); res.json({ message: "Staff deleted" }); } catch (error) { res.status(500).json({ message: error.message }); }
 });
 
 app.post('/api/inventory/maintenance', verifyToken, async (req, res) => {
