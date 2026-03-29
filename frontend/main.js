@@ -1,6 +1,6 @@
 // ===================================================================
 // Frontend Logic for IT Inventory System (Full Complete Version)
-// CLEANED & DEDUPLICATED VERSION + BULK CLONE FEATURE + DRILL-DOWN DASHBOARD
+// FEATURES: Bulk Clone, Dynamic Bulk Edit, Drill-down Dashboard, Rapid Scan
 // ===================================================================
 
 // 🌟 ล็อก URL ไปที่เซิร์ฟเวอร์บน Cloud ของคุณ 100%
@@ -70,7 +70,7 @@ let collectionConfigs = {};
 let currentRapidCollection = null;
 let currentLabelItems = []; 
 let currentLabelCategory = null;
-let currentDashboardFolder = null; // 🌟 ตัวแปรใหม่สำหรับจำหน้าโฟลเดอร์ Dashboard
+let currentDashboardFolder = null; // สำหรับจำสถานะหน้า Dashboard
 
 // ==========================================
 // 1. Initialization & Core Logic
@@ -108,7 +108,7 @@ async function initializeAppLogic() {
         
         if (refreshIntervalId) clearInterval(refreshIntervalId);
         
-        // 🌟 แยกระบบรีเฟรชหน้าจอ (ดึงข้อมูลล่าสุด) ให้ทำงานทุกๆ 5 นาทีแทน
+        // รีเฟรชข้อมูลเบื้องหลังทุกๆ 5 นาที (ลดภาระเซิร์ฟเวอร์)
         refreshIntervalId = setInterval(async () => { 
             await refreshAllData();
             const visiblePage = document.querySelector('.page-content.active');
@@ -351,40 +351,6 @@ function initPrintStyles() {
     document.head.appendChild(style);
 }
 
-// --- PERIODIC PING FUNCTION (SILENT) ---
-async function runPeriodicPing() {
-    const pingPromises = [];
-    const token = localStorage.getItem('authToken');
-    const headers = token ? { 'Authorization': `Bearer ${token}` } : {};
-
-    Object.keys(collectionConfigs).forEach(colName => {
-        const items = allData[colName] || [];
-        const config = collectionConfigs[colName];
-        
-        const hasIP = config.formFields.includes('IPAddress');
-        const isComputers = colName === 'Computers';
-        
-        if (hasIP || isComputers) {
-            items.forEach(item => {
-                let target = null;
-                if (item.IPAddress && item.IPAddress !== 'N/A' && item.IPAddress.trim() !== '') {
-                    target = item.IPAddress;
-                } else if (isComputers && item.ComputerName && item.ComputerName.trim() !== '') {
-                    target = item.ComputerName;
-                }
-                
-                if (target) {
-                    pingPromises.push(
-                        fetch(`${API_BASE_URL}/api/ping/${target}?collection=${colName}`, { headers })
-                        .catch(() => null) 
-                    );
-                }
-            });
-        }
-    });
-    await Promise.allSettled(pingPromises);
-}
-
 window.formatTimeAgo = (dateString) => {
     if (!dateString) return "ไม่ทราบ";
     const date = new Date(dateString);
@@ -593,8 +559,7 @@ window.loadPage = function(pageName, navElement) {
         pageDiv.style.display = 'block';
 
         if (pageName === 'Dashboard') {
-            // เมื่อกลับมาหน้า Dashboard ให้โชว์หน้าหลักเสมอ
-            window.updateDashboard(null);
+            window.updateDashboard(null); // เคลียร์หน้าโฟลเดอร์เมื่อกลับมา Dashboard
         }
         else if (pageName === 'LoanHistory') window.buildLoanHistoryCards();
         else if (pageName === 'Maintenance') window.buildMaintenancePage();
@@ -677,7 +642,7 @@ window.renderSettings = function() {
 window.openAddMenuModal = function() {
     const form = document.getElementById('addMenuForm');
     if (form) form.reset();
-    document.getElementById('addMenuModalTitle').textContent = "Create Custom Menu";
+    document.getElementById('addMenuModalTitle').innerHTML = `<i class="fas fa-folder-plus text-indigo-500 mr-2"></i> Create Custom Menu`;
     document.getElementById('editMenuMode').value = "create";
     
     const idInput = document.getElementById('newMenuIdSettings');
@@ -692,7 +657,7 @@ window.openAddMenuModal = function() {
     window.populateParentDropdown();
     
     document.querySelectorAll('.col-checkbox').forEach(cb => { if(!cb.disabled) cb.checked = true; });
-    document.getElementById('addMenuModal').classList.remove('opacity-0', 'pointer-events-none');
+    window.openModalWindow('addMenuModal');
 };
 
 window.openEditMenuModal = function(menuName, event) {
@@ -700,7 +665,7 @@ window.openEditMenuModal = function(menuName, event) {
     const menu = allData.CustomMenus.find(m => m.name === menuName);
     if (!menu) return;
 
-    document.getElementById('addMenuModalTitle').textContent = "Edit Custom Menu";
+    document.getElementById('addMenuModalTitle').innerHTML = `<i class="fas fa-edit text-indigo-500 mr-2"></i> Edit Custom Menu`;
     document.getElementById('editMenuMode').value = "edit";
     document.getElementById('newMenuId').value = menu.name;
     document.getElementById('newMenuId').disabled = true;
@@ -718,8 +683,17 @@ window.openEditMenuModal = function(menuName, event) {
         });
     }
 
-    document.getElementById('addMenuModal').classList.remove('opacity-0', 'pointer-events-none');
+    window.openModalWindow('addMenuModal');
 };
+
+window.openModalWindow = function(modalId) {
+    const modal = document.getElementById(modalId);
+    modal.classList.remove('opacity-0', 'pointer-events-none');
+    if (modal.querySelector('.modal-content')) {
+        modal.querySelector('.modal-content').classList.remove('scale-95');
+        modal.querySelector('.modal-content').classList.add('scale-100');
+    }
+}
 
 window.populateParentDropdown = function(selectedParentId = null) {
     const parentSelect = document.getElementById('newMenuParent');
@@ -798,7 +772,7 @@ window.deleteCustomMenu = async function(menuName, event) {
 };
 
 // ==========================================
-// --- BULK SELECTION & ACTIONS ---
+// --- 🌟 BULK SELECTION & ACTIONS ---
 // ==========================================
 window.toggleSelectAll = function(collectionName, checkbox) {
     const isChecked = checkbox.checked;
@@ -839,49 +813,86 @@ window.bulkDelete = async function(collectionName) {
     } catch (error) { showNotificationModal('warning', 'Bulk Delete Failed', error.message); }
 };
 
+// 🌟 เปิดหน้าต่าง Bulk Edit แบบสร้างช่องกรอกอัตโนมัติตามหมวดหมู่
 window.openBulkEditModal = function(collectionName) {
     const ids = selectedItems[collectionName] || [];
     if (ids.length === 0) return;
     
-    // เคลียร์ค่า input แบบ Manual เพื่อป้องกัน Error ถ้าหาฟอร์มไม่เจอ
-    const statusField = document.getElementById('bulkEditStatus');
-    if(statusField) statusField.value = '';
-    
-    const locationField = document.getElementById('bulkEditLocation');
-    if(locationField) locationField.value = '';
-    
-    const userField = document.getElementById('bulkEditUser');
-    if(userField) userField.value = '';
+    const config = collectionConfigs[collectionName];
+    if (!config) return;
 
     document.getElementById('bulkEditCollection').value = collectionName;
     document.getElementById('bulkEditCount').textContent = ids.length;
     
-    const modal = document.getElementById('bulkEditModal');
-    modal.classList.remove('opacity-0', 'pointer-events-none');
+    const formContainer = document.getElementById('bulkEditDynamicForm');
+    formContainer.innerHTML = ''; 
+
+    let formHtml = '<div class="col-span-full mb-2 p-3 bg-blue-50 dark:bg-blue-900/30 border border-blue-200 dark:border-blue-800 rounded-lg text-sm text-blue-800 dark:text-blue-300"><i class="fas fa-info-circle mr-2"></i><strong>คำแนะนำ:</strong> กรอกเฉพาะช่องที่คุณต้องการแก้ไข ระบบจะ <u>ข้ามช่องที่ปล่อยว่างไว้</u> (ไม่นำไปทับข้อมูลเดิม)</div>';
+    formHtml += '<div class="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-4">';
     
-    // แสดงแอนิเมชันตอนเปิด Popup
-    if (modal.querySelector('.modal-content')) {
-        modal.querySelector('.modal-content').classList.remove('scale-95');
-        modal.querySelector('.modal-content').classList.add('scale-100');
-    }
+    config.formFields.forEach(fieldId => {
+        // ข้ามช่องที่ไม่ควรแก้แบบ Bulk
+        if (fieldId === 'SerialNumber' || fieldId === 'MonitorSerial') return;
+
+        const fieldDef = AVAILABLE_FIELDS.find(f => f.id === fieldId) || { label: fieldId, type: 'text' };
+        const dropdown = config.dropdowns && config.dropdowns[fieldId];
+        
+        formHtml += `<div class="col-span-1 relative">`;
+        formHtml += `<label class="block text-xs font-bold text-gray-600 dark:text-gray-400 mb-1">${fieldDef.label}</label>`;
+        
+        const inputClasses = `bulk-edit-input w-full px-4 py-2.5 bg-white dark:bg-gray-700/50 border border-gray-300 dark:border-gray-600 text-gray-900 dark:text-white text-sm rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-colors shadow-sm`;
+
+        if (dropdown) {
+            formHtml += `<select name="${fieldId}" class="${inputClasses} appearance-none"><option value="">-- ไม่เปลี่ยนแปลง --</option>${dropdown.map(opt => `<option value="${opt}">${opt}</option>`).join('')}</select>`;
+            formHtml += `<div class="pointer-events-none absolute inset-y-0 right-0 top-5 flex items-center px-4 text-gray-500"><i class="fas fa-chevron-down text-xs"></i></div>`;
+        } else if (fieldDef.type === 'date') { 
+            formHtml += `<input type="date" name="${fieldId}" class="${inputClasses}">`; 
+        } else if (fieldDef.type === 'number') {
+            formHtml += `<input type="number" name="${fieldId}" class="${inputClasses}" placeholder="เว้นว่างถ้าไม่ต้องการแก้">`;
+        } else if (fieldDef.type === 'textarea') { 
+            formHtml += `<textarea name="${fieldId}" rows="1" class="${inputClasses}" placeholder="เว้นว่างถ้าไม่ต้องการแก้"></textarea>`;
+        } else { 
+            formHtml += `<input type="text" name="${fieldId}" class="${inputClasses}" placeholder="เว้นว่างถ้าไม่ต้องการแก้">`;
+        }
+        formHtml += `</div>`;
+    });
+    
+    formHtml += '</div>';
+    formContainer.innerHTML = formHtml;
+
+    window.openModalWindow('bulkEditModal');
 };
 
+// 🌟 บันทึก Bulk Edit แบบ Dynamic
 window.saveBulkEdit = async function() {
     const collectionName = document.getElementById('bulkEditCollection').value;
     const ids = selectedItems[collectionName] || [];
     const updateData = {};
-    const status = document.getElementById('bulkEditStatus').value;
-    const location = document.getElementById('bulkEditLocation').value.trim();
-    const user = document.getElementById('bulkEditUser').value.trim();
-    if (status) updateData.Status = status; if (location) updateData.Location = location; if (user !== '') updateData.UserName = user; 
     
-    if (Object.keys(updateData).length === 0) { window.hideModal('bulkEditModal'); return; }
+    document.querySelectorAll('.bulk-edit-input').forEach(input => {
+        const val = input.value.trim();
+        if (val !== '') {
+            updateData[input.name] = val;
+        }
+    });
+    
+    if (Object.keys(updateData).length === 0) { 
+        window.hideModal('bulkEditModal');
+        return showNotificationModal('info', 'ไม่มีการเปลี่ยนแปลง', 'คุณไม่ได้กรอกข้อมูลใดๆ เพื่อแก้ไขระบบจึงยกเลิกคำสั่ง');
+    }
+
     try {
-        await apiRequest(`/api/inventory/${collectionName}/bulk-update`, 'PUT', { ids, updateData });
-        showNotificationModal('success', 'Bulk Update Successful', `Updated ${ids.length} item(s).`);
-        window.hideModal('bulkEditModal'); selectedItems[collectionName] = []; 
-        await refreshAllData(); window.buildTable(collectionName); window.updateDashboard();
-    } catch (error) { showNotificationModal('warning', 'Bulk Update Failed', error.message); }
+        const response = await apiRequest(`/api/inventory/${collectionName}/bulk-update`, 'PUT', { ids, updateData });
+        showNotificationModal('success', 'Bulk Update Successful', response.message || `อัปเดตข้อมูลเรียบร้อยแล้ว`);
+        
+        window.hideModal('bulkEditModal'); 
+        selectedItems[collectionName] = []; 
+        await refreshAllData(); 
+        window.buildTable(collectionName); 
+        window.updateDashboard(currentDashboardFolder);
+    } catch (error) { 
+        showNotificationModal('warning', 'Bulk Update Failed', error.message); 
+    }
 };
 
 // ==========================================
@@ -989,7 +1000,8 @@ window.buildTable = function(collectionName) {
                 }
                 html += `<td class="px-6 py-4 text-sm text-gray-700 dark:text-gray-200 whitespace-nowrap max-w-xs truncate" title="${String(val).replace(/<[^>]*>?/gm, '')}">${val}</td>`;
             });
-            // 🌟 เพิ่มปุ่มโคลน (Clone) เข้าไปในคอลัมน์ Actions
+            
+            // 🌟 ปุ่มในคอลัมน์ Actions (รวมโคลน)
             html += `<td class="px-6 py-4 text-sm font-medium space-x-3 whitespace-nowrap text-center">
                 <button onclick="window.openModal('edit', '${collectionName}', '${id}')" class="text-indigo-600 hover:text-indigo-900 dark:text-indigo-400 dark:hover:text-indigo-300" title="Edit"><i class="fas fa-edit"></i></button>
                 <button onclick="window.openCloneModal('${collectionName}', '${id}')" class="text-blue-600 hover:text-blue-900 dark:text-blue-400 dark:hover:text-blue-300" title="Clone"><i class="fas fa-copy"></i></button>
@@ -1059,7 +1071,7 @@ window.openModal = function(mode, collectionName, id = null) {
         const iconClass = groupIcons[groupName] || 'fa-folder';
 
         formHtml += `
-        <div class="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm overflow-hidden">
+        <div class="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm overflow-hidden mb-4">
             <div class="px-5 py-3 bg-gray-50 dark:bg-gray-900/50 border-b border-gray-200 dark:border-gray-700 flex items-center">
                 <i class="fas ${iconClass} mr-2"></i>
                 <h4 class="text-sm font-bold text-gray-700 dark:text-gray-200 uppercase tracking-wider">${groupName}</h4>
@@ -1116,12 +1128,7 @@ window.openModal = function(mode, collectionName, id = null) {
     if (tabBtn) window.switchModalTab('details', tabBtn);
     window.buildMaintenanceLogInModal(itemData);
     
-    const modal = document.getElementById('editModal');
-    modal.classList.remove('opacity-0', 'pointer-events-none');
-    if (modal.querySelector('.modal-content')) {
-        modal.querySelector('.modal-content').classList.remove('scale-95');
-        modal.querySelector('.modal-content').classList.add('scale-100');
-    }
+    window.openModalWindow('editModal');
 };
 
 document.addEventListener('change', (e) => {
@@ -1177,10 +1184,9 @@ window.deleteItem = async function(collectionName, id) {
 };
 
 // ==========================================
-// --- DASHBOARD (DRILL-DOWN FOLDER MODE) ---
+// --- 🌟 DASHBOARD (DRILL-DOWN FOLDER MODE) ---
 // ==========================================
 window.updateDashboard = function(folderId) {
-    // 🌟 รับค่าโฟลเดอร์ที่ผู้ใช้กดเข้ามา (ถ้าไม่ส่งมา ให้คงค่าเดิม)
     if (folderId !== undefined) {
         currentDashboardFolder = folderId;
     }
@@ -1189,7 +1195,6 @@ window.updateDashboard = function(folderId) {
     const skipKeys = ['Staff', 'CustomMenus', 'TransactionHistory', 'LoanHistory', 'Maintenance Log', 'admins', 'Software'];
     const allItems = [];
 
-    // อัปเดตตัวเลขรวมด้านบน (Top Stats)
     for (const [key, items] of Object.entries(allData)) {
         if (skipKeys.includes(key)) continue;
         if (Array.isArray(items)) allItems.push(...items);
@@ -1216,13 +1221,12 @@ window.updateDashboard = function(folderId) {
     if (overviewGrid) {
         overviewGrid.innerHTML = '';
 
-        // ฟังก์ชันช่วยหาว่าหมวดหมู่นี้มีเมนูย่อย (ลูก) หรือไม่
         const getChildren = (pid) => {
             return (allData.CustomMenus || []).filter(m => m.parentId === pid).map(m => m.name);
         };
 
         if (currentDashboardFolder === null) {
-            // 🌟 กรณีอยู่หน้าแรกสุด (Root Level)
+            // Root Level
             const rootCollections = [];
             Object.keys(collectionConfigs).forEach(colName => {
                 if (colName === 'Software') return;
@@ -1230,7 +1234,6 @@ window.updateDashboard = function(folderId) {
                 const isDefaultRoot = ['Computers', 'Monitors', 'Accessory', 'Printers', 'Network'].includes(colName);
                 const isCustomRoot = menuDef && !menuDef.parentId;
 
-                // ดึงเฉพาะเมนูที่ไม่มีแม่ (เมนูหลัก)
                 if (isDefaultRoot || isCustomRoot) {
                     rootCollections.push(colName);
                 }
@@ -1242,7 +1245,6 @@ window.updateDashboard = function(folderId) {
                 const children = getChildren(colName);
                 const itemCount = (allData[colName] || []).length;
                 
-                // ถ้ามีเมนูย่อย ให้กดแล้วอัปเดตหน้าต่าง (เจาะลึก) | ถ้าไม่มี ให้เปิดหน้าตารางปกติ
                 const action = children.length > 0 ? `window.updateDashboard('${colName}')` : `window.loadPage('${colName}')`;
                 const iconMarker = children.length > 0 ? `<div class="absolute top-2 right-2 text-xs text-indigo-400"><i class="fas fa-folder"></i></div>` : '';
 
@@ -1259,7 +1261,7 @@ window.updateDashboard = function(folderId) {
                     </div>`;
             });
         } else {
-            // 🌟 กรณีเจาะลึกเข้ามาในหมวดหมู่หลักแล้ว (Sub-Level)
+            // Sub-Level (Inside Folder)
             const parentConfig = collectionConfigs[currentDashboardFolder];
             const parentDisplayName = parentConfig ? parentConfig.displayName : currentDashboardFolder;
             const parentItemCount = (allData[currentDashboardFolder] || []).length;
@@ -1267,7 +1269,6 @@ window.updateDashboard = function(folderId) {
             let mDef = (allData.CustomMenus || []).find(m => m.name === currentDashboardFolder);
             const goBackId = mDef && mDef.parentId ? `'${mDef.parentId}'` : `null`;
 
-            // 1. ปุ่ม ย้อนกลับ (Back Button)
             overviewGrid.innerHTML += `
                 <div class="bg-gray-100 dark:bg-gray-700 p-4 rounded-xl shadow-sm border border-gray-200 dark:border-gray-600 flex items-center space-x-3 cursor-pointer hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors transform hover:-translate-y-1" onclick="window.updateDashboard(${goBackId})">
                     <div class="bg-gray-200 dark:bg-gray-600 w-10 h-10 rounded-full flex items-center justify-center shrink-0">
@@ -1279,7 +1280,6 @@ window.updateDashboard = function(folderId) {
                     </div>
                 </div>`;
 
-            // 2. ปุ่มสำหรับเปิดตารางอุปกรณ์ของหมวดหมู่หลักนี้
             overviewGrid.innerHTML += `
                 <div class="bg-indigo-50 dark:bg-indigo-900/30 p-4 rounded-xl shadow-sm border border-indigo-200 dark:border-indigo-700 flex items-center space-x-3 cursor-pointer hover:bg-indigo-100 dark:hover:bg-indigo-800/50 transition-colors transform hover:-translate-y-1" onclick="window.loadPage('${currentDashboardFolder}')">
                     <div class="bg-indigo-200 dark:bg-indigo-800 w-10 h-10 rounded-full flex items-center justify-center shrink-0">
@@ -1291,7 +1291,6 @@ window.updateDashboard = function(folderId) {
                     </div>
                 </div>`;
 
-            // 3. แสดงหมวดหมู่ย่อย (Children)
             const children = getChildren(currentDashboardFolder);
             children.forEach(colName => {
                 const config = collectionConfigs[colName];
@@ -1319,7 +1318,6 @@ window.updateDashboard = function(folderId) {
     const statusCounts = {}; allItems.forEach(i => { statusCounts[i.Status] = (statusCounts[i.Status] || 0) + 1; });
     window.renderStatusChart(statusCounts);
     
-    // 🌟 กราฟแท่ง (Bar Chart) แสดงเฉพาะหมวดหมู่ทั้งหมด ไม่นำยอดมารวมกัน
     const categoryCounts = {}; 
     for (const [key, items] of Object.entries(allData)) {
         if (skipKeys.includes(key)) continue;
@@ -1381,7 +1379,7 @@ window.showNotificationModal = function(type, title, msg) {
     if(type === 'success') icon.innerHTML = '<i class="fas fa-check-circle text-4xl text-green-500"></i>';
     else if(type === 'warning') icon.innerHTML = '<i class="fas fa-exclamation-triangle text-4xl text-yellow-500"></i>';
     else icon.innerHTML = '<i class="fas fa-info-circle text-4xl text-blue-500"></i>';
-    document.getElementById('notificationModal').classList.remove('opacity-0', 'pointer-events-none');
+    window.openModalWindow('notificationModal');
 };
 
 window.hideModal = function(id) { 
@@ -1486,7 +1484,7 @@ window.renderHandoverCart = function() {
         list.innerHTML = handoverCart.map(d => {
             const config = collectionConfigs[d.collection];
             const id = d._id || d.id;
-            return `<div class="p-2 bg-white dark:bg-gray-800 rounded border flex justify-between"><div><p class="font-semibold text-sm">${d[config.nameField]}</p><p class="text-xs text-gray-400">${d[config.serialField]}</p></div><button onclick="window.removeHandoverItem('${id}')" class="text-red-500"><i class="fas fa-times"></i></button></div>`;
+            return `<div class="p-2 bg-white dark:bg-gray-800 rounded border flex justify-between"><div><p class="font-semibold text-sm">${d[config.nameField]}</p><p class="text-xs text-gray-400">${d[config.serialField]}</p></div><button onclick="window.removeHandoverItem('${id}')" class="text-red-500"><i class="fas fa-times"></i></button></div></div>`;
         }).join('');
     }
 };
@@ -1541,11 +1539,14 @@ window.switchHandoverTab = function(tab, btn) {
 window.filterStaffList = function(input, listId) { const term = input.value.toUpperCase(); document.querySelectorAll(`#${listId} .staff-item`).forEach(el => el.style.display = el.textContent.toUpperCase().includes(term) ? '' : 'none'); };
 window.filterDeviceList = function(input, listId) { const term = input.value.toUpperCase(); document.querySelectorAll(`#${listId} .device-item`).forEach(el => el.style.display = el.textContent.toUpperCase().includes(term) ? '' : 'none'); };
 
+// ==========================================
+// --- MANAGEMENT PAGES (STAFF & ADMIN) ---
+// ==========================================
 window.buildStaffManagementPage = function() {
     const page = document.getElementById('staffmanagement-page');
     page.innerHTML = `
-        <div class="flex justify-between items-center mb-6"><h2 class="text-2xl font-bold dark:text-white">Staff Management</h2><button onclick="window.openStaffModal('add')" class="bg-indigo-600 text-white px-4 py-2 rounded">Add Staff</button></div>
-        <div class="bg-white dark:bg-gray-800 rounded shadow overflow-x-auto"><table class="min-w-full"><thead class="bg-gray-50 dark:bg-gray-700"><tr><th class="px-6 py-3 text-left text-xs uppercase text-gray-500">Username</th><th class="px-6 py-3 text-left text-xs uppercase text-gray-500">Name</th><th class="px-6 py-3 text-left text-xs uppercase text-gray-500">Dept</th><th class="px-6 py-3"></th></tr></thead><tbody id="staffTableBody" class="divide-y divide-gray-200 dark:divide-gray-700"></tbody></table></div>`;
+        <div class="flex justify-between items-center mb-6"><h2 class="text-2xl font-bold dark:text-white">Staff Management</h2><button onclick="window.openStaffModal('add')" class="bg-indigo-600 text-white px-4 py-2 rounded-lg font-bold">Add Staff</button></div>
+        <div class="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-100 dark:border-gray-700 overflow-x-auto"><table class="min-w-full"><thead class="bg-gray-50 dark:bg-gray-700"><tr><th class="px-6 py-3 text-left text-xs uppercase text-gray-500 font-semibold">Username</th><th class="px-6 py-3 text-left text-xs uppercase text-gray-500 font-semibold">Name</th><th class="px-6 py-3 text-left text-xs uppercase text-gray-500 font-semibold">Dept</th><th class="px-6 py-3"></th></tr></thead><tbody id="staffTableBody" class="divide-y divide-gray-200 dark:divide-gray-700"></tbody></table></div>`;
     window.renderStaffTable();
 };
 
@@ -1555,16 +1556,15 @@ window.renderStaffTable = function() {
     if(staff.length === 0) tbody.innerHTML = `<tr><td colspan="4" class="text-center p-4 text-gray-500">No staff found.</td></tr>`;
     else tbody.innerHTML = staff.map(s => {
         const id = s._id || s.id;
-        return `<tr><td class="px-6 py-4">${s.UserName}</td><td class="px-6 py-4">${s.FirstName||''} ${s.LastName||''}</td><td class="px-6 py-4">${s.Department||''}</td><td class="px-6 py-4 text-right"><button onclick="window.openStaffModal('edit','${id}')" class="text-indigo-600 mr-2"><i class="fas fa-edit"></i></button><button onclick="window.deleteStaff('${id}')" class="text-red-600"><i class="fas fa-trash"></i></button></td></tr>`;
+        return `<tr><td class="px-6 py-4 font-medium">${s.UserName}</td><td class="px-6 py-4">${s.FirstName||''} ${s.LastName||''}</td><td class="px-6 py-4">${s.Department||''}</td><td class="px-6 py-4 text-right"><button onclick="window.openStaffModal('edit','${id}')" class="text-indigo-600 mr-3"><i class="fas fa-edit"></i></button><button onclick="window.deleteStaff('${id}')" class="text-red-600"><i class="fas fa-trash"></i></button></td></tr>`;
     }).join('');
 };
 
 window.openStaffModal = function(mode, id) {
     currentStaffEdit = { mode, id };
-    const modal = document.getElementById('editStaffModal');
     const form = document.getElementById('editStaffForm');
     form.reset();
-    document.getElementById('editStaffModalTitle').textContent = mode === 'edit' ? 'Edit Staff' : 'Add Staff';
+    document.getElementById('editStaffModalTitle').innerHTML = mode === 'edit' ? '<i class="fas fa-user-edit text-indigo-500 mr-2"></i> Edit Staff' : '<i class="fas fa-user-plus text-indigo-500 mr-2"></i> Add Staff';
     if (mode === 'edit') {
         const s = allData.Staff.find(i => i._id === id || i.id === id);
         if(s) {
@@ -1572,7 +1572,7 @@ window.openStaffModal = function(mode, id) {
             document.getElementById('editStaffLastName').value = s.LastName; document.getElementById('editStaffDepartment').value = s.Department;
         }
     }
-    modal.classList.remove('opacity-0', 'pointer-events-none');
+    window.openModalWindow('editStaffModal');
 };
 
 window.saveStaffChanges = async function() {
@@ -1588,8 +1588,8 @@ window.deleteStaff = async function(id) { if(confirm("Delete this staff?")) { aw
 window.buildAdminManagementPage = function() {
     const page = document.getElementById('adminmanagement-page');
     page.innerHTML = `
-        <div class="flex justify-between items-center mb-6"><h2 class="text-2xl font-bold dark:text-white">Admin Management</h2><button onclick="window.openAddUserModal()" class="bg-indigo-600 text-white px-4 py-2 rounded">Add Admin</button></div>
-        <div class="bg-white dark:bg-gray-800 rounded shadow overflow-x-auto"><table class="min-w-full"><thead class="bg-gray-50 dark:bg-gray-700"><tr><th class="px-6 py-3 text-left text-xs uppercase text-gray-500">Email</th><th class="px-6 py-3 text-left text-xs uppercase text-gray-500">ID</th><th class="px-6 py-3"></th></tr></thead><tbody id="adminTableBody" class="divide-y divide-gray-200 dark:divide-gray-700"><tr><td colspan="3" class="text-center p-4">Loading...</td></tr></tbody></table></div>`;
+        <div class="flex justify-between items-center mb-6"><h2 class="text-2xl font-bold dark:text-white">Admin Management</h2><button onclick="window.openModalWindow('addUserModal')" class="bg-indigo-600 text-white px-4 py-2 rounded-lg font-bold">Add Admin</button></div>
+        <div class="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-100 dark:border-gray-700 overflow-x-auto"><table class="min-w-full"><thead class="bg-gray-50 dark:bg-gray-700"><tr><th class="px-6 py-3 text-left text-xs uppercase text-gray-500 font-semibold">Email</th><th class="px-6 py-3 text-left text-xs uppercase text-gray-500 font-semibold">ID</th><th class="px-6 py-3"></th></tr></thead><tbody id="adminTableBody" class="divide-y divide-gray-200 dark:divide-gray-700"><tr><td colspan="3" class="text-center p-4">Loading...</td></tr></tbody></table></div>`;
     window.renderAdminTable();
 };
 
@@ -1597,12 +1597,14 @@ window.renderAdminTable = async function() {
     const res = await apiRequest('/api/admins/list');
     const tbody = document.getElementById('adminTableBody');
     if(!res || !res.users) return;
-    tbody.innerHTML = res.users.map(u => `<tr><td class="px-6 py-4">${u.email}</td><td class="px-6 py-4 text-xs text-gray-500">${u._id}</td><td class="px-6 py-4 text-right"><button onclick="window.deleteAdmin('${u._id}')" class="text-red-600"><i class="fas fa-trash"></i></button></td></tr>`).join('');
+    tbody.innerHTML = res.users.map(u => `<tr><td class="px-6 py-4 font-medium">${u.email}</td><td class="px-6 py-4 text-xs text-gray-500">${u._id}</td><td class="px-6 py-4 text-right"><button onclick="window.deleteAdmin('${u._id}')" class="text-red-600"><i class="fas fa-trash"></i></button></td></tr>`).join('');
 };
 
-window.openAddUserModal = function() { document.getElementById('addUserModal').classList.remove('opacity-0', 'pointer-events-none'); };
 window.deleteAdmin = async function(id) { if(confirm("Delete admin?")) { await apiRequest('/api/admins/delete', 'DELETE', { uid: id }); window.renderAdminTable(); } };
 
+// ==========================================
+// --- IMPORT & MAINTENANCE ---
+// ==========================================
 window.buildMaintenanceLogInModal = function(item) {
     const list = document.getElementById('maintenanceLogList');
     if(!list) return;
@@ -1623,10 +1625,10 @@ window.addMaintenanceLog = function() {
 
 window.openImportModal = function(collectionName) {
     currentImportCollection = collectionName;
-    document.getElementById('importModalTitle').textContent = `Import CSV to ${collectionName}`;
+    document.getElementById('importModalTitle').innerHTML = `<i class="fas fa-file-import text-green-500 mr-2"></i> Import CSV to ${collectionName}`;
     const config = collectionConfigs[collectionName];
     if (config) document.getElementById('importHeadersExample').textContent = config.formFields.join(', ');
-    document.getElementById('importModal').classList.remove('opacity-0', 'pointer-events-none');
+    window.openModalWindow('importModal');
 };
 
 window.downloadCsvTemplate = function() {
@@ -1657,7 +1659,7 @@ window.processCsvImport = function() {
 window.showQrModal = function(sn, name) {
     document.getElementById('qrModalTitle').innerText = name;
     QRCode.toCanvas(document.getElementById('qrCanvas'), `${window.location.origin}/details.html?sn=${sn}`, { width: 200 });
-    document.getElementById('qrModal').classList.remove('opacity-0', 'pointer-events-none');
+    window.openModalWindow('qrModal');
 };
 
 window.buildLoanHistoryCards = function() {
@@ -1711,9 +1713,7 @@ window.buildLoanHistoryCards = function() {
         const canvas = document.getElementById(`qr-loan-${g.LoanGroupID}`);
         if (canvas) {
             const returnUrl = `${window.location.origin}/return.html?id=${g.LoanGroupID}`;
-            QRCode.toCanvas(canvas, returnUrl, { width: 140, margin: 1, color: { dark: '#000000', light: '#ffffff' } }, function(error) {
-                if (error) console.error("Error generating Loan QR", error);
-            });
+            QRCode.toCanvas(canvas, returnUrl, { width: 140, margin: 1, color: { dark: '#000000', light: '#ffffff' } });
         }
     });
 };
@@ -1726,14 +1726,9 @@ window.copyLoanLink = function(loanId) {
     textArea.select();
     try {
         document.execCommand("copy");
-        if(typeof showNotificationModal === 'function') {
-            showNotificationModal('success', 'คัดลอกลิงก์แล้ว', 'สามารถนำลิงก์นี้ไปส่งให้ผู้ยืมผ่าน Line/Chat เพื่อกดทำรายการคืนได้ทันที');
-        } else {
-            alert('คัดลอกลิงก์แล้ว: ' + url);
-        }
+        showNotificationModal('success', 'คัดลอกลิงก์แล้ว', 'สามารถนำลิงก์นี้ไปส่งให้ผู้ยืมผ่าน Line/Chat เพื่อกดทำรายการคืนได้ทันที');
     } catch (err) {
-        if(typeof showNotificationModal === 'function') showNotificationModal('warning', 'ผิดพลาด', 'ไม่สามารถคัดลอกลิงก์ได้');
-        else alert('ไม่สามารถคัดลอกลิงก์ได้');
+        showNotificationModal('warning', 'ผิดพลาด', 'ไม่สามารถคัดลอกลิงก์ได้');
     }
     document.body.removeChild(textArea);
 };
@@ -2001,22 +1996,15 @@ window.openRapidEntryModal = function(collectionName) {
     document.getElementById('rapidScanInput').value = '';
     document.getElementById('rapidScanLog').innerHTML = '';
     
-    modal.classList.remove('opacity-0', 'pointer-events-none');
-    modal.querySelector('.modal-content').classList.remove('scale-95');
-    modal.querySelector('.modal-content').classList.add('scale-100');
-    
+    window.openModalWindow('rapidEntryModal');
     setTimeout(() => document.getElementById('rapidScanInput').focus(), 100);
 };
 
 window.closeRapidEntryModal = async function() {
-    const modal = document.getElementById('rapidEntryModal');
-    modal.classList.add('opacity-0', 'pointer-events-none');
-    modal.querySelector('.modal-content').classList.remove('scale-100');
-    modal.querySelector('.modal-content').classList.add('scale-95');
-    
+    window.hideModal('rapidEntryModal');
     await refreshAllData();
     window.buildTable(window.currentRapidCollection);
-    window.updateDashboard();
+    window.updateDashboard(currentDashboardFolder);
 };
 
 window.handleRapidScan = async function(event) {
@@ -2075,10 +2063,7 @@ window.openCloneModal = function(collectionName, id) {
     document.getElementById('cloneSourceId').value = id;
     document.getElementById('cloneSerialNumbers').value = '';
     
-    const modal = document.getElementById('cloneModal');
-    modal.classList.remove('opacity-0', 'pointer-events-none');
-    modal.querySelector('.modal-content').classList.remove('scale-95');
-    modal.querySelector('.modal-content').classList.add('scale-100');
+    window.openModalWindow('cloneModal');
 };
 
 window.processClone = async function() {
@@ -2086,7 +2071,6 @@ window.processClone = async function() {
     const sourceId = document.getElementById('cloneSourceId').value;
     const serialsText = document.getElementById('cloneSerialNumbers').value;
     
-    // ดึง SN และตัดช่องว่าง, ลบบรรทัดว่างทิ้ง
     const serialNumbers = serialsText.split('\n').map(s => s.trim()).filter(s => s !== '');
     
     if (serialNumbers.length === 0) {
@@ -2103,7 +2087,7 @@ window.processClone = async function() {
         window.hideModal('cloneModal');
         await refreshAllData();
         window.buildTable(collectionName);
-        window.updateDashboard();
+        window.updateDashboard(currentDashboardFolder);
     } catch (error) {
         showNotificationModal('warning', 'การโคลนล้มเหลว', error.message);
     }
