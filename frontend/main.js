@@ -868,7 +868,8 @@ window.openBulkEditModal = function(collectionName) {
         formHtml += `<div class="col-span-1 relative">`;
         formHtml += `<label class="block text-xs font-bold text-gray-600 dark:text-gray-400 mb-1">${fieldDef.label}</label>`;
         
-        const inputClasses = `w-full px-4 py-2.5 bg-white dark:bg-gray-700/50 border border-gray-300 dark:border-gray-600 text-gray-900 dark:text-white text-sm rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-colors shadow-sm`;
+        // 🌟 ใส่ name attribute เพื่อให้สามารถดึงข้อมูลได้แม่นยำ
+        const inputClasses = `bulk-edit-input w-full px-4 py-2.5 bg-white dark:bg-gray-700/50 border border-gray-300 dark:border-gray-600 text-gray-900 dark:text-white text-sm rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-colors shadow-sm`;
 
         if (dropdown) {
             formHtml += `<select name="${fieldId}" class="${inputClasses} appearance-none"><option value="">-- ไม่เปลี่ยนแปลง --</option>${dropdown.map(opt => `<option value="${opt}">${opt}</option>`).join('')}</select>`;
@@ -891,7 +892,7 @@ window.openBulkEditModal = function(collectionName) {
     window.openModalWindow('bulkEditModal');
 };
 
-// 🌟 บันทึก Bulk Edit แบบ Dynamic และปลอดภัย 100%
+// 🌟 บันทึก Bulk Edit โดยดึงค่าตรงจาก class ไม่พึ่งพาแท็ก <form> ป้องกัน Error
 window.saveBulkEdit = async function() {
     const collectionName = document.getElementById('bulkEditCollection').value;
     
@@ -904,13 +905,15 @@ window.saveBulkEdit = async function() {
         return showNotificationModal('warning', 'ข้อผิดพลาด', 'กรุณาเลือกอุปกรณ์อย่างน้อย 1 ชิ้นเพื่อแก้ไขข้อมูล');
     }
 
-    const form = document.getElementById('bulkEditDynamicForm');
-    const formData = new FormData(form);
     const updateData = {};
     
-    for (let [key, value] of formData.entries()) {
-        const val = value.toString().trim();
-        if (val !== '') {
+    // 🌟 ดึงข้อมูลโดยตรงจาก Input แต่ละช่อง โดยอิงจาก name attribute
+    const inputs = document.querySelectorAll('#bulkEditModal .bulk-edit-input');
+    inputs.forEach(input => {
+        const key = input.getAttribute('name');
+        const val = input.value.trim();
+
+        if (key && val !== '') {
             const fieldDef = AVAILABLE_FIELDS.find(f => f.id === key);
             if (fieldDef && fieldDef.type === 'number') {
                 updateData[key] = Number(val);
@@ -918,7 +921,7 @@ window.saveBulkEdit = async function() {
                 updateData[key] = val;
             }
         }
-    }
+    });
     
     if (Object.keys(updateData).length === 0) { 
         window.hideModal('bulkEditModal');
