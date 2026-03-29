@@ -25,19 +25,51 @@ const API_SECRET_KEY = "KAAOM321A";
 
 let db;
 
-// 🌟 ฟังก์ชันป้องกัน Error และครอบคลุม ID ทุกรูปแบบ (ObjectId, String _id, String id)
-const safeObjectId = (id) => {
-    try { return new ObjectId(id); } 
-    catch (error) { return id; }
+// 🌟 ฟังก์ชันป้องกัน Error และครอบคลุม ID ทุกรูปแบบอย่างเข้มงวด (Fixed Bulk Edit Issue)
+const isValidObjectId = (id) => {
+    if (!id) return false;
+    // บังคับว่าถ้าเป็น string ต้องมีความยาว 24 ตัวอักษรและเป็น hex เท่านั้น
+    if (typeof id === 'string') {
+        return id.length === 24 && /^[0-9a-fA-F]{24}$/.test(id);
+    }
+    return ObjectId.isValid(id);
 };
 
 const buildIdQuery = (id) => {
-    return { $or: [ { _id: safeObjectId(id) }, { _id: id }, { id: id } ] };
+    if (isValidObjectId(id)) {
+        return { $or: [{ _id: new ObjectId(id) }, { _id: id }, { id: id }] };
+    }
+    return { $or: [{ _id: id }, { id: id }] };
 };
 
 const buildBulkIdQuery = (ids) => {
-    const objectIds = ids.map(id => safeObjectId(id));
-    return { $or: [ { _id: { $in: objectIds } }, { _id: { $in: ids } }, { id: { $in: ids } } ] };
+    const validObjIds = [];
+    const stringIds = [];
+
+    ids.forEach(id => {
+        if (isValidObjectId(id)) {
+            validObjIds.push(new ObjectId(id));
+        }
+        if (typeof id === 'string') {
+            stringIds.push(id);
+        } else if (id && id.toString) {
+            stringIds.push(id.toString());
+        }
+    });
+
+    const orConditions = [];
+    if (validObjIds.length > 0) {
+        orConditions.push({ _id: { $in: validObjIds } });
+    }
+    if (stringIds.length > 0) {
+        orConditions.push({ _id: { $in: stringIds } });
+        orConditions.push({ id: { $in: stringIds } });
+    }
+
+    // กันเหนียวกรณีไม่ได้ส่ง ID มาเลย
+    if (orConditions.length === 0) return { _id: null }; 
+
+    return { $or: orConditions };
 };
 
 // --- Connect to MongoDB ---
@@ -283,8 +315,8 @@ app.post('/api/inventory/:collection/bulk-delete', verifyToken, async (req, res)
         const { ids } = req.body;
         if (!Array.isArray(ids) || ids.length === 0) return res.status(400).json({ message: "Invalid payload" });
         
-        await db.collection(req.params.collection).deleteMany(buildBulkIdQuery(ids));
-        res.status(200).json({ message: `Deleted items successfully` });
+        const result = await db.collection(req.params.collection).deleteMany(buildBulkIdQuery(ids));
+        res.status(200).json({ message: `Deleted ${result.deletedCount} items successfully` });
     } catch (error) { res.status(500).json({ message: error.message }); }
 });
 
@@ -294,11 +326,11 @@ app.put('/api/inventory/:collection/bulk-update', verifyToken, async (req, res) 
         const { ids, updateData } = req.body;
         if (!Array.isArray(ids) || ids.length === 0 || !updateData) return res.status(400).json({ message: "Invalid payload" });
         
-        await db.collection(req.params.collection).updateMany(
+        const result = await db.collection(req.params.collection).updateMany(
             buildBulkIdQuery(ids),
             { $set: updateData }
         );
-        res.status(200).json({ message: `Updated items successfully` });
+        res.status(200).json({ message: `Updated ${result.modifiedCount} items successfully` });
     } catch (error) { res.status(500).json({ message: error.message }); }
 });
 
