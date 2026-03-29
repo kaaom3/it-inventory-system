@@ -25,51 +25,44 @@ const API_SECRET_KEY = "KAAOM321A";
 
 let db;
 
-// 🌟 ฟังก์ชันป้องกัน Error และครอบคลุม ID ทุกรูปแบบอย่างเข้มงวด (Fixed Bulk Edit Issue)
-const isValidObjectId = (id) => {
-    if (!id) return false;
-    // บังคับว่าถ้าเป็น string ต้องมีความยาว 24 ตัวอักษรและเป็น hex เท่านั้น
-    if (typeof id === 'string') {
-        return id.length === 24 && /^[0-9a-fA-F]{24}$/.test(id);
+// 🌟 ฟังก์ชันสร้าง Query หา ID แบบครอบจักรวาล (รับประกันหาเจอ 100% ทั้งแบบ ObjectId และ String)
+const buildIdQuery = (rawId) => {
+    if (!rawId) return { _id: null };
+    const id = String(rawId).trim();
+    const searchIds = [id]; // เอาแบบ String ยัดใส่ไว้ก่อน
+    
+    // ถ้าเป็น Hex 24 ตัวอักษรเป๊ะๆ ให้แปลงเป็น ObjectId ใส่คู่กันไปด้วย
+    if (id.length === 24 && /^[0-9a-fA-F]{24}$/.test(id)) {
+        try { searchIds.push(new ObjectId(id)); } catch (e) {}
     }
-    return ObjectId.isValid(id);
-};
-
-const buildIdQuery = (id) => {
-    if (isValidObjectId(id)) {
-        return { $or: [{ _id: new ObjectId(id) }, { _id: id }, { id: id }] };
-    }
-    return { $or: [{ _id: id }, { id: id }] };
+    
+    // ให้ MongoDB ไปควานหาเลยว่ามีตรงกับแบบไหนบ้าง ($in)
+    return { 
+        $or: [
+            { _id: { $in: searchIds } },
+            { id: { $in: searchIds } }
+        ] 
+    };
 };
 
 const buildBulkIdQuery = (ids) => {
-    const validObjIds = [];
-    const stringIds = [];
-
-    ids.forEach(id => {
-        if (isValidObjectId(id)) {
-            validObjIds.push(new ObjectId(id));
-        }
-        if (typeof id === 'string') {
-            stringIds.push(id);
-        } else if (id && id.toString) {
-            stringIds.push(id.toString());
+    if (!Array.isArray(ids) || ids.length === 0) return { _id: null };
+    
+    const searchIds = [];
+    ids.forEach(rawId => {
+        const id = String(rawId).trim();
+        searchIds.push(id); // เอาแบบ String เข้าคลังค้นหา
+        if (id.length === 24 && /^[0-9a-fA-F]{24}$/.test(id)) {
+            try { searchIds.push(new ObjectId(id)); } catch (e) {} // เอาแบบ ObjectId เข้าคลังค้นหาคู่กัน
         }
     });
 
-    const orConditions = [];
-    if (validObjIds.length > 0) {
-        orConditions.push({ _id: { $in: validObjIds } });
-    }
-    if (stringIds.length > 0) {
-        orConditions.push({ _id: { $in: stringIds } });
-        orConditions.push({ id: { $in: stringIds } });
-    }
-
-    // กันเหนียวกรณีไม่ได้ส่ง ID มาเลย
-    if (orConditions.length === 0) return { _id: null }; 
-
-    return { $or: orConditions };
+    return { 
+        $or: [
+            { _id: { $in: searchIds } },
+            { id: { $in: searchIds } }
+        ] 
+    };
 };
 
 // --- Connect to MongoDB ---
@@ -316,7 +309,7 @@ app.post('/api/inventory/:collection/bulk-delete', verifyToken, async (req, res)
         if (!Array.isArray(ids) || ids.length === 0) return res.status(400).json({ message: "Invalid payload" });
         
         const result = await db.collection(req.params.collection).deleteMany(buildBulkIdQuery(ids));
-        res.status(200).json({ message: `Deleted ${result.deletedCount} items successfully` });
+        res.status(200).json({ message: `ลบอุปกรณ์สำเร็จ ${result.deletedCount} ชิ้น (จากที่เลือก ${ids.length} ชิ้น)` });
     } catch (error) { res.status(500).json({ message: error.message }); }
 });
 
@@ -330,7 +323,7 @@ app.put('/api/inventory/:collection/bulk-update', verifyToken, async (req, res) 
             buildBulkIdQuery(ids),
             { $set: updateData }
         );
-        res.status(200).json({ message: `Updated ${result.modifiedCount} items successfully` });
+        res.status(200).json({ message: `ค้นหาอุปกรณ์เจอ ${result.matchedCount} ชิ้น และอัปเดตข้อมูลเปลี่ยนสำเร็จ ${result.modifiedCount} ชิ้น` });
     } catch (error) { res.status(500).json({ message: error.message }); }
 });
 
@@ -372,8 +365,11 @@ app.get('/api/inventory/find/:sn', async (req, res) => {
             const skipKeys = ['admins', 'CustomMenus', 'Staff', 'TransactionHistory', 'LoanHistory', 'Maintenance Log'];
             if (skipKeys.includes(col.name)) continue;
 
+            const searchIds = [sn];
+            if (sn.length === 24 && /^[0-9a-fA-F]{24}$/.test(sn)) searchIds.push(new ObjectId(sn));
+
             const item = await db.collection(col.name).findOne({
-                $or: [ { SerialNumber: sn }, { MonitorSerial: sn }, { _id: safeObjectId(sn) }, { _id: sn }, { id: sn } ]
+                $or: [ { SerialNumber: sn }, { MonitorSerial: sn }, { _id: { $in: searchIds } }, { id: { $in: searchIds } } ]
             });
             if (item) return res.json({ item, collectionName: col.name });
         }
