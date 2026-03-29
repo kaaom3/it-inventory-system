@@ -133,11 +133,19 @@ async function apiRequest(endpoint, method = 'GET', body = null) {
     const token = localStorage.getItem('authToken');
     if (token) headers['Authorization'] = `Bearer ${token}`;
 
+    // 🌟 ป้องกัน Browser Cache สำหรับการดึงข้อมูล (แก้ปัญหาอัปเดตแล้วหน้าเว็บข้อมูลไม่เปลี่ยน)
+    let fetchUrl = `${API_BASE_URL}${endpoint}`;
+    if (method === 'GET') {
+        headers['Cache-Control'] = 'no-cache, no-store, must-revalidate';
+        const separator = fetchUrl.includes('?') ? '&' : '?';
+        fetchUrl += `${separator}_t=${new Date().getTime()}`; 
+    }
+
     const config = { method, headers };
     if (body) config.body = JSON.stringify(body);
 
     try {
-        const response = await fetch(`${API_BASE_URL}${endpoint}`, config);
+        const response = await fetch(fetchUrl, config);
         if (response.status === 401 || response.status === 403) { window.logout(); return; }
         if (!response.ok) {
             let errorMessage = `API Error ${response.status}`;
@@ -802,21 +810,44 @@ window.updateBulkActionBar = function(collectionName) {
 };
 
 window.bulkDelete = async function(collectionName) {
-    const ids = selectedItems[collectionName] || [];
-    if (ids.length === 0) return;
-    if (!confirm(`Are you sure you want to permanently delete ${ids.length} selected item(s)?`)) return;
+    // ดึงข้อมูลการเลือกล่าสุดจากหน้าจอ 100%
+    const checkedBoxes = document.querySelectorAll(`.${collectionName}-row-cb:checked`);
+    let ids = Array.from(checkedBoxes).map(cb => cb.value);
+    if (ids.length === 0) ids = selectedItems[collectionName] || [];
+
+    if (ids.length === 0) {
+        return showNotificationModal('warning', 'ไม่มีอุปกรณ์', 'กรุณาเลือกอุปกรณ์อย่างน้อย 1 รายการ');
+    }
+
+    if (!confirm(`ยืนยันการลบอุปกรณ์จำนวน ${ids.length} รายการอย่างถาวรหรือไม่?`)) return;
+
     try {
         await apiRequest(`/api/inventory/${collectionName}/bulk-delete`, 'POST', { ids });
-        showNotificationModal('success', 'Bulk Delete Successful', `Deleted ${ids.length} item(s).`);
+        showNotificationModal('success', 'ลบข้อมูลสำเร็จ', `ลบอุปกรณ์จำนวน ${ids.length} รายการเรียบร้อยแล้ว`);
+        
         selectedItems[collectionName] = []; 
-        await refreshAllData(); window.buildTable(collectionName); window.updateDashboard(currentDashboardFolder);
-    } catch (error) { showNotificationModal('warning', 'Bulk Delete Failed', error.message); }
+        document.querySelectorAll(`.${collectionName}-row-cb:checked`).forEach(cb => cb.checked = false);
+        const selectAll = document.getElementById(`selectAll_${collectionName}`);
+        if(selectAll) selectAll.checked = false;
+        window.updateBulkActionBar(collectionName);
+
+        await refreshAllData(); 
+        window.buildTable(collectionName); 
+        window.updateDashboard(currentDashboardFolder);
+    } catch (error) { 
+        showNotificationModal('warning', 'ลบข้อมูลล้มเหลว', error.message); 
+    }
 };
 
 // 🌟 เปิดหน้าต่าง Bulk Edit แบบสร้างช่องกรอกอัตโนมัติตามหมวดหมู่
 window.openBulkEditModal = function(collectionName) {
-    const ids = selectedItems[collectionName] || [];
-    if (ids.length === 0) return;
+    const checkedBoxes = document.querySelectorAll(`.${collectionName}-row-cb:checked`);
+    let ids = Array.from(checkedBoxes).map(cb => cb.value);
+    if (ids.length === 0) ids = selectedItems[collectionName] || [];
+    
+    if (ids.length === 0) {
+        return showNotificationModal('warning', 'ไม่พบอุปกรณ์', 'กรุณาเลือกอุปกรณ์อย่างน้อย 1 รายการเพื่อทำการแก้ไข');
+    }
     
     const config = collectionConfigs[collectionName];
     if (!config) return;
@@ -831,7 +862,6 @@ window.openBulkEditModal = function(collectionName) {
     formHtml += '<div class="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-4">';
     
     config.formFields.forEach(fieldId => {
-        // ข้ามช่องที่ไม่ควรแก้แบบ Bulk
         if (fieldId === 'SerialNumber' || fieldId === 'MonitorSerial') return;
 
         const fieldDef = AVAILABLE_FIELDS.find(f => f.id === fieldId) || { label: fieldId, type: 'text' };
@@ -840,7 +870,7 @@ window.openBulkEditModal = function(collectionName) {
         formHtml += `<div class="col-span-1 relative">`;
         formHtml += `<label class="block text-xs font-bold text-gray-600 dark:text-gray-400 mb-1">${fieldDef.label}</label>`;
         
-        const inputClasses = `bulk-edit-input w-full px-4 py-2.5 bg-white dark:bg-gray-700/50 border border-gray-300 dark:border-gray-600 text-gray-900 dark:text-white text-sm rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-colors shadow-sm`;
+        const inputClasses = `w-full px-4 py-2.5 bg-white dark:bg-gray-700/50 border border-gray-300 dark:border-gray-600 text-gray-900 dark:text-white text-sm rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-colors shadow-sm`;
 
         if (dropdown) {
             formHtml += `<select name="${fieldId}" class="${inputClasses} appearance-none"><option value="">-- ไม่เปลี่ยนแปลง --</option>${dropdown.map(opt => `<option value="${opt}">${opt}</option>`).join('')}</select>`;
@@ -863,35 +893,65 @@ window.openBulkEditModal = function(collectionName) {
     window.openModalWindow('bulkEditModal');
 };
 
-// 🌟 บันทึก Bulk Edit แบบ Dynamic
+// 🌟 บันทึก Bulk Edit แบบ Dynamic และปลอดภัย 100%
 window.saveBulkEdit = async function() {
     const collectionName = document.getElementById('bulkEditCollection').value;
-    const ids = selectedItems[collectionName] || [];
+    
+    // ดึง ID ของอุปกรณ์ที่ถูกติ๊กเลือกจากหน้าจอ เพื่อความถูกต้อง 100%
+    const checkedBoxes = document.querySelectorAll(`.${collectionName}-row-cb:checked`);
+    let ids = Array.from(checkedBoxes).map(cb => cb.value);
+    if (ids.length === 0) ids = selectedItems[collectionName] || [];
+
+    if (ids.length === 0) {
+        window.hideModal('bulkEditModal');
+        return showNotificationModal('warning', 'ข้อผิดพลาด', 'กรุณาเลือกอุปกรณ์อย่างน้อย 1 ชิ้นเพื่อแก้ไขข้อมูล');
+    }
+
+    // ดึงข้อมูลฟอร์มด้วยวิธีที่เสถียรที่สุด (FormData)
+    const form = document.getElementById('bulkEditDynamicForm');
+    const formData = new FormData(form);
     const updateData = {};
     
-    document.querySelectorAll('.bulk-edit-input').forEach(input => {
-        const val = input.value.trim();
+    for (let [key, value] of formData.entries()) {
+        const val = value.toString().trim();
         if (val !== '') {
-            updateData[input.name] = val;
+            // แปลงข้อมูลตัวเลขให้ถูกต้องเพื่อไม่ให้ชนกับระบบ Database
+            const fieldDef = AVAILABLE_FIELDS.find(f => f.id === key);
+            if (fieldDef && fieldDef.type === 'number') {
+                updateData[key] = Number(val);
+            } else {
+                updateData[key] = val;
+            }
         }
-    });
+    }
     
     if (Object.keys(updateData).length === 0) { 
         window.hideModal('bulkEditModal');
-        return showNotificationModal('info', 'ไม่มีการเปลี่ยนแปลง', 'คุณไม่ได้กรอกข้อมูลใดๆ เพื่อแก้ไขระบบจึงยกเลิกคำสั่ง');
+        return showNotificationModal('info', 'ไม่มีการเปลี่ยนแปลง', 'คุณไม่ได้กรอกข้อมูลใดๆ ระบบจึงยกเลิกคำสั่งแก้ไข');
     }
 
     try {
-        const response = await apiRequest(`/api/inventory/${collectionName}/bulk-update`, 'PUT', { ids, updateData });
-        showNotificationModal('success', 'Bulk Update Successful', response.message || `อัปเดตข้อมูลเรียบร้อยแล้ว`);
+        const response = await apiRequest(`/api/inventory/${collectionName}/bulk-update`, 'PUT', { ids: ids, updateData: updateData });
         
         window.hideModal('bulkEditModal'); 
+        
+        // เคลียร์ค่าตัวเลือก
         selectedItems[collectionName] = []; 
+        document.querySelectorAll(`.${collectionName}-row-cb:checked`).forEach(cb => cb.checked = false);
+        const selectAll = document.getElementById(`selectAll_${collectionName}`);
+        if(selectAll) selectAll.checked = false;
+        window.updateBulkActionBar(collectionName);
+
+        // ดึงข้อมูลใหม่ และบังคับให้เบราว์เซอร์ไม่แสดงหน้า Cache เดิม
         await refreshAllData(); 
         window.buildTable(collectionName); 
         window.updateDashboard(currentDashboardFolder);
+
+        // แจ้งเตือนความสำเร็จ (หลังโหลดข้อมูลใหม่เสร็จแล้ว)
+        showNotificationModal('success', 'แก้ไขข้อมูลสำเร็จ', response.message || `อัปเดตข้อมูล ${ids.length} รายการเรียบร้อยแล้ว`);
+        
     } catch (error) { 
-        showNotificationModal('warning', 'Bulk Update Failed', error.message); 
+        showNotificationModal('warning', 'เกิดข้อผิดพลาดในการแก้ไข', error.message); 
     }
 };
 
