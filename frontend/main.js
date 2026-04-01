@@ -170,15 +170,26 @@ async function refreshAllData() {
 
         customMenus.forEach(menu => {
             if (!menu.fields || !Array.isArray(menu.fields) || menu.fields.length === 0) return;
-            const headerFields = menu.fields.slice(0, 5).map(f => f.id);
-            if (!headerFields.includes('Status')) {
-                 if (headerFields.length >= 5) headerFields[4] = 'Status';
-                 else headerFields.push('Status');
+            
+            // 🌟 สร้าง headerFields ตามที่ผู้ใช้กำหนด (displayColumns)
+            let headerFields = [];
+            if (menu.displayColumns && Array.isArray(menu.displayColumns) && menu.displayColumns.length > 0) {
+                headerFields = [...menu.displayColumns];
+                // เพิ่ม Last Seen อัตโนมัติ หากติ๊กเลือก IP Address ไว้
+                if (headerFields.includes('IPAddress') && !headerFields.includes('Last Seen')) {
+                    headerFields.unshift('Last Seen');
+                }
+            } else {
+                // Fallback (เผื่อกรณีของเก่าที่ไม่ได้เซ็ต displayColumns ไว้)
+                headerFields = menu.fields.slice(0, 5).map(f => f.id);
+                if (!headerFields.includes('Status')) {
+                     if (headerFields.length >= 5) headerFields[4] = 'Status';
+                     else headerFields.push('Status');
+                }
+                const hasIP = menu.fields.some(f => f.id === 'IPAddress');
+                const isComputer = menu.name === 'Computers';
+                if ((hasIP || isComputer) && !headerFields.includes('Last Seen')) headerFields.unshift('Last Seen');
             }
-
-            const hasIP = menu.fields.some(f => f.id === 'IPAddress');
-            const isComputer = menu.name === 'Computers';
-            if ((hasIP || isComputer) && !headerFields.includes('Last Seen')) headerFields.unshift('Last Seen');
 
             const nameFieldObj = menu.fields.find(f => ['ComputerName', 'DeviceName', 'ItemName', 'PartName', 'Name', 'SoftwareName', 'Model'].includes(f.id));
             const nameField = nameFieldObj ? nameFieldObj.id : menu.fields[0].id;
@@ -639,6 +650,7 @@ window.renderSettings = function() {
     area.innerHTML = html;
 };
 
+// 🌟 ตัวกำหนดการเปิดหน้าต่างสำหรับสร้าง Menu
 window.openAddMenuModal = function() {
     const form = document.getElementById('addMenuForm');
     if (form) form.reset();
@@ -656,10 +668,27 @@ window.openAddMenuModal = function() {
     document.getElementById('newMenuId').classList.remove('bg-gray-200', 'cursor-not-allowed');
     window.populateParentDropdown();
     
-    document.querySelectorAll('.col-checkbox').forEach(cb => { if(!cb.disabled) cb.checked = true; });
+    // ตั้งค่าเริ่มต้นของ Checkbox ฝั่งฟอร์ม (เปิดทั้งหมด)
+    document.querySelectorAll('.col-checkbox').forEach(cb => { 
+        if(!cb.disabled) cb.checked = true; 
+    });
+    
+    // ตั้งค่าเริ่มต้นของ Checkbox ฝั่งตาราง (ล้างค่าก่อน)
+    document.querySelectorAll('.display-checkbox').forEach(cb => { 
+        cb.disabled = false;
+        cb.checked = false; 
+    });
+    
+    // ตั้งค่าการแสดงผลคอลัมน์พื้นฐานอัตโนมัติ
+    ['SerialNumber', 'ItemName', 'Status', 'UserName', 'Location'].forEach(id => {
+        const cb = document.getElementById(`display_${id}`);
+        if(cb) cb.checked = true;
+    });
+
     window.openModalWindow('addMenuModal');
 };
 
+// 🌟 ตัวกำหนดการเปิดหน้าต่างแก้ไข Menu เดิม
 window.openEditMenuModal = function(menuName, event) {
     if (event) event.stopPropagation();
     const menu = allData.CustomMenus.find(m => m.name === menuName);
@@ -675,11 +704,35 @@ window.openEditMenuModal = function(menuName, event) {
     document.getElementById('newMenuOrder').value = menu.order || 0;
     window.populateParentDropdown(menu.parentId); 
     
+    // ล้างค่า Checkbox ก่อนทั้งหมด
     document.querySelectorAll('.col-checkbox').forEach(cb => cb.checked = false);
+    document.querySelectorAll('.display-checkbox').forEach(cb => { cb.checked = false; cb.disabled = true; });
+
+    // โหลดค่า Field ฝั่งฟอร์มที่เคยบันทึกไว้
     if (menu.fields && Array.isArray(menu.fields)) {
         menu.fields.forEach(f => {
             const cb = document.getElementById(`field_${f.id}`);
             if(cb) cb.checked = true;
+            
+            // เปิดใช้งานการตั้งค่าตาราง (หากฟอร์มถูกเลือกไว้)
+            const dCb = document.getElementById(`display_${f.id}`);
+            if(dCb) dCb.disabled = false;
+        });
+    }
+
+    // โหลดค่าคอลัมน์ของฝั่งตารางที่เคยบันทึกไว้
+    if (menu.displayColumns && Array.isArray(menu.displayColumns)) {
+        menu.displayColumns.forEach(id => {
+            const dCb = document.getElementById(`display_${id}`);
+            if(dCb) dCb.checked = true;
+        });
+    } else {
+        // Fallback กรณีเปิดใช้เมนูเก่าที่ยังไม่เคยมีระบบนี้
+        const fallbackHeaders = menu.fields ? menu.fields.slice(0, 5).map(f => f.id) : [];
+        if (!fallbackHeaders.includes('Status')) fallbackHeaders.push('Status');
+        fallbackHeaders.forEach(id => {
+            const dCb = document.getElementById(`display_${id}`);
+            if(dCb) dCb.checked = true;
         });
     }
 
@@ -708,6 +761,7 @@ window.populateParentDropdown = function(selectedParentId = null) {
     });
 };
 
+// 🌟 สร้าง HTML คอลัมน์สำหรับเลือกโชว์ในฟอร์มและตาราง
 function initColumnSelector() {
     const colContainer = document.getElementById('column-selector-container');
     if(!colContainer) return;
@@ -721,16 +775,55 @@ function initColumnSelector() {
     });
 
     let html = '';
+    html += `
+        <div class="flex justify-between items-end text-xs font-bold text-gray-500 uppercase tracking-wider mb-2 px-2 border-b dark:border-gray-700 pb-2">
+            <span class="w-2/3">ชื่อฟิลด์ (Field Name)</span>
+            <div class="w-1/3 flex justify-between text-center">
+                <span class="w-1/2" title="แสดงให้กรอกในแบบฟอร์ม">ในฟอร์ม</span>
+                <span class="w-1/2 text-green-600 dark:text-green-500" title="แสดงเป็นคอลัมน์ในตาราง Data Table">ในตาราง</span>
+            </div>
+        </div>
+    `;
+
     for (const [groupName, fields] of Object.entries(groups)) {
-        html += `<div class="col-span-full mt-3 mb-1 border-b dark:border-gray-700 pb-1"><h4 class="text-sm font-bold text-indigo-600 dark:text-indigo-400">${groupName}</h4></div>`;
+        html += `<div class="col-span-full mt-2 mb-1 bg-gray-100 dark:bg-gray-800/50 px-2 py-1 rounded"><h4 class="text-sm font-bold text-indigo-600 dark:text-indigo-400">${groupName}</h4></div>`;
         fields.forEach(field => {
             const isRequired = field.id === 'SerialNumber' || field.id === 'ItemName' || field.id === 'Status'; 
-            html += `<div class="flex items-center space-x-2"><input type="checkbox" id="field_${field.id}" value="${field.id}" ${isRequired?'checked disabled':'checked'} class="col-checkbox rounded text-indigo-600 focus:ring-indigo-500"><label for="field_${field.id}" class="text-sm text-gray-700 dark:text-gray-300 cursor-pointer select-none">${field.label} ${isRequired?'<span class="text-xs text-red-500 ml-1">*Required</span>':''}</label></div>`;
+            html += `
+            <div class="flex items-center justify-between py-1.5 hover:bg-gray-50 dark:hover:bg-gray-700/50 px-2 rounded transition-colors border-b border-gray-100 dark:border-gray-800 last:border-0">
+                <div class="w-2/3 flex items-center">
+                    <label for="field_${field.id}" class="text-sm text-gray-700 dark:text-gray-300 cursor-pointer select-none flex items-center">
+                        ${field.label} ${isRequired ? '<span class="text-xs text-red-500 ml-1" title="จำเป็นต้องมี">*</span>' : ''}
+                    </label>
+                </div>
+                <div class="w-1/3 flex justify-between items-center text-center">
+                    <div class="w-1/2 flex justify-center">
+                        <input type="checkbox" id="field_${field.id}" value="${field.id}" ${isRequired ? 'checked disabled' : 'checked'} onchange="window.toggleFieldDisplay('${field.id}')" class="col-checkbox rounded text-indigo-600 focus:ring-indigo-500 w-4 h-4 cursor-pointer">
+                    </div>
+                    <div class="w-1/2 flex justify-center">
+                        <input type="checkbox" id="display_${field.id}" value="${field.id}" ${isRequired ? 'checked' : ''} class="display-checkbox rounded text-green-500 focus:ring-green-500 w-4 h-4 cursor-pointer" title="แสดงฟิลด์นี้เป็นคอลัมน์ในตาราง">
+                    </div>
+                </div>
+            </div>`;
         });
     }
     colContainer.innerHTML = html;
 }
 setTimeout(initColumnSelector, 1000);
+
+// 🌟 ฟังก์ชันจัดการปิด-เปิดกล่องเลือกคอลัมน์ในตาราง (ถ้าเอาฟอร์มออก คอลัมน์ตารางต้องปิดด้วย)
+window.toggleFieldDisplay = function(fieldId) {
+    const fieldCb = document.getElementById(`field_${fieldId}`);
+    const displayCb = document.getElementById(`display_${fieldId}`);
+    if (fieldCb && displayCb) {
+        if (!fieldCb.checked) {
+            displayCb.checked = false;
+            displayCb.disabled = true;
+        } else {
+            displayCb.disabled = false;
+        }
+    }
+};
 
 window.saveCustomMenu = async function() {
     const mode = document.getElementById('editMenuMode').value;
@@ -748,7 +841,27 @@ window.saveCustomMenu = async function() {
         if(cb.checked || cb.disabled) selectedFields.push(AVAILABLE_FIELDS.find(f => f.id === cb.value) || { id: cb.value, label: cb.value, type: 'text' });
     });
 
-    const payload = { name: idInput, displayName: displayInput, icon: iconInput, parentId: parentInput || null, order: orderInput, fields: selectedFields };
+    // 🌟 ดึงข้อมูลคอลัมน์ตารางที่ผู้ใช้เลือกไว้
+    const selectedDisplayColumns = [];
+    document.querySelectorAll('.display-checkbox').forEach(cb => {
+        if(cb.checked) {
+            selectedDisplayColumns.push(cb.value);
+        }
+    });
+
+    if (selectedDisplayColumns.length === 0) {
+        return showNotificationModal('warning', 'Missing Columns', 'กรุณาเลือกคอลัมน์ที่จะให้แสดงในตารางอย่างน้อย 1 คอลัมน์ (ติ๊กช่อง "ในตาราง")');
+    }
+
+    const payload = { 
+        name: idInput, 
+        displayName: displayInput, 
+        icon: iconInput, 
+        parentId: parentInput || null, 
+        order: orderInput, 
+        fields: selectedFields,
+        displayColumns: selectedDisplayColumns // ส่งข้อมูลชุดคอลัมน์ตารางไปด้วย
+    };
 
     try {
         if (mode === 'edit') await apiRequest(`/api/custom-menus/${idInput}`, 'PUT', payload);
@@ -813,7 +926,6 @@ window.bulkDelete = async function(collectionName) {
     } catch (error) { showNotificationModal('warning', 'Bulk Delete Failed', error.message); }
 };
 
-// 🌟 เปิดหน้าต่าง Bulk Edit แบบสร้างช่องกรอกอัตโนมัติตามหมวดหมู่
 window.openBulkEditModal = function(collectionName) {
     const ids = selectedItems[collectionName] || [];
     if (ids.length === 0) return;
@@ -831,7 +943,6 @@ window.openBulkEditModal = function(collectionName) {
     formHtml += '<div class="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-4">';
     
     config.formFields.forEach(fieldId => {
-        // ข้ามช่องที่ไม่ควรแก้แบบ Bulk
         if (fieldId === 'SerialNumber' || fieldId === 'MonitorSerial') return;
 
         const fieldDef = AVAILABLE_FIELDS.find(f => f.id === fieldId) || { label: fieldId, type: 'text' };
@@ -863,7 +974,6 @@ window.openBulkEditModal = function(collectionName) {
     window.openModalWindow('bulkEditModal');
 };
 
-// 🌟 บันทึก Bulk Edit แบบ Dynamic
 window.saveBulkEdit = async function() {
     const collectionName = document.getElementById('bulkEditCollection').value;
     const ids = selectedItems[collectionName] || [];
@@ -1001,7 +1111,6 @@ window.buildTable = function(collectionName) {
                 html += `<td class="px-6 py-4 text-sm text-gray-700 dark:text-gray-200 whitespace-nowrap max-w-xs truncate" title="${String(val).replace(/<[^>]*>?/gm, '')}">${val}</td>`;
             });
             
-            // 🌟 ปุ่มในคอลัมน์ Actions (รวมโคลน)
             html += `<td class="px-6 py-4 text-sm font-medium space-x-3 whitespace-nowrap text-center">
                 <button onclick="window.openModal('edit', '${collectionName}', '${id}')" class="text-indigo-600 hover:text-indigo-900 dark:text-indigo-400 dark:hover:text-indigo-300" title="Edit"><i class="fas fa-edit"></i></button>
                 <button onclick="window.openCloneModal('${collectionName}', '${id}')" class="text-blue-600 hover:text-blue-900 dark:text-blue-400 dark:hover:text-blue-300" title="Clone"><i class="fas fa-copy"></i></button>
@@ -1226,7 +1335,6 @@ window.updateDashboard = function(folderId) {
         };
 
         if (currentDashboardFolder === null) {
-            // Root Level
             const rootCollections = [];
             Object.keys(collectionConfigs).forEach(colName => {
                 if (colName === 'Software') return;
@@ -1261,7 +1369,6 @@ window.updateDashboard = function(folderId) {
                     </div>`;
             });
         } else {
-            // Sub-Level (Inside Folder)
             const parentConfig = collectionConfigs[currentDashboardFolder];
             const parentDisplayName = parentConfig ? parentConfig.displayName : currentDashboardFolder;
             const parentItemCount = (allData[currentDashboardFolder] || []).length;
