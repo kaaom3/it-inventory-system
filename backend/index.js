@@ -524,10 +524,21 @@ app.post('/api/custom-menus', verifyToken, async (req, res) => {
     } catch (error) { res.status(500).json({ message: error.message }); }
 });
 
+// 🌟 อัปเดต Route แก้ไขเมนูให้รองรับการบันทึก displayColumns ไปลงฐานข้อมูล
 app.put('/api/custom-menus/:id', verifyToken, async (req, res) => {
     if (!db) return res.status(500).json({ message: "Database not connected" });
     try {
-        await db.collection('CustomMenus').updateOne({ name: req.params.id }, { $set: { displayName: req.body.displayName, icon: req.body.icon, parentId: req.body.parentId, order: req.body.order, fields: req.body.fields } });
+        await db.collection('CustomMenus').updateOne(
+            { name: req.params.id }, 
+            { $set: { 
+                displayName: req.body.displayName, 
+                icon: req.body.icon, 
+                parentId: req.body.parentId, 
+                order: req.body.order, 
+                fields: req.body.fields,
+                displayColumns: req.body.displayColumns // <--- บันทึกตรงนี้
+            } }
+        );
         res.json({ message: "Menu updated" });
     } catch (error) { res.status(500).json({ message: error.message }); }
 });
