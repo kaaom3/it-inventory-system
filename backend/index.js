@@ -268,48 +268,8 @@ async function startBackgroundPingService() {
 }
 
 // ===================================================================
-// --- Inventory General CRUD ---
-// ===================================================================
-app.get('/api/inventory/all', verifyToken, async (req, res) => {
-    if (!db) return res.status(500).json({ message: "Database not connected" });
-    try {
-        const collections = await db.listCollections().toArray();
-        const allData = {};
-        for (let col of collections) {
-            if (col.name !== 'admins') allData[col.name] = await db.collection(col.name).find().toArray();
-        }
-        res.json(allData);
-    } catch (error) { res.status(500).json({ message: error.message }); }
-});
-
-app.post('/api/inventory/:collection', verifyToken, async (req, res) => {
-    if (!db) return res.status(500).json({ message: "Database not connected" });
-    try {
-        const data = req.body; data.Timestamp = new Date();
-        const result = await db.collection(req.params.collection).insertOne(data);
-        res.status(201).json(result);
-    } catch (error) { res.status(500).json({ message: error.message }); }
-});
-
-app.put('/api/inventory/:collection/:id', verifyToken, async (req, res) => {
-    if (!db) return res.status(500).json({ message: "Database not connected" });
-    try {
-        const data = req.body; delete data._id; 
-        await db.collection(req.params.collection).updateOne(buildIdQuery(req.params.id), { $set: data });
-        res.json({ message: "Updated successfully" });
-    } catch (error) { res.status(500).json({ message: error.message }); }
-});
-
-app.delete('/api/inventory/:collection/:id', verifyToken, async (req, res) => {
-    if (!db) return res.status(500).json({ message: "Database not connected" });
-    try {
-        await db.collection(req.params.collection).deleteOne(buildIdQuery(req.params.id));
-        res.json({ message: "Deleted successfully" });
-    } catch (error) { res.status(500).json({ message: error.message }); }
-});
-
-// ===================================================================
 // 🌟 Bulk Operations (แก้ไขหลายรายการ & นำเข้า CSV)
+// ต้องวางไว้ด้านบนก่อน General CRUD เพื่อป้องกันการตีความ Route ผิดพลาด
 // ===================================================================
 app.post('/api/inventory/:collection/bulk', verifyToken, async (req, res) => {
     if (!db) return res.status(500).json({ message: "Database not connected" });
@@ -372,6 +332,47 @@ app.post('/api/inventory/:collection/clone-bulk', verifyToken, async (req, res) 
 
         await db.collection(req.params.collection).insertMany(newDevices);
         res.status(201).json({ message: `Successfully cloned devices.` });
+    } catch (error) { res.status(500).json({ message: error.message }); }
+});
+
+// ===================================================================
+// --- Inventory General CRUD ---
+// ===================================================================
+app.get('/api/inventory/all', verifyToken, async (req, res) => {
+    if (!db) return res.status(500).json({ message: "Database not connected" });
+    try {
+        const collections = await db.listCollections().toArray();
+        const allData = {};
+        for (let col of collections) {
+            if (col.name !== 'admins') allData[col.name] = await db.collection(col.name).find().toArray();
+        }
+        res.json(allData);
+    } catch (error) { res.status(500).json({ message: error.message }); }
+});
+
+app.post('/api/inventory/:collection', verifyToken, async (req, res) => {
+    if (!db) return res.status(500).json({ message: "Database not connected" });
+    try {
+        const data = req.body; data.Timestamp = new Date();
+        const result = await db.collection(req.params.collection).insertOne(data);
+        res.status(201).json(result);
+    } catch (error) { res.status(500).json({ message: error.message }); }
+});
+
+app.put('/api/inventory/:collection/:id', verifyToken, async (req, res) => {
+    if (!db) return res.status(500).json({ message: "Database not connected" });
+    try {
+        const data = req.body; delete data._id; 
+        await db.collection(req.params.collection).updateOne(buildIdQuery(req.params.id), { $set: data });
+        res.json({ message: "Updated successfully" });
+    } catch (error) { res.status(500).json({ message: error.message }); }
+});
+
+app.delete('/api/inventory/:collection/:id', verifyToken, async (req, res) => {
+    if (!db) return res.status(500).json({ message: "Database not connected" });
+    try {
+        await db.collection(req.params.collection).deleteOne(buildIdQuery(req.params.id));
+        res.json({ message: "Deleted successfully" });
     } catch (error) { res.status(500).json({ message: error.message }); }
 });
 
