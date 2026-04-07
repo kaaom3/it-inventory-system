@@ -1389,6 +1389,16 @@ window.updateDashboard = function(folderId) {
             return (allData.CustomMenus || []).filter(m => m.parentId === pid).map(m => m.name);
         };
 
+        // 🌟 ฟังก์ชันใหม่: คำนวณจำนวนอุปกรณ์รวมในโฟลเดอร์นี้ และโฟลเดอร์ย่อยทั้งหมด (Recursive)
+        const getFolderTotalCount = (folderName) => {
+            let count = (allData[folderName] || []).filter(i => i.Status !== 'Disposed').length;
+            const children = getChildren(folderName);
+            children.forEach(child => {
+                count += getFolderTotalCount(child);
+            });
+            return count;
+        };
+
         if (currentDashboardFolder === null) {
             const rootCollections = [];
             Object.keys(collectionConfigs).forEach(colName => {
@@ -1406,7 +1416,8 @@ window.updateDashboard = function(folderId) {
                 const config = collectionConfigs[colName];
                 const displayName = config.displayName || colName;
                 const children = getChildren(colName);
-                const itemCount = (allData[colName] || []).filter(i => i.Status !== 'Disposed').length;
+                // 🌟 ใช้ getFolderTotalCount แทนการนับแค่ allData[colName]
+                const itemCount = getFolderTotalCount(colName);
                 
                 const action = children.length > 0 ? `window.updateDashboard('${colName}')` : `window.loadPage('${colName}')`;
                 const iconMarker = children.length > 0 ? `<div class="absolute top-2 right-2 text-xs text-indigo-400"><i class="fas fa-folder"></i></div>` : '';
@@ -1426,7 +1437,7 @@ window.updateDashboard = function(folderId) {
         } else {
             const parentConfig = collectionConfigs[currentDashboardFolder];
             const parentDisplayName = parentConfig ? parentConfig.displayName : currentDashboardFolder;
-            const parentItemCount = (allData[currentDashboardFolder] || []).filter(i => i.Status !== 'Disposed').length;
+            const parentItemCount = getFolderTotalCount(currentDashboardFolder);
 
             let mDef = (allData.CustomMenus || []).find(m => m.name === currentDashboardFolder);
             const goBackId = mDef && mDef.parentId ? `'${mDef.parentId}'` : `null`;
@@ -1458,7 +1469,7 @@ window.updateDashboard = function(folderId) {
                 const config = collectionConfigs[colName];
                 const displayName = config.displayName || colName;
                 const subChildren = getChildren(colName);
-                const itemCount = (allData[colName] || []).filter(i => i.Status !== 'Disposed').length;
+                const itemCount = getFolderTotalCount(colName);
                 const action = subChildren.length > 0 ? `window.updateDashboard('${colName}')` : `window.loadPage('${colName}')`;
                 const iconMarker = subChildren.length > 0 ? `<div class="absolute top-2 right-2 text-xs text-indigo-400"><i class="fas fa-folder"></i></div>` : '';
 
