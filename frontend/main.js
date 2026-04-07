@@ -1,10 +1,10 @@
 // ===================================================================
 // Frontend Logic for IT Inventory System (Full Complete Version)
-// FEATURES: Bulk Clone, Dynamic Bulk Edit, Drill-down Dashboard, Rapid Scan
+// FEATURES: Bulk Clone, Dynamic Bulk Edit, Drill-down Dashboard, Rapid Scan, Custom Columns
 // ===================================================================
 
 // 🌟 ล็อก URL ไปที่เซิร์ฟเวอร์บน Cloud ของคุณ 100%
-const API_BASE_URL = 'https://it-inventory-system-ncd9.onrender.com';
+const API_BASE_URL = 'https://it-inventory-system-ncd9.onrender.com'; // หรือ window.location.origin
 
 // --- Definition of Available Fields for Custom Menus ---
 const AVAILABLE_FIELDS = [
@@ -58,8 +58,6 @@ const AVAILABLE_FIELDS = [
 let allData = {};
 let currentEdit = { mode: null, collection: null, id: null };
 let currentStaffEdit = { mode: null, id: null };
-let statusChart = null;
-let categoryChart = null;
 let paginationState = {};
 let handoverCart = [];
 let returnCart = [];
@@ -70,7 +68,7 @@ let collectionConfigs = {};
 let currentRapidCollection = null;
 let currentLabelItems = []; 
 let currentLabelCategory = null;
-let currentDashboardFolder = null; // สำหรับจำสถานะหน้า Dashboard
+let currentDashboardFolder = null;
 
 // ==========================================
 // 1. Initialization & Core Logic
@@ -87,10 +85,40 @@ document.addEventListener('DOMContentLoaded', () => {
         initPrintStyles(); 
         injectRapidEntryModal(); 
         initializeAppLogic();
+        bindGlobalEventListeners();
     } else {
-        window.location.replace('login.html');
+        window.location.replace('/login.html');
     }
 });
+
+function bindGlobalEventListeners() {
+    // แก้บั๊กฟอร์ม Add Admin ให้บันทึกได้
+    const addUserForm = document.getElementById('addUserForm');
+    if (addUserForm) {
+        addUserForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const email = document.getElementById('newUserEmail').value;
+            const password = document.getElementById('newUserPassword').value;
+            const errorEl = document.getElementById('addUserError');
+            
+            if(password.length < 6) {
+                errorEl.textContent = "Password must be at least 6 characters.";
+                return;
+            }
+            
+            try {
+                await apiRequest('/api/admins', 'POST', { email, password });
+                window.hideModal('addUserModal');
+                addUserForm.reset();
+                errorEl.textContent = "";
+                showNotificationModal('success', 'Success', 'Admin created successfully.');
+                window.renderAdminTable();
+            } catch (error) {
+                errorEl.textContent = error.message;
+            }
+        });
+    }
+}
 
 async function initializeAppLogic() {
     const success = await refreshAllData();
@@ -108,7 +136,6 @@ async function initializeAppLogic() {
         
         if (refreshIntervalId) clearInterval(refreshIntervalId);
         
-        // รีเฟรชข้อมูลเบื้องหลังทุกๆ 5 นาที (ลดภาระเซิร์ฟเวอร์)
         refreshIntervalId = setInterval(async () => { 
             await refreshAllData();
             const visiblePage = document.querySelector('.page-content.active');
@@ -124,7 +151,7 @@ async function initializeAppLogic() {
 window.logout = function() { 
     localStorage.removeItem('authToken'); 
     localStorage.removeItem('user'); 
-    window.location.replace('login.html'); 
+    window.location.replace('/login.html'); 
 };
 
 // --- API Helper ---
@@ -175,12 +202,10 @@ async function refreshAllData() {
             let headerFields = [];
             if (menu.displayColumns && Array.isArray(menu.displayColumns) && menu.displayColumns.length > 0) {
                 headerFields = [...menu.displayColumns];
-                // เพิ่ม Last Seen อัตโนมัติ หากติ๊กเลือก IP Address ไว้
                 if (headerFields.includes('IPAddress') && !headerFields.includes('Last Seen')) {
                     headerFields.unshift('Last Seen');
                 }
             } else {
-                // Fallback (เผื่อกรณีของเก่าที่ไม่ได้เซ็ต displayColumns ไว้)
                 headerFields = menu.fields.slice(0, 5).map(f => f.id);
                 if (!headerFields.includes('Status')) {
                      if (headerFields.length >= 5) headerFields[4] = 'Status';
@@ -259,6 +284,8 @@ async function convertFileToBase64(file) {
 
 window.viewDisposalEvidence = function(base64Data) {
     if (!base64Data) return alert("ไม่พบเอกสารแนบในระบบ");
+    // เพื่อป้องกันปัญหา Popup Blocker ให้แสดง Modal ดูเอกสารดีกว่าเปิด Tab ใหม่ในบางเบราว์เซอร์
+    // สำหรับเวอร์ชันนี้ ใช้ iframe เป็นพื้นฐาน
     if (base64Data.startsWith('data:application/pdf')) {
         const newWindow = window.open();
         newWindow.document.write(`<iframe src="${base64Data}" frameborder="0" style="border:0; top:0px; left:0px; bottom:0px; right:0px; width:100%; height:100%;" allowfullscreen></iframe>`);
@@ -570,7 +597,7 @@ window.loadPage = function(pageName, navElement) {
         pageDiv.style.display = 'block';
 
         if (pageName === 'Dashboard') {
-            window.updateDashboard(null); // เคลียร์หน้าโฟลเดอร์เมื่อกลับมา Dashboard
+            window.updateDashboard(null); 
         }
         else if (pageName === 'LoanHistory') window.buildLoanHistoryCards();
         else if (pageName === 'Maintenance') window.buildMaintenancePage();
@@ -600,7 +627,7 @@ window.loadPage = function(pageName, navElement) {
 };
 
 // ==========================================
-// --- SETTINGS & CUSTOM MENUS ---
+// --- SETTINGS & CUSTOM MENUS (with Custom Columns) ---
 // ==========================================
 window.renderSettings = function() {
     const area = document.getElementById('settings-content-area');
@@ -650,7 +677,6 @@ window.renderSettings = function() {
     area.innerHTML = html;
 };
 
-// 🌟 ตัวกำหนดการเปิดหน้าต่างสำหรับสร้าง Menu
 window.openAddMenuModal = function() {
     const form = document.getElementById('addMenuForm');
     if (form) form.reset();
@@ -668,18 +694,15 @@ window.openAddMenuModal = function() {
     document.getElementById('newMenuId').classList.remove('bg-gray-200', 'cursor-not-allowed');
     window.populateParentDropdown();
     
-    // ตั้งค่าเริ่มต้นของ Checkbox ฝั่งฟอร์ม (เปิดทั้งหมด)
     document.querySelectorAll('.col-checkbox').forEach(cb => { 
         if(!cb.disabled) cb.checked = true; 
     });
     
-    // ตั้งค่าเริ่มต้นของ Checkbox ฝั่งตาราง (ล้างค่าก่อน)
     document.querySelectorAll('.display-checkbox').forEach(cb => { 
         cb.disabled = false;
         cb.checked = false; 
     });
     
-    // ตั้งค่าการแสดงผลคอลัมน์พื้นฐานอัตโนมัติ
     ['SerialNumber', 'ItemName', 'Status', 'UserName', 'Location'].forEach(id => {
         const cb = document.getElementById(`display_${id}`);
         if(cb) cb.checked = true;
@@ -688,7 +711,6 @@ window.openAddMenuModal = function() {
     window.openModalWindow('addMenuModal');
 };
 
-// 🌟 ตัวกำหนดการเปิดหน้าต่างแก้ไข Menu เดิม
 window.openEditMenuModal = function(menuName, event) {
     if (event) event.stopPropagation();
     const menu = allData.CustomMenus.find(m => m.name === menuName);
@@ -704,30 +726,25 @@ window.openEditMenuModal = function(menuName, event) {
     document.getElementById('newMenuOrder').value = menu.order || 0;
     window.populateParentDropdown(menu.parentId); 
     
-    // ล้างค่า Checkbox ก่อนทั้งหมด
     document.querySelectorAll('.col-checkbox').forEach(cb => cb.checked = false);
     document.querySelectorAll('.display-checkbox').forEach(cb => { cb.checked = false; cb.disabled = true; });
 
-    // โหลดค่า Field ฝั่งฟอร์มที่เคยบันทึกไว้
     if (menu.fields && Array.isArray(menu.fields)) {
         menu.fields.forEach(f => {
             const cb = document.getElementById(`field_${f.id}`);
             if(cb) cb.checked = true;
             
-            // เปิดใช้งานการตั้งค่าตาราง (หากฟอร์มถูกเลือกไว้)
             const dCb = document.getElementById(`display_${f.id}`);
             if(dCb) dCb.disabled = false;
         });
     }
 
-    // โหลดค่าคอลัมน์ของฝั่งตารางที่เคยบันทึกไว้
     if (menu.displayColumns && Array.isArray(menu.displayColumns)) {
         menu.displayColumns.forEach(id => {
             const dCb = document.getElementById(`display_${id}`);
             if(dCb) dCb.checked = true;
         });
     } else {
-        // Fallback กรณีเปิดใช้เมนูเก่าที่ยังไม่เคยมีระบบนี้
         const fallbackHeaders = menu.fields ? menu.fields.slice(0, 5).map(f => f.id) : [];
         if (!fallbackHeaders.includes('Status')) fallbackHeaders.push('Status');
         fallbackHeaders.forEach(id => {
@@ -761,7 +778,6 @@ window.populateParentDropdown = function(selectedParentId = null) {
     });
 };
 
-// 🌟 สร้าง HTML คอลัมน์สำหรับเลือกโชว์ในฟอร์มและตาราง
 function initColumnSelector() {
     const colContainer = document.getElementById('column-selector-container');
     if(!colContainer) return;
@@ -811,7 +827,6 @@ function initColumnSelector() {
 }
 setTimeout(initColumnSelector, 1000);
 
-// 🌟 ฟังก์ชันจัดการปิด-เปิดกล่องเลือกคอลัมน์ในตาราง (ถ้าเอาฟอร์มออก คอลัมน์ตารางต้องปิดด้วย)
 window.toggleFieldDisplay = function(fieldId) {
     const fieldCb = document.getElementById(`field_${fieldId}`);
     const displayCb = document.getElementById(`display_${fieldId}`);
@@ -841,7 +856,6 @@ window.saveCustomMenu = async function() {
         if(cb.checked || cb.disabled) selectedFields.push(AVAILABLE_FIELDS.find(f => f.id === cb.value) || { id: cb.value, label: cb.value, type: 'text' });
     });
 
-    // 🌟 ดึงข้อมูลคอลัมน์ตารางที่ผู้ใช้เลือกไว้
     const selectedDisplayColumns = [];
     document.querySelectorAll('.display-checkbox').forEach(cb => {
         if(cb.checked) {
@@ -860,7 +874,7 @@ window.saveCustomMenu = async function() {
         parentId: parentInput || null, 
         order: orderInput, 
         fields: selectedFields,
-        displayColumns: selectedDisplayColumns // ส่งข้อมูลชุดคอลัมน์ตารางไปด้วย
+        displayColumns: selectedDisplayColumns
     };
 
     try {
@@ -1300,33 +1314,74 @@ window.updateDashboard = function(folderId) {
         currentDashboardFolder = folderId;
     }
     
-    let total = 0, active = 0, storage = 0, issues = 0;
+    let total = 0, active = 0, storage = 0, issues = 0, disposed = 0;
+    let online = 0, offline = 0;
+    let warrantySoon = 0, warrantyExpired = 0;
+    
     const skipKeys = ['Staff', 'CustomMenus', 'TransactionHistory', 'LoanHistory', 'Maintenance Log', 'admins', 'Software'];
     const allItems = [];
+    const locationCounts = {};
+
+    const now = new Date();
+    const thirtyDaysFromNow = new Date();
+    thirtyDaysFromNow.setDate(now.getDate() + 30);
 
     for (const [key, items] of Object.entries(allData)) {
         if (skipKeys.includes(key)) continue;
-        if (Array.isArray(items)) allItems.push(...items);
-    }
-
-    if(document.getElementById('stat-total')) {
-        document.getElementById('stat-total').innerText = allItems.length;
-        document.getElementById('stat-active').innerText = allItems.filter(i=>i.Status==='Active' || i.Status==='On Loan').length;
-        document.getElementById('stat-storage').innerText = allItems.filter(i=>i.Status==='Storage').length;
-        document.getElementById('stat-issues').innerText = allItems.filter(i=>['Repair','Damaged','Disposed'].includes(i.Status)).length;
-    }
-    
-    let overviewGrid = document.getElementById('category-overview-grid');
-    if (!overviewGrid) {
-        const topStatsGrid = document.querySelector('#dashboard-page .grid');
-        if (topStatsGrid) {
-            overviewGrid = document.createElement('div');
-            overviewGrid.id = 'category-overview-grid';
-            overviewGrid.className = 'grid grid-cols-2 md:grid-cols-4 xl:grid-cols-6 gap-4 mb-6';
-            topStatsGrid.parentNode.insertBefore(overviewGrid, topStatsGrid.nextSibling);
+        if (Array.isArray(items)) {
+            allItems.push(...items);
         }
     }
 
+    // 1. แยกคำนวณ Status และ Warranty
+    allItems.forEach(i => {
+        if (i.Status === 'Disposed') {
+            disposed++;
+        } else {
+            total++;
+            if (i.Status === 'Active' || i.Status === 'On Loan') active++;
+            else if (i.Status === 'Storage') storage++;
+            else if (i.Status === 'Repair' || i.Status === 'Damaged') issues++;
+
+            if (i.IPAddress || i.lastSeenOnline) {
+                const lastSeen = i.lastSeenOnline || i.Timestamp;
+                if (lastSeen && (new Date() - new Date(lastSeen)) / 60000 <= 15) {
+                    online++;
+                } else {
+                    offline++;
+                }
+            }
+
+            if (i.WarrantyEndDate) {
+                const wDate = new Date(i.WarrantyEndDate);
+                if (wDate < now) {
+                    warrantyExpired++;
+                } else if (wDate <= thirtyDaysFromNow) {
+                    warrantySoon++;
+                }
+            }
+
+            const loc = i.Location || 'Unassigned';
+            locationCounts[loc] = (locationCounts[loc] || 0) + 1;
+        }
+    });
+
+    if(document.getElementById('stat-total')) {
+        document.getElementById('stat-total').innerText = total;
+        document.getElementById('stat-active').innerText = active;
+        document.getElementById('stat-storage').innerText = storage;
+        document.getElementById('stat-issues').innerText = issues;
+        document.getElementById('stat-disposed').innerText = disposed;
+        
+        document.getElementById('stat-online').innerText = online;
+        document.getElementById('stat-offline').innerText = offline;
+        
+        document.getElementById('stat-warranty-soon').innerText = warrantySoon;
+        document.getElementById('stat-warranty-expired').innerText = warrantyExpired;
+    }
+    
+    // 2. จัดการหน้า Category Folders
+    let overviewGrid = document.getElementById('category-overview-grid');
     if (overviewGrid) {
         overviewGrid.innerHTML = '';
 
@@ -1351,7 +1406,7 @@ window.updateDashboard = function(folderId) {
                 const config = collectionConfigs[colName];
                 const displayName = config.displayName || colName;
                 const children = getChildren(colName);
-                const itemCount = (allData[colName] || []).length;
+                const itemCount = (allData[colName] || []).filter(i => i.Status !== 'Disposed').length;
                 
                 const action = children.length > 0 ? `window.updateDashboard('${colName}')` : `window.loadPage('${colName}')`;
                 const iconMarker = children.length > 0 ? `<div class="absolute top-2 right-2 text-xs text-indigo-400"><i class="fas fa-folder"></i></div>` : '';
@@ -1371,7 +1426,7 @@ window.updateDashboard = function(folderId) {
         } else {
             const parentConfig = collectionConfigs[currentDashboardFolder];
             const parentDisplayName = parentConfig ? parentConfig.displayName : currentDashboardFolder;
-            const parentItemCount = (allData[currentDashboardFolder] || []).length;
+            const parentItemCount = (allData[currentDashboardFolder] || []).filter(i => i.Status !== 'Disposed').length;
 
             let mDef = (allData.CustomMenus || []).find(m => m.name === currentDashboardFolder);
             const goBackId = mDef && mDef.parentId ? `'${mDef.parentId}'` : `null`;
@@ -1403,7 +1458,7 @@ window.updateDashboard = function(folderId) {
                 const config = collectionConfigs[colName];
                 const displayName = config.displayName || colName;
                 const subChildren = getChildren(colName);
-                const itemCount = (allData[colName] || []).length;
+                const itemCount = (allData[colName] || []).filter(i => i.Status !== 'Disposed').length;
                 const action = subChildren.length > 0 ? `window.updateDashboard('${colName}')` : `window.loadPage('${colName}')`;
                 const iconMarker = subChildren.length > 0 ? `<div class="absolute top-2 right-2 text-xs text-indigo-400"><i class="fas fa-folder"></i></div>` : '';
 
@@ -1422,19 +1477,27 @@ window.updateDashboard = function(folderId) {
         }
     }
 
-    const statusCounts = {}; allItems.forEach(i => { statusCounts[i.Status] = (statusCounts[i.Status] || 0) + 1; });
+    // 3. Render Charts
+    const statusCounts = {}; 
+    allItems.filter(i => i.Status !== 'Disposed').forEach(i => { statusCounts[i.Status] = (statusCounts[i.Status] || 0) + 1; });
     window.renderStatusChart(statusCounts);
     
     const categoryCounts = {}; 
     for (const [key, items] of Object.entries(allData)) {
         if (skipKeys.includes(key)) continue;
         if (Array.isArray(items)) {
-            const displayName = collectionConfigs[key] ? collectionConfigs[key].displayName : key;
-            categoryCounts[displayName] = items.length;
+            const activeItems = items.filter(i => i.Status !== 'Disposed');
+            if (activeItems.length > 0) {
+                const displayName = collectionConfigs[key] ? collectionConfigs[key].displayName : key;
+                categoryCounts[displayName] = activeItems.length;
+            }
         }
     }
     window.renderCategoryChart(categoryCounts);
 
+    window.renderLocationChart(locationCounts);
+
+    // 4. Render Recent Transactions
     const activityContainer = document.getElementById('recent-activity-list');
     if (activityContainer) {
         const transactions = allData['TransactionHistory'] || [];
@@ -1465,15 +1528,71 @@ window.updateDashboard = function(folderId) {
 window.renderStatusChart = function(data) {
     const ctx = document.getElementById('statusChart');
     if(!ctx) return;
-    if(statusChart) { statusChart.data.labels = Object.keys(data); statusChart.data.datasets[0].data = Object.values(data); statusChart.update(); }
-    else { statusChart = new Chart(ctx, { type: 'doughnut', data: { labels: Object.keys(data), datasets: [{ data: Object.values(data), backgroundColor: ['#22c55e', '#eab308', '#f97316', '#3b82f6', '#ef4444', '#9ca3af'] }] }, options: { responsive: true, maintainAspectRatio: false } }); }
+    if(window.statusChartInstance) { 
+        window.statusChartInstance.data.labels = Object.keys(data); 
+        window.statusChartInstance.data.datasets[0].data = Object.values(data); 
+        window.statusChartInstance.update(); 
+    } else { 
+        window.statusChartInstance = new Chart(ctx, { 
+            type: 'doughnut', 
+            data: { 
+                labels: Object.keys(data), 
+                datasets: [{ data: Object.values(data), backgroundColor: ['#22c55e', '#eab308', '#f97316', '#3b82f6', '#9ca3af'] }] 
+            }, 
+            options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'right' } } } 
+        }); 
+    }
 };
 
 window.renderCategoryChart = function(data) {
     const ctx = document.getElementById('categoryChart');
     if(!ctx) return;
-    if(categoryChart) { categoryChart.data.labels = Object.keys(data); categoryChart.data.datasets[0].data = Object.values(data); categoryChart.update(); }
-    else { categoryChart = new Chart(ctx, { type: 'bar', data: { labels: Object.keys(data), datasets: [{ label: 'Assets', data: Object.values(data), backgroundColor: '#6366f1' }] }, options: { responsive: true, maintainAspectRatio: false } }); }
+    if(window.categoryChartInstance) { 
+        window.categoryChartInstance.data.labels = Object.keys(data); 
+        window.categoryChartInstance.data.datasets[0].data = Object.values(data); 
+        window.categoryChartInstance.update(); 
+    } else { 
+        window.categoryChartInstance = new Chart(ctx, { 
+            type: 'bar', 
+            data: { 
+                labels: Object.keys(data), 
+                datasets: [{ label: 'Assets', data: Object.values(data), backgroundColor: '#6366f1', borderRadius: 4 }] 
+            }, 
+            options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } } } 
+        }); 
+    }
+};
+
+window.renderLocationChart = function(data) {
+    const ctx = document.getElementById('locationChart');
+    if(!ctx) return;
+    
+    const sortedLocations = Object.entries(data)
+        .sort((a, b) => b[1] - a[1])
+        .slice(0, 5);
+    
+    const labels = sortedLocations.map(item => item[0]);
+    const values = sortedLocations.map(item => item[1]);
+
+    if(window.locationChartInstance) { 
+        window.locationChartInstance.data.labels = labels; 
+        window.locationChartInstance.data.datasets[0].data = values; 
+        window.locationChartInstance.update(); 
+    } else { 
+        window.locationChartInstance = new Chart(ctx, { 
+            type: 'bar', 
+            data: { 
+                labels: labels, 
+                datasets: [{ label: 'Assets by Location', data: values, backgroundColor: '#14b8a6', borderRadius: 4 }] 
+            }, 
+            options: { 
+                responsive: true, 
+                maintainAspectRatio: false, 
+                indexAxis: 'y', 
+                plugins: { legend: { display: false } } 
+            } 
+        }); 
+    }
 };
 
 // ==========================================

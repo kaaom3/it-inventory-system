@@ -88,7 +88,7 @@
                         <i class="fas fa-moon w-6" id="theme-icon"></i>
                         <span id="theme-text">Dark Mode</span>
                     </button>
-                    <button id="logout-btn" class="w-full flex items-center px-4 py-2 rounded-lg text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 transition">
+                    <button id="logout-btn" onclick="window.logout()" class="w-full flex items-center px-4 py-2 rounded-lg text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 transition">
                         <i class="fas fa-sign-out-alt w-6"></i>
                         <span>Logout</span>
                     </button>
@@ -102,36 +102,87 @@
             <!-- Dashboard -->
             <div id="dashboard-page" class="page-content active">
                 <h2 class="text-2xl font-bold mb-6">Overview Dashboard</h2>
-                <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
-                    <div class="bg-white dark:bg-gray-800 p-4 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700 text-center">
-                        <h3 class="text-gray-500 text-sm">Total</h3>
+                
+                <!-- สถิติหลัก (แยก Disposed ออก) -->
+                <div class="grid grid-cols-2 md:grid-cols-5 gap-4 mb-6">
+                    <div class="bg-white dark:bg-gray-800 p-4 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700 text-center relative overflow-hidden">
+                        <div class="absolute -right-4 -top-4 opacity-10"><i class="fas fa-cubes text-6xl text-indigo-600"></i></div>
+                        <h3 class="text-gray-500 text-sm font-semibold uppercase">Total Assets</h3>
                         <p class="text-3xl font-bold text-indigo-600 mt-2" id="stat-total">0</p>
                     </div>
-                    <div class="bg-white dark:bg-gray-800 p-4 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700 text-center">
-                        <h3 class="text-gray-500 text-sm">Active</h3>
+                    <div class="bg-white dark:bg-gray-800 p-4 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700 text-center relative overflow-hidden">
+                        <div class="absolute -right-4 -top-4 opacity-10"><i class="fas fa-check-circle text-6xl text-green-600"></i></div>
+                        <h3 class="text-gray-500 text-sm font-semibold uppercase">Active / Loan</h3>
                         <p class="text-3xl font-bold text-green-600 mt-2" id="stat-active">0</p>
                     </div>
-                    <div class="bg-white dark:bg-gray-800 p-4 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700 text-center">
-                        <h3 class="text-gray-500 text-sm">Storage</h3>
+                    <div class="bg-white dark:bg-gray-800 p-4 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700 text-center relative overflow-hidden">
+                        <div class="absolute -right-4 -top-4 opacity-10"><i class="fas fa-box text-6xl text-blue-600"></i></div>
+                        <h3 class="text-gray-500 text-sm font-semibold uppercase">In Storage</h3>
                         <p class="text-3xl font-bold text-blue-600 mt-2" id="stat-storage">0</p>
                     </div>
-                    <div class="bg-white dark:bg-gray-800 p-4 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700 text-center">
-                        <h3 class="text-gray-500 text-sm">Issues</h3>
-                        <p class="text-3xl font-bold text-red-600 mt-2" id="stat-issues">0</p>
+                    <div class="bg-white dark:bg-gray-800 p-4 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700 text-center relative overflow-hidden">
+                        <div class="absolute -right-4 -top-4 opacity-10"><i class="fas fa-tools text-6xl text-orange-500"></i></div>
+                        <h3 class="text-gray-500 text-sm font-semibold uppercase">Repair / Issue</h3>
+                        <p class="text-3xl font-bold text-orange-500 mt-2" id="stat-issues">0</p>
+                    </div>
+                    <div class="bg-white dark:bg-gray-800 p-4 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700 text-center relative overflow-hidden">
+                        <div class="absolute -right-4 -top-4 opacity-10"><i class="fas fa-trash-alt text-6xl text-red-600"></i></div>
+                        <h3 class="text-gray-500 text-sm font-semibold uppercase">Disposed</h3>
+                        <p class="text-3xl font-bold text-red-600 mt-2" id="stat-disposed">0</p>
                     </div>
                 </div>
-                <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+
+                <!-- การเชื่อมต่อ (Network Health) & Warranty Alerts -->
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+                    <div class="bg-white dark:bg-gray-800 p-5 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700 flex items-center justify-between">
+                        <div class="flex items-center">
+                            <div class="bg-blue-100 dark:bg-blue-900/50 p-3 rounded-lg text-blue-600 dark:text-blue-400 mr-4"><i class="fas fa-network-wired text-2xl"></i></div>
+                            <div>
+                                <h3 class="font-bold text-gray-800 dark:text-white">Network & Devices Health</h3>
+                                <p class="text-xs text-gray-500">สถานะ Online/Offline ของอุปกรณ์ที่มี IP</p>
+                            </div>
+                        </div>
+                        <div class="flex space-x-6 text-center">
+                            <div><p class="text-xs text-gray-500 font-semibold">ONLINE</p><p class="text-xl font-bold text-green-500" id="stat-online">0</p></div>
+                            <div><p class="text-xs text-gray-500 font-semibold">OFFLINE</p><p class="text-xl font-bold text-gray-400" id="stat-offline">0</p></div>
+                        </div>
+                    </div>
+                    <div class="bg-white dark:bg-gray-800 p-5 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700 flex items-center justify-between">
+                        <div class="flex items-center">
+                            <div class="bg-yellow-100 dark:bg-yellow-900/50 p-3 rounded-lg text-yellow-600 dark:text-yellow-400 mr-4"><i class="fas fa-shield-alt text-2xl"></i></div>
+                            <div>
+                                <h3 class="font-bold text-gray-800 dark:text-white">Warranty Alerts</h3>
+                                <p class="text-xs text-gray-500">อัปเดตประกันอุปกรณ์ (ทั้งหมด)</p>
+                            </div>
+                        </div>
+                        <div class="flex space-x-6 text-center">
+                            <div><p class="text-xs text-gray-500 font-semibold text-yellow-600">EXPIRES <30D</p><p class="text-xl font-bold text-yellow-500" id="stat-warranty-soon">0</p></div>
+                            <div><p class="text-xs text-gray-500 font-semibold text-red-500">EXPIRED</p><p class="text-xl font-bold text-red-500" id="stat-warranty-expired">0</p></div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Category Overview (Folder Drill-down) -->
+                <div id="category-overview-grid" class="grid grid-cols-2 md:grid-cols-4 xl:grid-cols-6 gap-4 mb-6"></div>
+
+                <!-- กราฟต่างๆ -->
+                <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
                     <div class="bg-white dark:bg-gray-800 p-4 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700">
-                        <h3 class="font-bold mb-4">Status Distribution</h3>
+                        <h3 class="font-bold mb-4 flex items-center"><i class="fas fa-chart-pie mr-2 text-indigo-500"></i> Status Distribution</h3>
                         <div class="h-64"><canvas id="statusChart"></canvas></div>
                     </div>
                     <div class="bg-white dark:bg-gray-800 p-4 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700">
-                        <h3 class="font-bold mb-4">Assets by Category</h3>
+                        <h3 class="font-bold mb-4 flex items-center"><i class="fas fa-chart-bar mr-2 text-indigo-500"></i> Assets by Category</h3>
                         <div class="h-64"><canvas id="categoryChart"></canvas></div>
                     </div>
+                    <div class="bg-white dark:bg-gray-800 p-4 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700">
+                        <h3 class="font-bold mb-4 flex items-center"><i class="fas fa-map-marker-alt mr-2 text-indigo-500"></i> Top Locations</h3>
+                        <div class="h-64"><canvas id="locationChart"></canvas></div>
+                    </div>
                 </div>
+
                 <div class="bg-white dark:bg-gray-800 p-4 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700">
-                    <h3 class="font-bold mb-4">Recent Transactions</h3>
+                    <h3 class="font-bold mb-4 flex items-center"><i class="fas fa-history mr-2 text-indigo-500"></i> Recent Transactions</h3>
                     <div id="recent-activity-list" class="space-y-2"></div>
                 </div>
             </div>
