@@ -166,14 +166,58 @@ app.post('/api/inventory/sync', verifyApiKey, async (req, res) => {
     if (!db) return res.status(500).json({ status: "error", message: "Database not connected" });
     try {
         const data = req.body;
-        if (!data || !data.computerName || !data.serialNumber) return res.status(400).json({ status: "error", message: "Invalid payload" });
+        if (!data || !data.computerName) return res.status(400).json({ status: "error", message: "Invalid payload: missing computerName" });
 
         const now = new Date();
-        await db.collection('Computers').updateOne(
-            { SerialNumber: data.serialNumber },
-            { $set: { ComputerName: data.computerName, Manufacturer: data.manufacturer, Model: data.model, Type: data.type, Location: data.location, UserName: data.userName, CPU: data.cpu, RAM_GB: data.ramGB, DiskSize_GB: data.diskSizeGB, OS: data.os, IPAddress: data.ipAddress, Status: "Active", Timestamp: now, lastSeenOnline: now } },
-            { upsert: true }
-        );
+        
+        // 1. ค้นหาอุปกรณ์เดิมในระบบด้วยเงื่อนไขที่รัดกุมขึ้น
+        let existingDevice = null;
+        
+        // 1.1 ลองหาจาก Serial Number ก่อน (ถ้าสคริปต์ส่งค่ามาและไม่ใช่ N/A หรือค่าว่าง)
+        if (data.serialNumber && data.serialNumber !== 'N/A' && data.serialNumber.trim() !== '') {
+            existingDevice = await db.collection('Computers').findOne({ SerialNumber: data.serialNumber });
+        }
+        
+        // 1.2 ถ้าไม่เจอจาก S/N ให้ลองหาจากชื่อ ComputerName (กรณีในเว็บแก้ S/N ไปแล้ว แต่สคริปต์ยังส่ง N/A หรือค่าเดิมมา)
+        if (!existingDevice && data.computerName) {
+            existingDevice = await db.collection('Computers').findOne({ ComputerName: data.computerName });
+        }
+
+        // 2. เตรียมข้อมูลอัปเดตสเปคเครื่อง
+        const updatePayload = {
+            $set: {
+                ComputerName: data.computerName,
+                Manufacturer: data.manufacturer,
+                Model: data.model,
+                Type: data.type,
+                Location: data.location,
+                UserName: data.userName,
+                CPU: data.cpu,
+                RAM_GB: data.ramGB,
+                DiskSize_GB: data.diskSizeGB,
+                OS: data.os,
+                IPAddress: data.ipAddress,
+                Status: "Active",
+                Timestamp: now,
+                lastSeenOnline: now
+            }
+        };
+
+        // อัปเดต Serial Number เฉพาะเมื่อสคริปต์อ่านค่ามาได้จริง (ไม่ใช่ N/A)
+        // ป้องกันการเอาคำว่า N/A ไปเขียนทับ S/N ที่แอดมินแก้ไขไว้ในเว็บแล้ว
+        if (data.serialNumber && data.serialNumber !== 'N/A' && data.serialNumber.trim() !== '') {
+            updatePayload.$set.SerialNumber = data.serialNumber;
+        }
+
+        // 3. บันทึกลง Database
+        if (existingDevice) {
+            // เจอเครื่องเดิม -> ให้อัปเดตข้อมูลทับเครื่องเดิม
+            await db.collection('Computers').updateOne({ _id: existingDevice._id }, updatePayload);
+        } else {
+            // ไม่เจอเครื่องเดิมเลย -> สร้างอุปกรณ์ใหม่
+            updatePayload.$set.SerialNumber = data.serialNumber || 'N/A';
+            await db.collection('Computers').insertOne(updatePayload.$set);
+        }
 
         if (data.monitors && Array.isArray(data.monitors)) {
             for (const mon of data.monitors) {
