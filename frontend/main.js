@@ -198,7 +198,6 @@ async function refreshAllData() {
         customMenus.forEach(menu => {
             if (!menu.fields || !Array.isArray(menu.fields) || menu.fields.length === 0) return;
             
-            // 🌟 สร้าง headerFields ตามที่ผู้ใช้กำหนด (displayColumns)
             let headerFields = [];
             if (menu.displayColumns && Array.isArray(menu.displayColumns) && menu.displayColumns.length > 0) {
                 headerFields = [...menu.displayColumns];
@@ -284,8 +283,6 @@ async function convertFileToBase64(file) {
 
 window.viewDisposalEvidence = function(base64Data) {
     if (!base64Data) return alert("ไม่พบเอกสารแนบในระบบ");
-    // เพื่อป้องกันปัญหา Popup Blocker ให้แสดง Modal ดูเอกสารดีกว่าเปิด Tab ใหม่ในบางเบราว์เซอร์
-    // สำหรับเวอร์ชันนี้ ใช้ iframe เป็นพื้นฐาน
     if (base64Data.startsWith('data:application/pdf')) {
         const newWindow = window.open();
         newWindow.document.write(`<iframe src="${base64Data}" frameborder="0" style="border:0; top:0px; left:0px; bottom:0px; right:0px; width:100%; height:100%;" allowfullscreen></iframe>`);
@@ -1652,18 +1649,66 @@ window.buildHandoverReturnPage = function() {
     const handoverTab = document.getElementById('handover-tab-content');
     if(handoverTab) {
         handoverTab.innerHTML = `
-            <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                <div><h3 class="font-semibold mb-2">1. Select Staff</h3><input type="text" onkeyup="window.filterStaffList(this, 'handoverStaffList')" placeholder="Search staff..." class="w-full p-2 border rounded mb-2 dark:bg-gray-700 dark:border-gray-600"><div id="handoverStaffList" class="max-h-48 overflow-y-auto border rounded p-2 dark:border-gray-600"></div><h3 class="font-semibold mb-2 mt-4">2. Select Device</h3><input type="text" onkeyup="window.filterDeviceList(this, 'handoverDeviceList')" placeholder="Search storage..." class="w-full p-2 border rounded mb-2 dark:bg-gray-700 dark:border-gray-600"><div id="handoverDeviceList" class="max-h-64 overflow-y-auto border rounded p-2 dark:border-gray-600"></div></div>
-                <div><h3 class="font-semibold mb-2">3. Cart</h3><p class="text-sm mb-2">Staff: <span id="selectedHandoverStaff" class="font-bold">None</span></p><div id="handoverCartList" class="border rounded p-2 min-h-[200px] bg-gray-50 dark:bg-gray-700 space-y-2"><p class="text-center text-gray-400 p-4">Empty</p></div><button id="confirmHandoverBtn" onclick="window.confirmHandover()" class="mt-4 w-full bg-indigo-600 text-white font-bold py-3 rounded disabled:bg-gray-400" disabled>Confirm</button></div>
+            <div class="grid grid-cols-1 xl:grid-cols-2 gap-8">
+                <div class="space-y-4">
+                    <div class="bg-gray-50 dark:bg-gray-800/50 p-4 rounded-xl border border-gray-100 dark:border-gray-700">
+                        <h3 class="font-bold mb-3 text-gray-800 dark:text-white flex items-center"><span class="bg-indigo-600 text-white w-6 h-6 rounded-full flex items-center justify-center text-xs mr-2">1</span> Select Staff</h3>
+                        <input type="text" onkeyup="window.filterStaffList(this, 'handoverStaffList')" placeholder="Search staff by name or dept..." class="w-full px-4 py-2.5 border border-gray-300 rounded-lg mb-3 dark:bg-gray-700 dark:border-gray-600 dark:text-white focus:ring-2 focus:ring-indigo-500 shadow-sm">
+                        <div id="handoverStaffList" class="max-h-48 overflow-y-auto border border-gray-200 rounded-lg p-2 dark:border-gray-600 bg-white dark:bg-gray-800 custom-scrollbar space-y-1"></div>
+                    </div>
+                    <div class="bg-gray-50 dark:bg-gray-800/50 p-4 rounded-xl border border-gray-100 dark:border-gray-700">
+                        <h3 class="font-bold mb-3 text-gray-800 dark:text-white flex items-center"><span class="bg-indigo-600 text-white w-6 h-6 rounded-full flex items-center justify-center text-xs mr-2">2</span> Select Device (From Storage)</h3>
+                        <input type="text" onkeyup="window.filterDeviceList(this, 'handoverDeviceList')" placeholder="Search by SN, Name, Brand..." class="w-full px-4 py-2.5 border border-gray-300 rounded-lg mb-3 dark:bg-gray-700 dark:border-gray-600 dark:text-white focus:ring-2 focus:ring-indigo-500 shadow-sm">
+                        <div id="handoverDeviceList" class="max-h-80 overflow-y-auto border border-gray-200 rounded-lg dark:border-gray-600 bg-white dark:bg-gray-800 custom-scrollbar"></div>
+                    </div>
+                </div>
+                <div>
+                    <div class="bg-indigo-50 dark:bg-indigo-900/20 p-5 rounded-xl border border-indigo-100 dark:border-indigo-800/50 h-full flex flex-col">
+                        <h3 class="font-bold mb-4 text-indigo-900 dark:text-indigo-100 flex items-center"><span class="bg-indigo-600 text-white w-6 h-6 rounded-full flex items-center justify-center text-xs mr-2">3</span> Cart Summary</h3>
+                        <div class="mb-4 p-3 bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 shadow-sm">
+                            <p class="text-xs text-gray-500 uppercase tracking-wider font-bold mb-1">Assignee</p>
+                            <p id="selectedHandoverStaff" class="text-lg font-bold text-gray-800 dark:text-white">None selected</p>
+                        </div>
+                        <div id="handoverCartList" class="flex-1 overflow-y-auto custom-scrollbar space-y-3 mb-4 min-h-[250px]">
+                            <div class="h-full flex flex-col items-center justify-center text-gray-400">
+                                <i class="fas fa-box-open text-4xl mb-3 opacity-50"></i>
+                                <p>Cart is empty</p>
+                            </div>
+                        </div>
+                        <button id="confirmHandoverBtn" onclick="window.confirmHandover()" class="w-full bg-indigo-600 text-white font-bold py-3.5 rounded-xl disabled:bg-gray-400 disabled:cursor-not-allowed hover:bg-indigo-700 transition shadow-md flex justify-center items-center" disabled>
+                            <i class="fas fa-check-circle mr-2"></i> Confirm Handover
+                        </button>
+                    </div>
+                </div>
             </div>`;
-        window.populateStaffLists('handoverStaffList', 'selectedHandoverStaff'); window.populateHandoverDeviceList();
+        window.populateStaffLists('handoverStaffList', 'selectedHandoverStaff'); 
+        window.populateHandoverDeviceList();
     }
     const returnTab = document.getElementById('return-tab-content');
     if(returnTab) {
         returnTab.innerHTML = `
-            <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                <div><h3 class="font-semibold mb-2">1. Find Staff</h3><input type="text" onkeyup="window.filterStaffList(this, 'returnStaffList')" placeholder="Search staff..." class="w-full p-2 border rounded mb-2 dark:bg-gray-700 dark:border-gray-600"><div id="returnStaffList" class="max-h-48 overflow-y-auto border rounded p-2 dark:border-gray-600"></div></div>
-                <div><h3 class="font-semibold mb-2">2. Return Devices</h3><p class="text-sm mb-2">Assets of: <span id="selectedReturnStaff" class="font-bold">None</span></p><div id="returnDeviceList" class="border rounded p-2 min-h-[200px] bg-gray-50 dark:bg-gray-700 space-y-2"><p class="text-center text-gray-400 p-4">Select staff first.</p></div><button id="confirmReturnBtn" onclick="window.confirmReturn()" class="mt-4 w-full bg-green-600 text-white font-bold py-3 rounded disabled:bg-gray-400" disabled>Confirm Return</button></div>
+            <div class="grid grid-cols-1 lg:grid-cols-12 gap-8">
+                <div class="lg:col-span-5 bg-gray-50 dark:bg-gray-800/50 p-4 rounded-xl border border-gray-100 dark:border-gray-700">
+                    <h3 class="font-bold mb-3 text-gray-800 dark:text-white flex items-center"><span class="bg-green-600 text-white w-6 h-6 rounded-full flex items-center justify-center text-xs mr-2">1</span> Find Staff</h3>
+                    <input type="text" onkeyup="window.filterStaffList(this, 'returnStaffList')" placeholder="Search staff..." class="w-full px-4 py-2.5 border border-gray-300 rounded-lg mb-3 dark:bg-gray-700 dark:border-gray-600 dark:text-white focus:ring-2 focus:ring-green-500 shadow-sm">
+                    <div id="returnStaffList" class="max-h-[500px] overflow-y-auto border border-gray-200 rounded-lg p-2 dark:border-gray-600 bg-white dark:bg-gray-800 custom-scrollbar space-y-1"></div>
+                </div>
+                <div class="lg:col-span-7 bg-white dark:bg-gray-800 p-5 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm flex flex-col h-full">
+                    <h3 class="font-bold mb-4 text-gray-800 dark:text-white flex items-center"><span class="bg-green-600 text-white w-6 h-6 rounded-full flex items-center justify-center text-xs mr-2">2</span> Select Devices to Return</h3>
+                    <div class="mb-4 p-3 bg-gray-50 dark:bg-gray-900/50 rounded-lg border border-gray-200 dark:border-gray-700">
+                        <p class="text-xs text-gray-500 uppercase tracking-wider font-bold mb-1">Current Staff</p>
+                        <p id="selectedReturnStaff" class="text-lg font-bold text-gray-800 dark:text-white">None selected</p>
+                    </div>
+                    <div id="returnDeviceList" class="flex-1 overflow-y-auto custom-scrollbar space-y-3 mb-4 min-h-[300px]">
+                        <div class="h-full flex flex-col items-center justify-center text-gray-400">
+                            <i class="fas fa-arrow-left text-4xl mb-3 opacity-50"></i>
+                            <p>Select a staff member first</p>
+                        </div>
+                    </div>
+                    <button id="confirmReturnBtn" onclick="window.confirmReturn()" class="w-full bg-green-600 text-white font-bold py-3.5 rounded-xl disabled:bg-gray-400 disabled:cursor-not-allowed hover:bg-green-700 transition shadow-md flex justify-center items-center" disabled>
+                        <i class="fas fa-undo mr-2"></i> Confirm Return to Storage
+                    </button>
+                </div>
             </div>`;
         window.populateStaffLists('returnStaffList', 'selectedReturnStaff', true);
     }
@@ -1673,23 +1718,48 @@ window.populateStaffLists = function(listId, labelId, isReturn = false) {
     const list = document.getElementById(listId);
     if (!list) return;
     const staff = allData.Staff || [];
-    if (staff.length === 0) { list.innerHTML = `<p class="p-2 text-center text-gray-500">No staff found.</p>`; return; }
-    list.innerHTML = staff.map(s => `<div class="staff-item p-2 hover:bg-gray-100 dark:hover:bg-gray-600 cursor-pointer rounded" onclick="window.selectStaff('${s.UserName}', '${listId}', '${labelId}', ${isReturn})">${s.FirstName || s.UserName} ${s.LastName || ''}</div>`).join('');
+    if (staff.length === 0) { list.innerHTML = `<p class="p-4 text-center text-gray-500">No staff found.</p>`; return; }
+    list.innerHTML = staff.map(s => `
+        <div class="staff-item p-3 hover:bg-indigo-50 dark:hover:bg-gray-700 border border-transparent hover:border-indigo-100 dark:hover:border-gray-600 cursor-pointer rounded-lg transition-colors flex justify-between items-center" onclick="window.selectStaff('${s.UserName}', '${listId}', '${labelId}', ${isReturn})">
+            <div>
+                <p class="font-bold text-sm dark:text-white">${s.FirstName || s.UserName} ${s.LastName || ''}</p>
+                <p class="text-xs text-gray-500 dark:text-gray-400">User: ${s.UserName}</p>
+            </div>
+            ${s.Department ? `<span class="px-2 py-1 bg-gray-100 dark:bg-gray-600 text-xs rounded font-medium">${s.Department}</span>` : ''}
+        </div>`).join('');
 };
 
 window.selectStaff = function(name, listId, labelId, isReturn) {
     document.getElementById(labelId).textContent = name;
-    document.querySelectorAll(`#${listId} .staff-item`).forEach(el => el.classList.remove('bg-indigo-100', 'dark:bg-indigo-900'));
-    event.target.classList.add('bg-indigo-100', 'dark:bg-indigo-900');
+    document.querySelectorAll(`#${listId} .staff-item`).forEach(el => el.classList.remove('bg-indigo-100', 'dark:bg-indigo-900', 'border-indigo-300'));
+    event.currentTarget.classList.add('bg-indigo-100', 'dark:bg-indigo-900', 'border-indigo-300');
+    
     if (isReturn) {
         const allDevices = Object.keys(collectionConfigs).flatMap(cat => (allData[cat] || []).map(d => ({ ...d, collection: cat })));
-        const userDevices = allDevices.filter(d => d.UserName === name && d.Status !== 'Storage');
+        const userDevices = allDevices.filter(d => d.UserName === name && d.Status !== 'Storage' && d.Status !== 'Disposed');
         const returnList = document.getElementById('returnDeviceList');
-        if(userDevices.length === 0) returnList.innerHTML = `<p class="text-center text-gray-400 p-4">No assets.</p>`;
+        if(userDevices.length === 0) returnList.innerHTML = `<div class="h-full flex flex-col items-center justify-center text-gray-400"><i class="fas fa-box-open text-4xl mb-3 opacity-50"></i><p>No assigned assets found.</p></div>`;
         else {
             returnList.innerHTML = userDevices.map(d => {
                 const config = collectionConfigs[d.collection];
-                return `<div class="p-2 bg-white dark:bg-gray-800 rounded border flex items-center space-x-3"><input type="checkbox" class="return-checkbox rounded" value="${d._id || d.id}" data-col="${d.collection}"><div><p class="font-semibold text-sm">${d[config.nameField]}</p><p class="text-xs text-gray-400">${d[config.serialField]}</p></div></div>`;
+                const deviceName = d[config.nameField] || d.ComputerName || d.DeviceName || d.ItemName || 'Unnamed Device';
+                const serial = d[config.serialField] || d.SerialNumber || 'No SN';
+                const brandModel = [d.Manufacturer, d.Model].filter(Boolean).join(' ') || '-';
+                
+                return `
+                <div class="p-3 bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 flex items-center space-x-3 shadow-sm hover:border-indigo-300 transition-colors">
+                    <input type="checkbox" class="return-checkbox rounded w-4 h-4 text-indigo-600 focus:ring-indigo-500 cursor-pointer" value="${d._id || d.id}" data-col="${d.collection}">
+                    <div class="flex-1 min-w-0">
+                        <div class="flex items-center space-x-2">
+                            <span class="px-2 py-0.5 text-[10px] font-bold bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-300 rounded uppercase tracking-wider">${config.displayName || d.collection}</span>
+                            <p class="font-bold text-sm text-gray-800 dark:text-white truncate">${deviceName}</p>
+                        </div>
+                        <div class="mt-1 flex text-xs text-gray-500 dark:text-gray-400 space-x-3">
+                            <span title="Serial Number" class="truncate"><i class="fas fa-barcode mr-1"></i>${serial}</span>
+                            <span title="Brand/Model" class="truncate"><i class="fas fa-info-circle mr-1"></i>${brandModel}</span>
+                        </div>
+                    </div>
+                </div>`;
             }).join('');
             document.querySelectorAll('.return-checkbox').forEach(cb => cb.addEventListener('change', () => document.getElementById('confirmReturnBtn').disabled = !document.querySelector('.return-checkbox:checked')));
         }
@@ -1700,35 +1770,69 @@ window.populateHandoverDeviceList = function() {
     const list = document.getElementById('handoverDeviceList');
     const allDevices = Object.keys(collectionConfigs).flatMap(cat => (allData[cat] || []).map(d => ({ ...d, collection: cat })));
     const available = allDevices.filter(d => d.Status === 'Storage');
-    if (available.length === 0) { list.innerHTML = `<p class="text-center text-gray-400 p-4">No devices in storage.</p>`; return; }
+    if (available.length === 0) { list.innerHTML = `<div class="h-full flex flex-col items-center justify-center text-gray-400 py-10"><i class="fas fa-box-open text-4xl mb-3 opacity-50"></i><p>No devices in storage.</p></div>`; return; }
+    
     list.innerHTML = available.map(d => {
         const config = collectionConfigs[d.collection];
-        return `<div class="device-item p-2 hover:bg-gray-100 dark:hover:bg-gray-600 cursor-pointer flex justify-between items-center" onclick="window.addDeviceToHandoverCart('${d._id || d.id}', '${d.collection}')"><div><p class="font-semibold text-sm">${d[config.nameField]}</p><p class="text-xs text-gray-400">${d[config.serialField]}</p></div><i class="fas fa-plus text-green-500"></i></div>`;
+        const name = d[config.nameField] || d.ComputerName || d.DeviceName || d.ItemName || 'Unnamed Device';
+        const serial = d[config.serialField] || d.SerialNumber || 'No SN';
+        const brandModel = [d.Manufacturer, d.Model].filter(Boolean).join(' ') || '-';
+        
+        return `
+        <div class="device-item p-3 hover:bg-indigo-50 dark:hover:bg-gray-700 border-b dark:border-gray-600 cursor-pointer flex justify-between items-center transition-colors" onclick="window.addDeviceToHandoverCart('${d._id || d.id}', '${d.collection}')">
+            <div class="flex-1 min-w-0 pr-3">
+                <div class="flex items-center space-x-2">
+                    <span class="shrink-0 px-2 py-0.5 text-[10px] font-bold bg-indigo-100 text-indigo-700 dark:bg-indigo-900 dark:text-indigo-300 rounded uppercase tracking-wider">${config.displayName || d.collection}</span>
+                    <p class="font-bold text-sm text-gray-800 dark:text-white truncate">${name}</p>
+                </div>
+                <div class="mt-1 flex text-xs text-gray-500 dark:text-gray-400 space-x-3">
+                    <span title="Serial Number" class="truncate max-w-[120px]"><i class="fas fa-barcode mr-1"></i>${serial}</span>
+                    <span title="Brand/Model" class="truncate"><i class="fas fa-info-circle mr-1"></i>${brandModel}</span>
+                </div>
+            </div>
+            <div class="shrink-0 bg-white dark:bg-gray-800 w-8 h-8 flex items-center justify-center rounded-full shadow-sm border border-gray-200 dark:border-gray-600">
+                <i class="fas fa-plus text-green-500"></i>
+            </div>
+        </div>`;
     }).join('');
 };
 
 window.addDeviceToHandoverCart = function(id, col) {
     if(!handoverCart.some(i => (i._id === id || i.id === id))) {
         const item = allData[col].find(i => (i._id === id || i.id === id));
-        handoverCart.push({...item, collection: col}); window.renderHandoverCart(); window.updateHandoverButtonState();
+        handoverCart.push({...item, collection: col}); 
+        window.renderHandoverCart(); 
+        window.updateHandoverButtonState();
     }
 };
 
 window.renderHandoverCart = function() {
     const list = document.getElementById('handoverCartList');
-    if(handoverCart.length===0) list.innerHTML = `<p class="text-center text-gray-400 p-4">Select items.</p>`;
+    if(handoverCart.length === 0) list.innerHTML = `<div class="h-full flex flex-col items-center justify-center text-gray-400"><i class="fas fa-box-open text-4xl mb-3 opacity-50"></i><p>Cart is empty</p></div>`;
     else {
         list.innerHTML = handoverCart.map(d => {
             const config = collectionConfigs[d.collection];
             const id = d._id || d.id;
-            return `<div class="p-2 bg-white dark:bg-gray-800 rounded border flex justify-between"><div><p class="font-semibold text-sm">${d[config.nameField]}</p><p class="text-xs text-gray-400">${d[config.serialField]}</p></div><button onclick="window.removeHandoverItem('${id}')" class="text-red-500"><i class="fas fa-times"></i></button></div></div>`;
+            const name = d[config.nameField] || d.ComputerName || d.DeviceName || d.ItemName || 'Unnamed Device';
+            const serial = d[config.serialField] || d.SerialNumber || 'No SN';
+            
+            return `
+            <div class="p-3 bg-white dark:bg-gray-800 rounded-lg border border-indigo-200 dark:border-indigo-800 shadow-sm flex justify-between items-center">
+                <div class="flex-1 min-w-0 pr-2">
+                    <p class="font-bold text-sm text-indigo-900 dark:text-indigo-100 truncate">${name}</p>
+                    <p class="text-xs text-indigo-600 dark:text-indigo-400 mt-0.5 font-mono truncate"><span class="font-semibold px-1.5 py-0.5 bg-indigo-100 dark:bg-indigo-900/50 rounded mr-1">${config.displayName || d.collection}</span> ${serial}</p>
+                </div>
+                <button onclick="window.removeHandoverItem('${id}')" class="shrink-0 text-red-400 hover:text-red-600 bg-red-50 hover:bg-red-100 dark:bg-red-900/30 dark:hover:bg-red-900/50 w-8 h-8 rounded-lg flex items-center justify-center transition-colors">
+                    <i class="fas fa-trash-alt"></i>
+                </button>
+            </div>`;
         }).join('');
     }
 };
 
 window.removeHandoverItem = function(id) { handoverCart = handoverCart.filter(i => (i._id !== id && i.id !== id)); window.renderHandoverCart(); window.updateHandoverButtonState(); };
 window.updateHandoverButtonState = function() { 
-    const staffSelected = document.getElementById('selectedHandoverStaff').textContent !== 'None';
+    const staffSelected = document.getElementById('selectedHandoverStaff').textContent !== 'None selected';
     document.getElementById('confirmHandoverBtn').disabled = !(staffSelected && handoverCart.length > 0); 
 };
 
@@ -1755,8 +1859,8 @@ window.confirmReturn = async function() {
         try {
             await apiRequest('/api/transactions/return', 'POST', { devices: items });
             await refreshAllData(); 
-            document.getElementById('returnDeviceList').innerHTML = '<p class="text-center text-gray-400 p-4">Select staff first.</p>'; 
-            document.getElementById('selectedReturnStaff').textContent = 'None';
+            document.getElementById('returnDeviceList').innerHTML = `<div class="h-full flex flex-col items-center justify-center text-gray-400"><i class="fas fa-arrow-left text-4xl mb-3 opacity-50"></i><p>Select a staff member first</p></div>`; 
+            document.getElementById('selectedReturnStaff').textContent = 'None selected';
             window.populateStaffLists('returnStaffList', 'selectedReturnStaff', true);
             window.updateDashboard(currentDashboardFolder);
             showNotificationModal('success', 'Success', 'Items returned successfully.');
