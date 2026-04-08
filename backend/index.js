@@ -170,43 +170,77 @@ app.post('/api/inventory/sync', verifyApiKey, async (req, res) => {
 
         const now = new Date();
         
+        // 🌟 ฟังก์ชันตรวจสอบ S/N ว่าเป็นค่าขยะหรือไม่ (N/A, None, ค่าว่าง)
+        const isInvalidSN = (sn) => {
+            if (!sn) return true;
+            const cleanSn = sn.trim().toUpperCase();
+            return cleanSn === '' || cleanSn === 'N/A' || cleanSn === 'NONE';
+        };
+
+        const scriptHasInvalidSN = isInvalidSN(data.serialNumber);
+
         // 1. ค้นหาอุปกรณ์เดิมในระบบด้วยเงื่อนไขที่รัดกุมขึ้น
         let existingDevice = null;
         
-        // 1.1 ลองหาจาก Serial Number ก่อน (ถ้าสคริปต์ส่งค่ามาและไม่ใช่ N/A หรือค่าว่าง)
-        if (data.serialNumber && data.serialNumber !== 'N/A' && data.serialNumber.trim() !== '') {
+        // 1.1 ลองหาจาก Serial Number ก่อน (ถ้าสคริปต์ส่งค่ามาและไม่ใช่ N/A หรือ None)
+        if (!scriptHasInvalidSN) {
             existingDevice = await db.collection('Computers').findOne({ SerialNumber: data.serialNumber });
         }
         
-        // 1.2 ถ้าไม่เจอจาก S/N ให้ลองหาจากชื่อ ComputerName (กรณีในเว็บแก้ S/N ไปแล้ว แต่สคริปต์ยังส่ง N/A หรือค่าเดิมมา)
+        // 1.2 ถ้าไม่เจอจาก S/N ให้ลองหาจากชื่อ ComputerName (กรณีในเว็บแก้ S/N ไปแล้ว แต่สคริปต์ยังส่ง N/A/None มา)
         if (!existingDevice && data.computerName) {
             existingDevice = await db.collection('Computers').findOne({ ComputerName: data.computerName });
         }
 
-        // 2. เตรียมข้อมูลอัปเดตสเปคเครื่อง
+        // 2. เตรียมข้อมูลอัปเดตสเปคเครื่อง (อัปเดตเฉพาะฝั่งฮาร์ดแวร์/OS)
         const updatePayload = {
             $set: {
                 ComputerName: data.computerName,
                 Manufacturer: data.manufacturer,
                 Model: data.model,
                 Type: data.type,
-                Location: data.location,
-                UserName: data.userName,
                 CPU: data.cpu,
                 RAM_GB: data.ramGB,
                 DiskSize_GB: data.diskSizeGB,
                 OS: data.os,
                 IPAddress: data.ipAddress,
-                Status: "Active",
                 Timestamp: now,
                 lastSeenOnline: now
             }
         };
 
-        // อัปเดต Serial Number เฉพาะเมื่อสคริปต์อ่านค่ามาได้จริง (ไม่ใช่ N/A)
-        // ป้องกันการเอาคำว่า N/A ไปเขียนทับ S/N ที่แอดมินแก้ไขไว้ในเว็บแล้ว
-        if (data.serialNumber && data.serialNumber !== 'N/A' && data.serialNumber.trim() !== '') {
+        // 🌟 จัดการสถานะ (Status)
+        if (existingDevice) {
+            // ถ้าของเดิมเป็น Storage แต่สคริปต์รันมาได้ แสดงว่าเครื่องถูกเปิดใช้งานแล้ว ให้เปลี่ยนเป็น Active
+            if (existingDevice.Status === 'Storage') {
+                updatePayload.$set.Status = 'Active';
+            }
+            // ถ้านอกเหนือจากนี้ (เช่น Repair, Damaged, On Loan) ให้คงสถานะเดิมเอาไว้ ไม่เอา Active ไปทับ
+        } else {
+            updatePayload.$set.Status = 'Active'; // เครื่องใหม่ให้เป็น Active เลย
+        }
+
+        // 🌟 อัปเดต Serial Number เฉพาะเมื่อสคริปต์อ่านค่ามาได้จริง (ไม่ใช่ N/A หรือ None)
+        // ป้องกันการเอาคำว่า None ไปเขียนทับ S/N ที่แอดมินแก้ไขไว้ในเว็บแล้ว
+        if (!scriptHasInvalidSN) {
             updatePayload.$set.SerialNumber = data.serialNumber;
+        } else if (!existingDevice) {
+            // กรณีสร้างใหม่และสคริปต์ส่ง None มา ก็ให้ใช้ค่าที่ส่งมา (สร้างครั้งแรก)
+            updatePayload.$set.SerialNumber = data.serialNumber || 'None';
+        }
+
+        // 🌟 จัดการ Location: ไม่อัปเดตทับถ้าผู้ใช้งานกรอกไว้ในระบบแล้ว
+        if (existingDevice && existingDevice.Location && existingDevice.Location.trim() !== '') {
+            // คงค่า Location เดิมไว้
+        } else {
+            updatePayload.$set.Location = data.location || '';
+        }
+
+        // 🌟 จัดการ UserName: ไม่อัปเดตทับถ้าผู้ใช้งานกรอก/Assign ไว้ในระบบแล้ว
+        if (existingDevice && existingDevice.UserName && existingDevice.UserName.trim() !== '') {
+            // คงค่า UserName เดิมไว้
+        } else {
+            updatePayload.$set.UserName = data.userName || '';
         }
 
         // 3. บันทึกลง Database
@@ -215,13 +249,13 @@ app.post('/api/inventory/sync', verifyApiKey, async (req, res) => {
             await db.collection('Computers').updateOne({ _id: existingDevice._id }, updatePayload);
         } else {
             // ไม่เจอเครื่องเดิมเลย -> สร้างอุปกรณ์ใหม่
-            updatePayload.$set.SerialNumber = data.serialNumber || 'N/A';
             await db.collection('Computers').insertOne(updatePayload.$set);
         }
 
         if (data.monitors && Array.isArray(data.monitors)) {
             for (const mon of data.monitors) {
-                if (mon.serial && mon.serial !== 'N/A') {
+                // ป้องกันการสร้าง Monitor ขยะที่ไม่มี S/N
+                if (!isInvalidSN(mon.serial)) {
                     await db.collection('Monitors').updateOne(
                         { MonitorSerial: mon.serial },
                         { $set: { Manufacturer: mon.manufacturer, Model: mon.model, AssignedComputer: data.computerName, Status: "Active", Timestamp: now } },
@@ -233,7 +267,8 @@ app.post('/api/inventory/sync', verifyApiKey, async (req, res) => {
 
         if (data.accessories && Array.isArray(data.accessories)) {
             for (const acc of data.accessories) {
-                if (acc.SerialNumber && acc.SerialNumber !== 'N/A') {
+                // ป้องกันการสร้าง Accessory ขยะที่ไม่มี S/N
+                if (!isInvalidSN(acc.SerialNumber)) {
                     await db.collection('Accessory').updateOne(
                         { SerialNumber: acc.SerialNumber },
                         { $set: { AccessoryType: acc.AccessoryType, Manufacturer: acc.Manufacturer, Model: acc.Model, AssignedComputer: data.computerName, Status: "Active", Timestamp: now } },
