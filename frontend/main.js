@@ -92,7 +92,6 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 
 function bindGlobalEventListeners() {
-    // แก้บั๊กฟอร์ม Add Admin ให้บันทึกได้
     const addUserForm = document.getElementById('addUserForm');
     if (addUserForm) {
         addUserForm.addEventListener('submit', async (e) => {
@@ -1147,8 +1146,109 @@ window.renderPaginationControls = function(collectionName, totalRows) {
 };
 
 // ==========================================
-// --- ADD/EDIT MODAL FORMS ---
+// --- ADD/EDIT MODAL FORMS & DEVICE HISTORY ---
 // ==========================================
+// 🌟 ฟังก์ชันสร้างประวัติการใช้งาน/ครอบครองของอุปกรณ์แต่ละชิ้น
+window.buildDeviceHistoryInModal = function(item, collectionName) {
+    const container = document.getElementById('deviceHistoryList');
+    if(!container) return;
+
+    let historyEvents = [];
+    const idStr = String(item._id || item.id);
+
+    // 1. ประวัติการโอนย้าย / คืน (TransactionHistory)
+    const txs = allData['TransactionHistory'] || [];
+    txs.forEach(tx => {
+        const isMatch = tx.devices && tx.devices.some(d => String(d.id) === idStr);
+        if (isMatch) {
+            historyEvents.push({
+                date: new Date(tx.timestamp),
+                type: tx.type, // 'Handover' or 'Return'
+                user: tx.staffUserName,
+                details: tx.type === 'Handover' 
+                    ? `ส่งมอบอุปกรณ์ให้แก่ ${tx.staffUserName}` 
+                    : `รับคืนอุปกรณ์จาก ${tx.staffUserName || 'System'}`
+            });
+        }
+    });
+
+    // 2. ประวัติการยืม (LoanHistory)
+    const loans = allData['LoanHistory'] || [];
+    loans.forEach(loan => {
+        if (String(loan.DeviceId) === idStr) {
+            historyEvents.push({
+                date: new Date(loan.LoanDate),
+                type: 'Loan',
+                user: loan.BorrowerName,
+                details: `ยืมอุปกรณ์ชั่วคราวโดย ${loan.BorrowerName} (กำหนดคืน: ${new Date(loan.DueDate).toLocaleDateString('th-TH')})`
+            });
+            if (loan.Status === 'Returned' && loan.ReturnDate) {
+                historyEvents.push({
+                    date: new Date(loan.ReturnDate),
+                    type: 'Loan Return',
+                    user: loan.BorrowerName,
+                    details: `รับคืนอุปกรณ์ที่ถูกยืมไปโดย ${loan.BorrowerName}`
+                });
+            }
+        }
+    });
+
+    // 3. วันที่เพิ่มเข้าระบบครั้งแรก
+    if (item.Timestamp) {
+        historyEvents.push({
+            date: new Date(item.Timestamp),
+            type: 'Created',
+            user: 'System',
+            details: 'ลงทะเบียนเพิ่มอุปกรณ์เข้าสู่ระบบ (Storage)'
+        });
+    }
+
+    // จัดเรียงจากใหม่สุดไปเก่าสุด
+    historyEvents.sort((a, b) => b.date - a.date);
+
+    if (historyEvents.length === 0) {
+        container.innerHTML = '<div class="flex flex-col items-center justify-center text-gray-400 py-10"><i class="fas fa-history text-4xl mb-3 opacity-50"></i><p>ยังไม่มีประวัติการใช้งาน</p></div>';
+        return;
+    }
+
+    // สร้าง Timeline HTML
+    let html = '<div class="relative border-l-2 border-indigo-200 dark:border-indigo-800/50 ml-4 space-y-6">';
+    historyEvents.forEach(ev => {
+        let icon = 'fa-info';
+        let color = 'bg-gray-500';
+        let badgeColor = 'bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-300';
+        
+        if (ev.type === 'Handover') { 
+            icon = 'fa-arrow-right'; color = 'bg-blue-500'; badgeColor = 'bg-blue-100 text-blue-700 dark:bg-blue-900/50 dark:text-blue-400'; 
+        } else if (ev.type === 'Return') { 
+            icon = 'fa-arrow-left'; color = 'bg-green-500'; badgeColor = 'bg-green-100 text-green-700 dark:bg-green-900/50 dark:text-green-400'; 
+        } else if (ev.type === 'Loan') { 
+            icon = 'fa-hand-holding'; color = 'bg-yellow-500'; badgeColor = 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/50 dark:text-yellow-400'; 
+        } else if (ev.type === 'Loan Return') { 
+            icon = 'fa-undo'; color = 'bg-teal-500'; badgeColor = 'bg-teal-100 text-teal-700 dark:bg-teal-900/50 dark:text-teal-400'; 
+        } else if (ev.type === 'Created') { 
+            icon = 'fa-plus'; color = 'bg-indigo-500'; badgeColor = 'bg-indigo-100 text-indigo-700 dark:bg-indigo-900/50 dark:text-indigo-400'; 
+        }
+
+        html += `
+            <div class="relative pl-6">
+                <div class="absolute -left-[17px] top-0 w-8 h-8 rounded-full ${color} text-white flex items-center justify-center shadow-md border-4 border-white dark:border-gray-800">
+                    <i class="fas ${icon} text-xs"></i>
+                </div>
+                <div class="bg-white dark:bg-gray-800/50 p-4 rounded-xl border border-gray-100 dark:border-gray-700 shadow-sm hover:shadow transition-shadow">
+                    <div class="flex justify-between items-start mb-1">
+                        <span class="px-2 py-0.5 text-[10px] font-bold rounded uppercase tracking-wider ${badgeColor}">${ev.type}</span>
+                        <p class="text-xs text-gray-500 dark:text-gray-400 font-mono"><i class="far fa-clock mr-1"></i> ${ev.date.toLocaleString('th-TH')}</p>
+                    </div>
+                    <p class="text-sm font-semibold text-gray-800 dark:text-gray-200 mt-2">${ev.details}</p>
+                </div>
+            </div>
+        `;
+    });
+    html += '</div>';
+    container.innerHTML = html;
+};
+
 window.openModal = function(mode, collectionName, id = null) {
     currentEdit = { mode, collection: collectionName, id };
     const form = document.getElementById('editForm');
@@ -1159,6 +1259,46 @@ window.openModal = function(mode, collectionName, id = null) {
     
     const actionText = mode === 'edit' ? 'Edit' : 'Add New';
     const actionIcon = mode === 'edit' ? 'fa-edit' : 'fa-plus-circle';
+    
+    // อัปเดต HTML โครงสร้าง Modal เพื่อเพิ่มแท็บ "History"
+    const modalHeaderTabsHTML = `
+        <div class="flex space-x-1 bg-gray-100/80 dark:bg-gray-900/80 p-1.5 rounded-xl border border-gray-200/50 dark:border-gray-700/50" id="modal-tabs">
+            <button onclick="window.switchModalTab('details', this)" class="tab-button active px-6 py-2 rounded-lg font-bold text-sm transition-all duration-200 bg-white dark:bg-gray-700 text-indigo-600 dark:text-indigo-400 shadow-sm">
+                <i class="fas fa-layer-group mr-2"></i> Specification
+            </button>
+            <button onclick="window.switchModalTab('maintenance', this)" class="tab-button px-6 py-2 rounded-lg font-bold text-sm transition-all duration-200 text-gray-500 hover:text-gray-700 dark:hover:text-gray-300">
+                <i class="fas fa-tools mr-2"></i> Maintenance Log
+            </button>
+            <button onclick="window.switchModalTab('history', this)" class="tab-button px-6 py-2 rounded-lg font-bold text-sm transition-all duration-200 text-gray-500 hover:text-gray-700 dark:hover:text-gray-300">
+                <i class="fas fa-history mr-2"></i> Usage History
+            </button>
+        </div>
+    `;
+    
+    // ค้นหา div ที่เก็บ tabs ปัจจุบัน แล้วนำอันใหม่ไปใส่ทับ
+    const tabsContainer = document.querySelector('#editModal .bg-white.border-b.flex.justify-center.z-0');
+    if (tabsContainer) {
+        tabsContainer.innerHTML = modalHeaderTabsHTML;
+    }
+
+    // สร้าง Tab Content สำหรับ History (ถ้ายังไม่มี)
+    let historyTabContent = document.getElementById('history-tab');
+    if (!historyTabContent) {
+        const modalBody = document.querySelector('#editModal .flex-1.overflow-y-auto.p-4');
+        historyTabContent = document.createElement('div');
+        historyTabContent.id = 'history-tab';
+        historyTabContent.className = 'tab-content';
+        historyTabContent.innerHTML = `
+            <div class="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm overflow-hidden">
+                <div class="bg-gray-50 dark:bg-gray-900/50 px-5 py-3 border-b border-gray-200 dark:border-gray-700">
+                    <h4 class="text-sm font-bold text-gray-700 dark:text-gray-200 uppercase tracking-wider">Device Ownership & Usage History</h4>
+                </div>
+                <div id="deviceHistoryList" class="p-6"></div>
+            </div>
+        `;
+        modalBody.appendChild(historyTabContent);
+    }
+
     document.getElementById('editModalTitle').innerHTML = `
         <div class="flex items-center">
             <div class="w-12 h-12 rounded-full bg-indigo-100 dark:bg-indigo-900/50 flex items-center justify-center mr-4 shadow-inner">
@@ -1246,7 +1386,11 @@ window.openModal = function(mode, collectionName, id = null) {
 
     const tabBtn = document.querySelector('#modal-tabs .tab-button');
     if (tabBtn) window.switchModalTab('details', tabBtn);
+    
     window.buildMaintenanceLogInModal(itemData);
+    
+    // 🌟 เรียกใช้ฟังก์ชันสร้างประวัติอุปกรณ์
+    window.buildDeviceHistoryInModal(itemData, collectionName);
     
     window.openModalWindow('editModal');
 };
@@ -1386,7 +1530,6 @@ window.updateDashboard = function(folderId) {
             return (allData.CustomMenus || []).filter(m => m.parentId === pid).map(m => m.name);
         };
 
-        // 🌟 ฟังก์ชันใหม่: คำนวณจำนวนอุปกรณ์รวมในโฟลเดอร์นี้ และโฟลเดอร์ย่อยทั้งหมด (Recursive)
         const getFolderTotalCount = (folderName) => {
             let count = (allData[folderName] || []).filter(i => i.Status !== 'Disposed').length;
             const children = getChildren(folderName);
@@ -1413,7 +1556,6 @@ window.updateDashboard = function(folderId) {
                 const config = collectionConfigs[colName];
                 const displayName = config.displayName || colName;
                 const children = getChildren(colName);
-                // 🌟 ใช้ getFolderTotalCount แทนการนับแค่ allData[colName]
                 const itemCount = getFolderTotalCount(colName);
                 
                 const action = children.length > 0 ? `window.updateDashboard('${colName}')` : `window.loadPage('${colName}')`;
