@@ -198,9 +198,15 @@ async function refreshAllData() {
             if (!menu.fields || !Array.isArray(menu.fields) || menu.fields.length === 0) return;
             
             let headerFields = [];
+            // 🌟 ตรวจสอบว่าหมวดหมู่นี้มีฟิลด์สำหรับติดตามสถานะออนไลน์หรือไม่ (IP หรือ ComputerName)
+            const hasIP = menu.fields.some(f => f.id === 'IPAddress');
+            const hasComputerName = menu.fields.some(f => f.id === 'ComputerName');
+            const isComputerCategory = (menu.name === 'Computers');
+            
             if (menu.displayColumns && Array.isArray(menu.displayColumns) && menu.displayColumns.length > 0) {
                 headerFields = [...menu.displayColumns];
-                if (headerFields.includes('IPAddress') && !headerFields.includes('Last Seen')) {
+                // 🌟 หากสามารถติดตามสถานะได้ ให้บังคับเพิ่มคอลัมน์ Last Seen เป็นอันดับแรกเสมอ
+                if ((hasIP || hasComputerName || isComputerCategory) && !headerFields.includes('Last Seen')) {
                     headerFields.unshift('Last Seen');
                 }
             } else {
@@ -209,9 +215,9 @@ async function refreshAllData() {
                      if (headerFields.length >= 5) headerFields[4] = 'Status';
                      else headerFields.push('Status');
                 }
-                const hasIP = menu.fields.some(f => f.id === 'IPAddress');
-                const isComputer = menu.name === 'Computers';
-                if ((hasIP || isComputer) && !headerFields.includes('Last Seen')) headerFields.unshift('Last Seen');
+                if ((hasIP || hasComputerName || isComputerCategory) && !headerFields.includes('Last Seen')) {
+                    headerFields.unshift('Last Seen');
+                }
             }
 
             const nameFieldObj = menu.fields.find(f => ['ComputerName', 'DeviceName', 'ItemName', 'PartName', 'Name', 'SoftwareName', 'Model'].includes(f.id));
@@ -1148,7 +1154,6 @@ window.renderPaginationControls = function(collectionName, totalRows) {
 // ==========================================
 // --- ADD/EDIT MODAL FORMS & DEVICE HISTORY ---
 // ==========================================
-// 🌟 ฟังก์ชันสร้างประวัติการใช้งาน/ครอบครองของอุปกรณ์แต่ละชิ้น
 window.buildDeviceHistoryInModal = function(item, collectionName) {
     const container = document.getElementById('deviceHistoryList');
     if(!container) return;
@@ -1203,7 +1208,6 @@ window.buildDeviceHistoryInModal = function(item, collectionName) {
         });
     }
 
-    // จัดเรียงจากใหม่สุดไปเก่าสุด
     historyEvents.sort((a, b) => b.date - a.date);
 
     if (historyEvents.length === 0) {
@@ -1211,7 +1215,6 @@ window.buildDeviceHistoryInModal = function(item, collectionName) {
         return;
     }
 
-    // สร้าง Timeline HTML
     let html = '<div class="relative border-l-2 border-indigo-200 dark:border-indigo-800/50 ml-4 space-y-6">';
     historyEvents.forEach(ev => {
         let icon = 'fa-info';
@@ -1260,7 +1263,6 @@ window.openModal = function(mode, collectionName, id = null) {
     const actionText = mode === 'edit' ? 'Edit' : 'Add New';
     const actionIcon = mode === 'edit' ? 'fa-edit' : 'fa-plus-circle';
     
-    // อัปเดต HTML โครงสร้าง Modal เพื่อเพิ่มแท็บ "History"
     const modalHeaderTabsHTML = `
         <div class="flex space-x-1 bg-gray-100/80 dark:bg-gray-900/80 p-1.5 rounded-xl border border-gray-200/50 dark:border-gray-700/50" id="modal-tabs">
             <button onclick="window.switchModalTab('details', this)" class="tab-button active px-6 py-2 rounded-lg font-bold text-sm transition-all duration-200 bg-white dark:bg-gray-700 text-indigo-600 dark:text-indigo-400 shadow-sm">
@@ -1275,13 +1277,11 @@ window.openModal = function(mode, collectionName, id = null) {
         </div>
     `;
     
-    // ค้นหา div ที่เก็บ tabs ปัจจุบัน แล้วนำอันใหม่ไปใส่ทับ
     const tabsContainer = document.querySelector('#editModal .bg-white.border-b.flex.justify-center.z-0');
     if (tabsContainer) {
         tabsContainer.innerHTML = modalHeaderTabsHTML;
     }
 
-    // สร้าง Tab Content สำหรับ History (ถ้ายังไม่มี)
     let historyTabContent = document.getElementById('history-tab');
     if (!historyTabContent) {
         const modalBody = document.querySelector('#editModal .flex-1.overflow-y-auto.p-4');
@@ -1388,8 +1388,6 @@ window.openModal = function(mode, collectionName, id = null) {
     if (tabBtn) window.switchModalTab('details', tabBtn);
     
     window.buildMaintenanceLogInModal(itemData);
-    
-    // 🌟 เรียกใช้ฟังก์ชันสร้างประวัติอุปกรณ์
     window.buildDeviceHistoryInModal(itemData, collectionName);
     
     window.openModalWindow('editModal');
