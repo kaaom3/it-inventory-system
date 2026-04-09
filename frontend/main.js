@@ -1,6 +1,6 @@
 // ===================================================================
 // Frontend Logic for IT Inventory System (Full Complete Version)
-// FEATURES: Bulk Clone, Dynamic Bulk Edit, Drill-down Dashboard, Rapid Scan, Custom Columns
+// FEATURES: Bulk Clone, Dynamic Bulk Edit, Drill-down Dashboard, Rapid Scan, Custom Columns, Clone Menu
 // ===================================================================
 
 // 🌟 ล็อก URL ไปที่เซิร์ฟเวอร์บน Cloud ของคุณ 100%
@@ -198,14 +198,12 @@ async function refreshAllData() {
             if (!menu.fields || !Array.isArray(menu.fields) || menu.fields.length === 0) return;
             
             let headerFields = [];
-            // 🌟 ตรวจสอบว่าหมวดหมู่นี้มีฟิลด์สำหรับติดตามสถานะออนไลน์หรือไม่ (IP หรือ ComputerName)
             const hasIP = menu.fields.some(f => f.id === 'IPAddress');
             const hasComputerName = menu.fields.some(f => f.id === 'ComputerName');
             const isComputerCategory = (menu.name === 'Computers');
             
             if (menu.displayColumns && Array.isArray(menu.displayColumns) && menu.displayColumns.length > 0) {
                 headerFields = [...menu.displayColumns];
-                // 🌟 หากสามารถติดตามสถานะได้ ให้บังคับเพิ่มคอลัมน์ Last Seen เป็นอันดับแรกเสมอ
                 if ((hasIP || hasComputerName || isComputerCategory) && !headerFields.includes('Last Seen')) {
                     headerFields.unshift('Last Seen');
                 }
@@ -667,8 +665,9 @@ window.renderSettings = function() {
                         </div>
                     </div>
                     <div>
-                        <button onclick="window.openEditMenuModal('${menu.name}', event)" class="text-blue-500 hover:text-blue-700 mr-3 p-2"><i class="fas fa-edit"></i></button>
-                        <button onclick="window.deleteCustomMenu('${menu.name}')" class="text-red-500 hover:text-red-700 p-2"><i class="fas fa-trash"></i></button>
+                        <button onclick="window.cloneCustomMenu('${menu.name}', event)" class="text-green-500 hover:text-green-700 mr-3 p-2" title="Clone Menu"><i class="fas fa-copy"></i></button>
+                        <button onclick="window.openEditMenuModal('${menu.name}', event)" class="text-blue-500 hover:text-blue-700 mr-3 p-2" title="Edit Menu"><i class="fas fa-edit"></i></button>
+                        <button onclick="window.deleteCustomMenu('${menu.name}', event)" class="text-red-500 hover:text-red-700 p-2" title="Delete Menu"><i class="fas fa-trash"></i></button>
                     </div>
                 </li>
             `;
@@ -741,6 +740,60 @@ window.openEditMenuModal = function(menuName, event) {
         });
     }
 
+    if (menu.displayColumns && Array.isArray(menu.displayColumns)) {
+        menu.displayColumns.forEach(id => {
+            const dCb = document.getElementById(`display_${id}`);
+            if(dCb) dCb.checked = true;
+        });
+    } else {
+        const fallbackHeaders = menu.fields ? menu.fields.slice(0, 5).map(f => f.id) : [];
+        if (!fallbackHeaders.includes('Status')) fallbackHeaders.push('Status');
+        fallbackHeaders.forEach(id => {
+            const dCb = document.getElementById(`display_${id}`);
+            if(dCb) dCb.checked = true;
+        });
+    }
+
+    window.openModalWindow('addMenuModal');
+};
+
+// 🌟 ฟังก์ชันโคลนโครงสร้างของเมนู (Custom Menu)
+window.cloneCustomMenu = function(menuName, event) {
+    if (event) event.stopPropagation();
+    const menu = allData.CustomMenus.find(m => m.name === menuName);
+    if (!menu) return;
+
+    document.getElementById('addMenuModalTitle').innerHTML = `<i class="fas fa-copy text-green-500 mr-2"></i> Clone Custom Menu`;
+    document.getElementById('editMenuMode').value = "create"; // บังคับเป็นโหมดสร้างใหม่
+    
+    // ตั้งชื่อให้ผู้ใช้รู้ว่าเป็นตัวโคลน และบังคับให้ผู้ใช้แก้ ID ใหม่เอง
+    document.getElementById('newMenuId').value = menu.name + "Copy"; 
+    document.getElementById('newMenuId').disabled = false;
+    document.getElementById('newMenuId').classList.remove('bg-gray-200', 'cursor-not-allowed');
+    
+    document.getElementById('newMenuDisplay').value = menu.displayName + " (Copy)";
+    document.getElementById('newMenuIcon').value = menu.icon || 'fa-box';
+    document.getElementById('newMenuOrder').value = menu.order || 0;
+    
+    window.populateParentDropdown(menu.parentId); 
+    
+    // ล้างค่า Checkbox ก่อนทั้งหมด
+    document.querySelectorAll('.col-checkbox').forEach(cb => cb.checked = false);
+    document.querySelectorAll('.display-checkbox').forEach(cb => { cb.checked = false; cb.disabled = true; });
+
+    // โหลดค่า Field ฝั่งฟอร์มของเมนูต้นฉบับ
+    if (menu.fields && Array.isArray(menu.fields)) {
+        menu.fields.forEach(f => {
+            const cb = document.getElementById(`field_${f.id}`);
+            if(cb) cb.checked = true;
+            
+            // เปิดให้ตั้งค่าการแสดงผลได้
+            const dCb = document.getElementById(`display_${f.id}`);
+            if(dCb) dCb.disabled = false;
+        });
+    }
+
+    // โหลดค่าคอลัมน์ของฝั่งตารางของเมนูต้นฉบับ
     if (menu.displayColumns && Array.isArray(menu.displayColumns)) {
         menu.displayColumns.forEach(id => {
             const dCb = document.getElementById(`display_${id}`);
@@ -1472,7 +1525,6 @@ window.updateDashboard = function(folderId) {
         }
     }
 
-    // 1. แยกคำนวณ Status และ Warranty ภาพรวม
     allItems.forEach(i => {
         if (i.Status === 'Disposed') {
             disposed++;
@@ -1519,7 +1571,6 @@ window.updateDashboard = function(folderId) {
         document.getElementById('stat-warranty-expired').innerText = warrantyExpired;
     }
     
-    // 2. จัดการหน้า Category Folders
     let overviewGrid = document.getElementById('category-overview-grid');
     if (overviewGrid) {
         overviewGrid.innerHTML = '';
@@ -1528,11 +1579,9 @@ window.updateDashboard = function(folderId) {
             return (allData.CustomMenus || []).filter(m => m.parentId === pid).map(m => m.name);
         };
 
-        // 🌟 ฟังก์ชันใหม่: คำนวณจำนวนอุปกรณ์ "แยกตามสถานะ" ในโฟลเดอร์นี้และโฟลเดอร์ย่อย (Recursive)
         const getFolderStats = (folderName) => {
             let stats = { total: 0, active: 0, storage: 0, issues: 0 };
             
-            // นับของในโฟลเดอร์ปัจจุบัน
             (allData[folderName] || []).forEach(item => {
                 if (item.Status !== 'Disposed') {
                     stats.total++;
@@ -1542,7 +1591,6 @@ window.updateDashboard = function(folderId) {
                 }
             });
 
-            // นับของในโฟลเดอร์ย่อย
             const children = getChildren(folderName);
             children.forEach(child => {
                 const childStats = getFolderStats(child);
@@ -1555,7 +1603,6 @@ window.updateDashboard = function(folderId) {
             return stats;
         };
 
-        // 🌟 ฟังก์ชันช่วยสร้าง HTML สำหรับ Card
         const generateFolderCardHTML = (colName, config, displayName, children, isBackBtn = false) => {
             if (isBackBtn) {
                 let mDef = (allData.CustomMenus || []).find(m => m.name === currentDashboardFolder);
@@ -1576,7 +1623,6 @@ window.updateDashboard = function(folderId) {
             const iconMarker = children.length > 0 ? `<div class="absolute top-2 right-2 text-xs text-indigo-400"><i class="fas fa-folder"></i></div>` : '';
             const stats = getFolderStats(colName);
 
-            // ออกแบบ UI Card ใหม่ให้แสดงรายละเอียดสถานะ
             return `
             <div class="relative bg-white dark:bg-gray-800 p-4 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700 flex flex-col justify-center cursor-pointer hover:bg-indigo-50 dark:hover:bg-gray-700 transition-colors transform hover:-translate-y-1" onclick="${action}">
                 ${iconMarker}
@@ -1629,10 +1675,8 @@ window.updateDashboard = function(folderId) {
             const parentDisplayName = parentConfig ? parentConfig.displayName : currentDashboardFolder;
             const stats = getFolderStats(currentDashboardFolder);
 
-            // ปุ่มย้อนกลับ
             overviewGrid.innerHTML += generateFolderCardHTML(null, null, null, null, true);
 
-            // ปุ่มดูรายการทั้งหมดในหมวดนี้
             overviewGrid.innerHTML += `
                 <div class="bg-indigo-50 dark:bg-indigo-900/30 p-4 rounded-xl shadow-sm border border-indigo-200 dark:border-indigo-700 flex flex-col justify-center cursor-pointer hover:bg-indigo-100 dark:hover:bg-indigo-800/50 transition-colors transform hover:-translate-y-1" onclick="window.loadPage('${currentDashboardFolder}')">
                     <div class="flex items-center space-x-3 w-full">
@@ -1646,7 +1690,6 @@ window.updateDashboard = function(folderId) {
                     </div>
                 </div>`;
 
-            // รายการโฟลเดอร์ย่อย
             const children = getChildren(currentDashboardFolder);
             children.forEach(colName => {
                 const config = collectionConfigs[colName];
@@ -1658,7 +1701,6 @@ window.updateDashboard = function(folderId) {
         }
     }
 
-    // 3. Render Charts
     const statusCounts = {}; 
     allItems.filter(i => i.Status !== 'Disposed').forEach(i => { statusCounts[i.Status] = (statusCounts[i.Status] || 0) + 1; });
     window.renderStatusChart(statusCounts);
@@ -1678,7 +1720,6 @@ window.updateDashboard = function(folderId) {
 
     window.renderLocationChart(locationCounts);
 
-    // 4. Render Recent Transactions
     const activityContainer = document.getElementById('recent-activity-list');
     if (activityContainer) {
         const transactions = allData['TransactionHistory'] || [];
