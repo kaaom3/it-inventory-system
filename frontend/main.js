@@ -1472,7 +1472,7 @@ window.updateDashboard = function(folderId) {
         }
     }
 
-    // 1. แยกคำนวณ Status และ Warranty
+    // 1. แยกคำนวณ Status และ Warranty ภาพรวม
     allItems.forEach(i => {
         if (i.Status === 'Disposed') {
             disposed++;
@@ -1528,13 +1528,80 @@ window.updateDashboard = function(folderId) {
             return (allData.CustomMenus || []).filter(m => m.parentId === pid).map(m => m.name);
         };
 
-        const getFolderTotalCount = (folderName) => {
-            let count = (allData[folderName] || []).filter(i => i.Status !== 'Disposed').length;
+        // 🌟 ฟังก์ชันใหม่: คำนวณจำนวนอุปกรณ์ "แยกตามสถานะ" ในโฟลเดอร์นี้และโฟลเดอร์ย่อย (Recursive)
+        const getFolderStats = (folderName) => {
+            let stats = { total: 0, active: 0, storage: 0, issues: 0 };
+            
+            // นับของในโฟลเดอร์ปัจจุบัน
+            (allData[folderName] || []).forEach(item => {
+                if (item.Status !== 'Disposed') {
+                    stats.total++;
+                    if (item.Status === 'Active' || item.Status === 'On Loan') stats.active++;
+                    else if (item.Status === 'Storage') stats.storage++;
+                    else if (item.Status === 'Repair' || item.Status === 'Damaged') stats.issues++;
+                }
+            });
+
+            // นับของในโฟลเดอร์ย่อย
             const children = getChildren(folderName);
             children.forEach(child => {
-                count += getFolderTotalCount(child);
+                const childStats = getFolderStats(child);
+                stats.total += childStats.total;
+                stats.active += childStats.active;
+                stats.storage += childStats.storage;
+                stats.issues += childStats.issues;
             });
-            return count;
+
+            return stats;
+        };
+
+        // 🌟 ฟังก์ชันช่วยสร้าง HTML สำหรับ Card
+        const generateFolderCardHTML = (colName, config, displayName, children, isBackBtn = false) => {
+            if (isBackBtn) {
+                let mDef = (allData.CustomMenus || []).find(m => m.name === currentDashboardFolder);
+                const goBackId = mDef && mDef.parentId ? `'${mDef.parentId}'` : `null`;
+                return `
+                <div class="bg-gray-100 dark:bg-gray-700 p-4 rounded-xl shadow-sm border border-gray-200 dark:border-gray-600 flex items-center space-x-3 cursor-pointer hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors transform hover:-translate-y-1" onclick="window.updateDashboard(${goBackId})">
+                    <div class="bg-gray-200 dark:bg-gray-600 w-10 h-10 rounded-full flex items-center justify-center shrink-0">
+                        <i class="fas fa-arrow-left text-gray-600 dark:text-gray-300"></i>
+                    </div>
+                    <div class="overflow-hidden">
+                        <p class="text-xs text-gray-500 dark:text-gray-400 truncate">ย้อนกลับ</p>
+                        <p class="text-sm font-bold text-gray-800 dark:text-white truncate">Back</p>
+                    </div>
+                </div>`;
+            }
+
+            const action = children.length > 0 ? `window.updateDashboard('${colName}')` : `window.loadPage('${colName}')`;
+            const iconMarker = children.length > 0 ? `<div class="absolute top-2 right-2 text-xs text-indigo-400"><i class="fas fa-folder"></i></div>` : '';
+            const stats = getFolderStats(colName);
+
+            // ออกแบบ UI Card ใหม่ให้แสดงรายละเอียดสถานะ
+            return `
+            <div class="relative bg-white dark:bg-gray-800 p-4 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700 flex flex-col justify-center cursor-pointer hover:bg-indigo-50 dark:hover:bg-gray-700 transition-colors transform hover:-translate-y-1" onclick="${action}">
+                ${iconMarker}
+                <div class="flex items-center space-x-3 w-full">
+                    <div class="bg-indigo-100 dark:bg-indigo-900/50 w-10 h-10 rounded-full flex items-center justify-center shrink-0">
+                        <i class="fas ${config.icon || 'fa-box'} text-indigo-600 dark:text-indigo-400"></i>
+                    </div>
+                    <div class="flex-1 min-w-0">
+                        <p class="text-sm font-bold text-gray-800 dark:text-white truncate">${displayName}</p>
+                        <p class="text-xs text-gray-500 dark:text-gray-400">รวม ${stats.total} รายการ</p>
+                    </div>
+                </div>
+                
+                <div class="mt-3 flex items-center gap-1.5 flex-wrap">
+                    <span class="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold bg-green-100 text-green-800 dark:bg-green-900/40 dark:text-green-400" title="Active / On Loan">
+                        <i class="fas fa-check-circle mr-1"></i>${stats.active}
+                    </span>
+                    <span class="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold bg-blue-100 text-blue-800 dark:bg-blue-900/40 dark:text-blue-400" title="Storage">
+                        <i class="fas fa-box mr-1"></i>${stats.storage}
+                    </span>
+                    <span class="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold bg-orange-100 text-orange-800 dark:bg-orange-900/40 dark:text-orange-400" title="Issues / Repair">
+                        <i class="fas fa-tools mr-1"></i>${stats.issues}
+                    </span>
+                </div>
+            </div>`;
         };
 
         if (currentDashboardFolder === null) {
@@ -1554,73 +1621,39 @@ window.updateDashboard = function(folderId) {
                 const config = collectionConfigs[colName];
                 const displayName = config.displayName || colName;
                 const children = getChildren(colName);
-                const itemCount = getFolderTotalCount(colName);
                 
-                const action = children.length > 0 ? `window.updateDashboard('${colName}')` : `window.loadPage('${colName}')`;
-                const iconMarker = children.length > 0 ? `<div class="absolute top-2 right-2 text-xs text-indigo-400"><i class="fas fa-folder"></i></div>` : '';
-
-                overviewGrid.innerHTML += `
-                    <div class="relative bg-white dark:bg-gray-800 p-4 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700 flex items-center space-x-3 cursor-pointer hover:bg-indigo-50 dark:hover:bg-gray-700 transition-colors transform hover:-translate-y-1" onclick="${action}">
-                        ${iconMarker}
-                        <div class="bg-indigo-100 dark:bg-indigo-900/50 w-10 h-10 rounded-full flex items-center justify-center shrink-0">
-                            <i class="fas ${config.icon || 'fa-box'} text-indigo-600 dark:text-indigo-400"></i>
-                        </div>
-                        <div class="overflow-hidden">
-                            <p class="text-xs text-gray-500 dark:text-gray-400 truncate">${displayName}</p>
-                            <p class="text-lg font-bold text-gray-800 dark:text-white">${itemCount}</p>
-                        </div>
-                    </div>`;
+                overviewGrid.innerHTML += generateFolderCardHTML(colName, config, displayName, children, false);
             });
         } else {
             const parentConfig = collectionConfigs[currentDashboardFolder];
             const parentDisplayName = parentConfig ? parentConfig.displayName : currentDashboardFolder;
-            const parentItemCount = getFolderTotalCount(currentDashboardFolder);
+            const stats = getFolderStats(currentDashboardFolder);
 
-            let mDef = (allData.CustomMenus || []).find(m => m.name === currentDashboardFolder);
-            const goBackId = mDef && mDef.parentId ? `'${mDef.parentId}'` : `null`;
+            // ปุ่มย้อนกลับ
+            overviewGrid.innerHTML += generateFolderCardHTML(null, null, null, null, true);
 
+            // ปุ่มดูรายการทั้งหมดในหมวดนี้
             overviewGrid.innerHTML += `
-                <div class="bg-gray-100 dark:bg-gray-700 p-4 rounded-xl shadow-sm border border-gray-200 dark:border-gray-600 flex items-center space-x-3 cursor-pointer hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors transform hover:-translate-y-1" onclick="window.updateDashboard(${goBackId})">
-                    <div class="bg-gray-200 dark:bg-gray-600 w-10 h-10 rounded-full flex items-center justify-center shrink-0">
-                        <i class="fas fa-arrow-left text-gray-600 dark:text-gray-300"></i>
-                    </div>
-                    <div class="overflow-hidden">
-                        <p class="text-xs text-gray-500 dark:text-gray-400 truncate">ย้อนกลับ</p>
-                        <p class="text-sm font-bold text-gray-800 dark:text-white truncate">Back</p>
+                <div class="bg-indigo-50 dark:bg-indigo-900/30 p-4 rounded-xl shadow-sm border border-indigo-200 dark:border-indigo-700 flex flex-col justify-center cursor-pointer hover:bg-indigo-100 dark:hover:bg-indigo-800/50 transition-colors transform hover:-translate-y-1" onclick="window.loadPage('${currentDashboardFolder}')">
+                    <div class="flex items-center space-x-3 w-full">
+                        <div class="bg-indigo-200 dark:bg-indigo-800 w-10 h-10 rounded-full flex items-center justify-center shrink-0">
+                            <i class="fas fa-list text-indigo-700 dark:text-indigo-300"></i>
+                        </div>
+                        <div class="flex-1 min-w-0">
+                            <p class="text-xs text-indigo-500 dark:text-indigo-400 truncate">ดูรายการในหมวดนี้</p>
+                            <p class="text-sm font-bold text-indigo-900 dark:text-indigo-100 truncate">${parentDisplayName}</p>
+                        </div>
                     </div>
                 </div>`;
 
-            overviewGrid.innerHTML += `
-                <div class="bg-indigo-50 dark:bg-indigo-900/30 p-4 rounded-xl shadow-sm border border-indigo-200 dark:border-indigo-700 flex items-center space-x-3 cursor-pointer hover:bg-indigo-100 dark:hover:bg-indigo-800/50 transition-colors transform hover:-translate-y-1" onclick="window.loadPage('${currentDashboardFolder}')">
-                    <div class="bg-indigo-200 dark:bg-indigo-800 w-10 h-10 rounded-full flex items-center justify-center shrink-0">
-                        <i class="fas fa-list text-indigo-700 dark:text-indigo-300"></i>
-                    </div>
-                    <div class="overflow-hidden">
-                        <p class="text-xs text-indigo-500 dark:text-indigo-400 truncate">ดูรายการในหมวดนี้</p>
-                        <p class="text-sm font-bold text-indigo-900 dark:text-indigo-100 truncate">${parentDisplayName} (${parentItemCount})</p>
-                    </div>
-                </div>`;
-
+            // รายการโฟลเดอร์ย่อย
             const children = getChildren(currentDashboardFolder);
             children.forEach(colName => {
                 const config = collectionConfigs[colName];
                 const displayName = config.displayName || colName;
                 const subChildren = getChildren(colName);
-                const itemCount = getFolderTotalCount(colName);
-                const action = subChildren.length > 0 ? `window.updateDashboard('${colName}')` : `window.loadPage('${colName}')`;
-                const iconMarker = subChildren.length > 0 ? `<div class="absolute top-2 right-2 text-xs text-indigo-400"><i class="fas fa-folder"></i></div>` : '';
-
-                overviewGrid.innerHTML += `
-                    <div class="relative bg-white dark:bg-gray-800 p-4 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700 flex items-center space-x-3 cursor-pointer hover:bg-indigo-50 dark:hover:bg-gray-700 transition-colors transform hover:-translate-y-1" onclick="${action}">
-                        ${iconMarker}
-                        <div class="bg-indigo-100 dark:bg-indigo-900/50 w-10 h-10 rounded-full flex items-center justify-center shrink-0">
-                            <i class="fas ${config.icon || 'fa-box'} text-indigo-600 dark:text-indigo-400"></i>
-                        </div>
-                        <div class="overflow-hidden">
-                            <p class="text-xs text-gray-500 dark:text-gray-400 truncate">${displayName}</p>
-                            <p class="text-lg font-bold text-gray-800 dark:text-white">${itemCount}</p>
-                        </div>
-                    </div>`;
+                
+                overviewGrid.innerHTML += generateFolderCardHTML(colName, config, displayName, subChildren, false);
             });
         }
     }
