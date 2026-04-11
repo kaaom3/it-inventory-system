@@ -1251,11 +1251,18 @@ window.buildDeviceHistoryInModal = function(item, collectionName) {
 
     // 3. วันที่เพิ่มเข้าระบบครั้งแรก
     if (item.Timestamp) {
+        let createdDetails = 'ลงทะเบียนเพิ่มอุปกรณ์เข้าสู่ระบบ';
+        if (item.UserName && item.UserName.trim() !== '') {
+            createdDetails += ` (ระบุผู้ครอบครองเริ่มต้น: ${item.UserName})`;
+        } else {
+            createdDetails += ` (จัดเก็บเข้าคลัง / Storage)`;
+        }
+
         historyEvents.push({
             date: new Date(item.Timestamp),
             type: 'Created',
             user: 'System',
-            details: 'ลงทะเบียนเพิ่มอุปกรณ์เข้าสู่ระบบ'
+            details: createdDetails
         });
     }
 
