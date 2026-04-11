@@ -1099,7 +1099,7 @@ window.buildTable = function(collectionName) {
             else if (item.Status === 'Active' || item.Status === 'On Loan') activeCount++;
             else if (item.Status === 'Repair' || item.Status === 'Damaged') issueCount++;
             
-            const lastSeen = item.lastSeenOnline || item.Timestamp;
+            const lastSeen = item.lastSeenOnline;
             if (lastSeen) {
                 const diffMins = (new Date() - new Date(lastSeen)) / 60000;
                 if (diffMins <= 15) onlineCount++;
@@ -1165,7 +1165,7 @@ window.buildTable = function(collectionName) {
                    let color = 'gray'; if (val === 'Active') color = 'green'; else if (val === 'On Loan') color = 'yellow'; else if (val === 'Repair') color = 'orange'; else if (val === 'Storage') color = 'blue'; else if (val === 'Damaged') color = 'red';
                    val = `<span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-${color}-100 text-${color}-800 dark:bg-${color}-900/50 dark:text-${color}-300">${val}</span>`; 
                 } else if (header === 'Last Seen') {
-                     let lastSeen = item.lastSeenOnline || item.Timestamp;
+                     let lastSeen = item.lastSeenOnline;
                      if (lastSeen) {
                         const diffMins = (new Date() - new Date(lastSeen)) / 60000;
                         if (diffMins <= 15) val = `<div class="flex items-center space-x-2"><div class="h-2.5 w-2.5 rounded-full bg-green-500 shadow-[0_0_5px_#22c55e] animate-pulse"></div><span class="font-medium text-green-600 dark:text-green-400">Online</span></div>`;
@@ -1542,7 +1542,7 @@ window.updateDashboard = function(folderId) {
             else if (i.Status === 'Repair' || i.Status === 'Damaged') issues++;
 
             if (i.IPAddress || i.lastSeenOnline) {
-                const lastSeen = i.lastSeenOnline || i.Timestamp;
+                const lastSeen = i.lastSeenOnline;
                 if (lastSeen && (new Date() - new Date(lastSeen)) / 60000 <= 15) {
                     online++;
                 } else {
