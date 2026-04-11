@@ -92,7 +92,6 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 
 function bindGlobalEventListeners() {
-    // แก้บั๊กฟอร์ม Add Admin ให้บันทึกได้
     const addUserForm = document.getElementById('addUserForm');
     if (addUserForm) {
         addUserForm.addEventListener('submit', async (e) => {
@@ -199,14 +198,12 @@ async function refreshAllData() {
             if (!menu.fields || !Array.isArray(menu.fields) || menu.fields.length === 0) return;
             
             let headerFields = [];
-            // 🌟 ตรวจสอบว่าหมวดหมู่นี้มีฟิลด์สำหรับติดตามสถานะออนไลน์หรือไม่ (IP หรือ ComputerName)
             const hasIP = menu.fields.some(f => f.id === 'IPAddress');
             const hasComputerName = menu.fields.some(f => f.id === 'ComputerName');
             const isComputerCategory = (menu.name === 'Computers');
             
             if (menu.displayColumns && Array.isArray(menu.displayColumns) && menu.displayColumns.length > 0) {
                 headerFields = [...menu.displayColumns];
-                // 🌟 หากสามารถติดตามสถานะได้ ให้บังคับเพิ่มคอลัมน์ Last Seen เป็นอันดับแรกเสมอ
                 if ((hasIP || hasComputerName || isComputerCategory) && !headerFields.includes('Last Seen')) {
                     headerFields.unshift('Last Seen');
                 }
@@ -861,7 +858,7 @@ function initColumnSelector() {
             <div class="flex items-center justify-between py-1.5 hover:bg-gray-50 dark:hover:bg-gray-700/50 px-2 rounded transition-colors border-b border-gray-100 dark:border-gray-800 last:border-0">
                 <div class="w-2/3 flex items-center">
                     <label for="field_${field.id}" class="text-sm text-gray-700 dark:text-gray-300 cursor-pointer select-none flex items-center">
-                        ${field.label} ${isRequired ? '<span class="text-xs text-red-500 ml-1" title="จำเป็นต้องมี">*</span>' : ''}
+                        ${field.label} ${isRequired ? '<span class="text-xs text-red-50 ml-1" title="จำเป็นต้องมี">*</span>' : ''}
                     </label>
                 </div>
                 <div class="w-1/3 flex justify-between items-center text-center">
@@ -2644,7 +2641,13 @@ window.processClone = async function() {
     try {
         await apiRequest(`/api/inventory/${collectionName}/clone-bulk`, 'POST', {
             sourceId: sourceId,
-            serialNumbers: serialNumbers
+            serialNumbers: serialNumbers,
+            // 🌟 เพิ่ม overrides ตรงนี้เพื่อเคลียร์ค่า Network
+            overrides: {
+                lastSeenOnline: null,
+                IPAddress: '',
+                MacAddress: ''
+            }
         });
         
         showNotificationModal('success', 'โคลนสำเร็จ', `โคลนอุปกรณ์เสร็จสิ้นจำนวน ${serialNumbers.length} รายการ ระบบบันทึกเข้า Storage แล้ว`);
