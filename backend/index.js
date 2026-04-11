@@ -87,8 +87,6 @@ MongoClient.connect(mongoUri)
                 console.log("Default admin created (admin / admin123)");
             }
         } catch (e) { console.error("Error creating default admin:", e); }
-
-        startBackgroundPingService();
     })
     .catch(error => console.error("Failed to connect to MongoDB", error));
 
@@ -179,17 +177,21 @@ app.post('/api/inventory/sync', verifyApiKey, async (req, res) => {
 
         const scriptHasInvalidSN = isInvalidSN(data.serialNumber);
 
+        // 🌟 กำหนด Collection ปลายทางจาก Type ที่สคริปต์ส่งมา (เช่น Desktop, Laptop)
+        // ถ้าไม่รู้จักหรือไม่ส่งมา ให้ลง Collection 'Computers' แทน
+        const targetCollection = (data.type && data.type !== 'Unknown') ? data.type : 'Computers';
+
         // 1. ค้นหาอุปกรณ์เดิมในระบบด้วยเงื่อนไขที่รัดกุมขึ้น
         let existingDevice = null;
         
         // 1.1 ลองหาจาก Serial Number ก่อน (ถ้าสคริปต์ส่งค่ามาและไม่ใช่ N/A หรือ None)
         if (!scriptHasInvalidSN) {
-            existingDevice = await db.collection('Computers').findOne({ SerialNumber: data.serialNumber });
+            existingDevice = await db.collection(targetCollection).findOne({ SerialNumber: data.serialNumber });
         }
         
         // 1.2 ถ้าไม่เจอจาก S/N ให้ลองหาจากชื่อ ComputerName (กรณีในเว็บแก้ S/N ไปแล้ว แต่สคริปต์ยังส่ง N/A/None มา)
         if (!existingDevice && data.computerName) {
-            existingDevice = await db.collection('Computers').findOne({ ComputerName: data.computerName });
+            existingDevice = await db.collection(targetCollection).findOne({ ComputerName: data.computerName });
         }
 
         // 2. เตรียมข้อมูลอัปเดตสเปคเครื่อง (อัปเดตเฉพาะฝั่งฮาร์ดแวร์/OS)
@@ -246,10 +248,10 @@ app.post('/api/inventory/sync', verifyApiKey, async (req, res) => {
         // 3. บันทึกลง Database
         if (existingDevice) {
             // เจอเครื่องเดิม -> ให้อัปเดตข้อมูลทับเครื่องเดิม
-            await db.collection('Computers').updateOne({ _id: existingDevice._id }, updatePayload);
+            await db.collection(targetCollection).updateOne({ _id: existingDevice._id }, updatePayload);
         } else {
             // ไม่เจอเครื่องเดิมเลย -> สร้างอุปกรณ์ใหม่
-            await db.collection('Computers').insertOne(updatePayload.$set);
+            await db.collection(targetCollection).insertOne(updatePayload.$set);
         }
 
         if (data.monitors && Array.isArray(data.monitors)) {
@@ -326,25 +328,6 @@ app.post('/api/relay/heartbeat', verifyApiKey, async (req, res) => {
         res.status(200).json({ message: `Updated ${devices.length} devices.` });
     } catch (error) { res.status(500).json({ error: error.message }); }
 });
-
-async function startBackgroundPingService() {
-    setInterval(async () => {
-        if (!db) return;
-        try {
-            const customMenus = await db.collection('CustomMenus').find().toArray();
-            const collectionsToCheck = ['Network', 'Printers', ...customMenus.map(m => m.name)];
-            for (const collectionName of collectionsToCheck) {
-                const devices = await db.collection(collectionName).find({ IPAddress: { $exists: true, $ne: "", $ne: "N/A" } }).toArray();
-                for (const device of devices) {
-                    try {
-                        const res = await ping.promise.probe(device.IPAddress, { timeout: 2 });
-                        if (res.alive) await db.collection(collectionName).updateOne({ _id: device._id }, { $set: { lastSeenOnline: new Date() } });
-                    } catch (pingError) { }
-                }
-            }
-        } catch (error) {}
-    }, 600000); 
-}
 
 // ===================================================================
 // 🌟 Bulk Operations (แก้ไขหลายรายการ & นำเข้า CSV)
@@ -604,7 +587,6 @@ app.post('/api/custom-menus', verifyToken, async (req, res) => {
     } catch (error) { res.status(500).json({ message: error.message }); }
 });
 
-// 🌟 อัปเดต Route แก้ไขเมนูให้รองรับการบันทึก displayColumns ไปลงฐานข้อมูล
 app.put('/api/custom-menus/:id', verifyToken, async (req, res) => {
     if (!db) return res.status(500).json({ message: "Database not connected" });
     try {
@@ -616,7 +598,7 @@ app.put('/api/custom-menus/:id', verifyToken, async (req, res) => {
                 parentId: req.body.parentId, 
                 order: req.body.order, 
                 fields: req.body.fields,
-                displayColumns: req.body.displayColumns // <--- บันทึกตรงนี้
+                displayColumns: req.body.displayColumns
             } }
         );
         res.json({ message: "Menu updated" });
