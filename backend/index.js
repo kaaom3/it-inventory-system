@@ -87,6 +87,8 @@ MongoClient.connect(mongoUri)
                 console.log("Default admin created (admin / admin123)");
             }
         } catch (e) { console.error("Error creating default admin:", e); }
+
+        startBackgroundPingService();
     })
     .catch(error => console.error("Failed to connect to MongoDB", error));
 
@@ -178,7 +180,6 @@ app.post('/api/inventory/sync', verifyApiKey, async (req, res) => {
         const scriptHasInvalidSN = isInvalidSN(data.serialNumber);
 
         // 🌟 กำหนด Collection ปลายทางจาก Type ที่สคริปต์ส่งมา (เช่น Desktop, Laptop)
-        // ถ้าไม่รู้จักหรือไม่ส่งมา ให้ลง Collection 'Computers' แทน
         const targetCollection = (data.type && data.type !== 'Unknown') ? data.type : 'Computers';
 
         // 1. ค้นหาอุปกรณ์เดิมในระบบด้วยเงื่อนไขที่รัดกุมขึ้น
@@ -217,17 +218,15 @@ app.post('/api/inventory/sync', verifyApiKey, async (req, res) => {
             if (existingDevice.Status === 'Storage') {
                 updatePayload.$set.Status = 'Active';
             }
-            // ถ้านอกเหนือจากนี้ (เช่น Repair, Damaged, On Loan) ให้คงสถานะเดิมเอาไว้ ไม่เอา Active ไปทับ
+            // ถ้านอกเหนือจากนี้ ให้คงสถานะเดิมเอาไว้ ไม่เอา Active ไปทับ
         } else {
             updatePayload.$set.Status = 'Active'; // เครื่องใหม่ให้เป็น Active เลย
         }
 
-        // 🌟 อัปเดต Serial Number เฉพาะเมื่อสคริปต์อ่านค่ามาได้จริง (ไม่ใช่ N/A หรือ None)
-        // ป้องกันการเอาคำว่า None ไปเขียนทับ S/N ที่แอดมินแก้ไขไว้ในเว็บแล้ว
+        // 🌟 อัปเดต Serial Number เฉพาะเมื่อสคริปต์อ่านค่ามาได้จริง
         if (!scriptHasInvalidSN) {
             updatePayload.$set.SerialNumber = data.serialNumber;
         } else if (!existingDevice) {
-            // กรณีสร้างใหม่และสคริปต์ส่ง None มา ก็ให้ใช้ค่าที่ส่งมา (สร้างครั้งแรก)
             updatePayload.$set.SerialNumber = data.serialNumber || 'None';
         }
 
@@ -254,9 +253,34 @@ app.post('/api/inventory/sync', verifyApiKey, async (req, res) => {
             await db.collection(targetCollection).insertOne(updatePayload.$set);
         }
 
+        // 🌟 4. บันทึกประวัติการครอบครอง (Usage History) หากพบผู้ใช้งานใหม่จาก Script
+        try {
+            const syncedDevice = await db.collection(targetCollection).findOne({ ComputerName: data.computerName });
+            if (syncedDevice) {
+                let oldUser = existingDevice && existingDevice.UserName ? existingDevice.UserName : '';
+                let newUser = data.userName || '';
+                
+                // ถ้ามีชื่อ User ส่งมา และไม่ตรงกับชื่อเดิม ให้บันทึกประวัติลง TransactionHistory
+                if (newUser !== '' && newUser !== oldUser) {
+                    await db.collection('TransactionHistory').insertOne({
+                        type: 'Auto-Sync',
+                        staffUserName: newUser,
+                        timestamp: now,
+                        devices: [{
+                            id: syncedDevice._id,
+                            collection: targetCollection,
+                            serial: syncedDevice.SerialNumber || 'N/A'
+                        }]
+                    });
+                }
+            }
+        } catch (historyErr) {
+            console.error("Error saving auto-sync history:", historyErr);
+        }
+
+        // Sync Monitors
         if (data.monitors && Array.isArray(data.monitors)) {
             for (const mon of data.monitors) {
-                // ป้องกันการสร้าง Monitor ขยะที่ไม่มี S/N
                 if (!isInvalidSN(mon.serial)) {
                     await db.collection('Monitors').updateOne(
                         { MonitorSerial: mon.serial },
@@ -267,9 +291,9 @@ app.post('/api/inventory/sync', verifyApiKey, async (req, res) => {
             }
         }
 
+        // Sync Accessories
         if (data.accessories && Array.isArray(data.accessories)) {
             for (const acc of data.accessories) {
-                // ป้องกันการสร้าง Accessory ขยะที่ไม่มี S/N
                 if (!isInvalidSN(acc.SerialNumber)) {
                     await db.collection('Accessory').updateOne(
                         { SerialNumber: acc.SerialNumber },
@@ -329,8 +353,27 @@ app.post('/api/relay/heartbeat', verifyApiKey, async (req, res) => {
     } catch (error) { res.status(500).json({ error: error.message }); }
 });
 
+async function startBackgroundPingService() {
+    setInterval(async () => {
+        if (!db) return;
+        try {
+            const customMenus = await db.collection('CustomMenus').find().toArray();
+            const collectionsToCheck = ['Network', 'Printers', ...customMenus.map(m => m.name)];
+            for (const collectionName of collectionsToCheck) {
+                const devices = await db.collection(collectionName).find({ IPAddress: { $exists: true, $ne: "", $ne: "N/A" } }).toArray();
+                for (const device of devices) {
+                    try {
+                        const res = await ping.promise.probe(device.IPAddress, { timeout: 2 });
+                        if (res.alive) await db.collection(collectionName).updateOne({ _id: device._id }, { $set: { lastSeenOnline: new Date() } });
+                    } catch (pingError) { }
+                }
+            }
+        } catch (error) {}
+    }, 600000); 
+}
+
 // ===================================================================
-// 🌟 Bulk Operations (แก้ไขหลายรายการ & นำเข้า CSV)
+// 🌟 Bulk Operations & Utility (แก้ไขหลายรายการ, นำเข้า, โคลน, ย้าย)
 // ต้องวางไว้ด้านบนก่อน General CRUD เพื่อป้องกันการตีความ Route ผิดพลาด
 // ===================================================================
 app.post('/api/inventory/:collection/bulk', verifyToken, async (req, res) => {
@@ -632,7 +675,6 @@ app.post('/api/custom-menus', verifyToken, async (req, res) => {
     } catch (error) { res.status(500).json({ message: error.message }); }
 });
 
-// 🌟 อัปเดต Route แก้ไขเมนูให้รองรับการบันทึก displayColumns ไปลงฐานข้อมูล
 app.put('/api/custom-menus/:id', verifyToken, async (req, res) => {
     if (!db) return res.status(500).json({ message: "Database not connected" });
     try {
@@ -644,7 +686,7 @@ app.put('/api/custom-menus/:id', verifyToken, async (req, res) => {
                 parentId: req.body.parentId, 
                 order: req.body.order, 
                 fields: req.body.fields,
-                displayColumns: req.body.displayColumns // <--- บันทึกตรงนี้
+                displayColumns: req.body.displayColumns // บันทึกคอลัมน์ที่จะแสดงบนหน้าจอ
             } }
         );
         res.json({ message: "Menu updated" });

@@ -92,6 +92,7 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 
 function bindGlobalEventListeners() {
+    // แก้บั๊กฟอร์ม Add Admin ให้บันทึกได้
     const addUserForm = document.getElementById('addUserForm');
     if (addUserForm) {
         addUserForm.addEventListener('submit', async (e) => {
@@ -198,12 +199,14 @@ async function refreshAllData() {
             if (!menu.fields || !Array.isArray(menu.fields) || menu.fields.length === 0) return;
             
             let headerFields = [];
+            // 🌟 ตรวจสอบว่าหมวดหมู่นี้มีฟิลด์สำหรับติดตามสถานะออนไลน์หรือไม่ (IP หรือ ComputerName)
             const hasIP = menu.fields.some(f => f.id === 'IPAddress');
             const hasComputerName = menu.fields.some(f => f.id === 'ComputerName');
             const isComputerCategory = (menu.name === 'Computers');
             
             if (menu.displayColumns && Array.isArray(menu.displayColumns) && menu.displayColumns.length > 0) {
                 headerFields = [...menu.displayColumns];
+                // 🌟 หากสามารถติดตามสถานะได้ ให้บังคับเพิ่มคอลัมน์ Last Seen เป็นอันดับแรกเสมอ
                 if ((hasIP || hasComputerName || isComputerCategory) && !headerFields.includes('Last Seen')) {
                     headerFields.unshift('Last Seen');
                 }
@@ -667,7 +670,7 @@ window.renderSettings = function() {
                     <div>
                         <button onclick="window.cloneCustomMenu('${menu.name}', event)" class="text-green-500 hover:text-green-700 mr-3 p-2" title="Clone Menu"><i class="fas fa-copy"></i></button>
                         <button onclick="window.openEditMenuModal('${menu.name}', event)" class="text-blue-500 hover:text-blue-700 mr-3 p-2" title="Edit Menu"><i class="fas fa-edit"></i></button>
-                        <button onclick="window.deleteCustomMenu('${menu.name}')" class="text-red-500 hover:text-red-700 p-2" title="Delete Menu"><i class="fas fa-trash"></i></button>
+                        <button onclick="window.deleteCustomMenu('${menu.name}', event)" class="text-red-500 hover:text-red-700 p-2" title="Delete Menu"><i class="fas fa-trash"></i></button>
                     </div>
                 </li>
             `;
@@ -1216,11 +1219,11 @@ window.buildDeviceHistoryInModal = function(item, collectionName) {
         if (isMatch) {
             historyEvents.push({
                 date: new Date(tx.timestamp),
-                type: tx.type, // 'Handover' or 'Return'
+                type: tx.type, // 'Handover', 'Return', 'Auto-Sync'
                 user: tx.staffUserName,
-                details: tx.type === 'Handover' 
-                    ? `ส่งมอบอุปกรณ์ให้แก่ ${tx.staffUserName}` 
-                    : `รับคืนอุปกรณ์จาก ${tx.staffUserName || 'System'}`
+                details: tx.type === 'Handover' ? `ส่งมอบอุปกรณ์ให้แก่ ${tx.staffUserName}` :
+                         tx.type === 'Auto-Sync' ? `ตรวจพบการใช้งานโดย ${tx.staffUserName} (อัปเดตอัตโนมัติ)` :
+                         `รับคืนอุปกรณ์จาก ${tx.staffUserName || 'System'}`
             });
         }
     });
@@ -1252,7 +1255,7 @@ window.buildDeviceHistoryInModal = function(item, collectionName) {
             date: new Date(item.Timestamp),
             type: 'Created',
             user: 'System',
-            details: 'ลงทะเบียนเพิ่มอุปกรณ์เข้าสู่ระบบ (Storage)'
+            details: 'ลงทะเบียนเพิ่มอุปกรณ์เข้าสู่ระบบ'
         });
     }
 
@@ -1279,6 +1282,8 @@ window.buildDeviceHistoryInModal = function(item, collectionName) {
             icon = 'fa-undo'; color = 'bg-teal-500'; badgeColor = 'bg-teal-100 text-teal-700 dark:bg-teal-900/50 dark:text-teal-400'; 
         } else if (ev.type === 'Created') { 
             icon = 'fa-plus'; color = 'bg-indigo-500'; badgeColor = 'bg-indigo-100 text-indigo-700 dark:bg-indigo-900/50 dark:text-indigo-400'; 
+        } else if (ev.type === 'Auto-Sync') {
+            icon = 'fa-sync-alt'; color = 'bg-purple-500'; badgeColor = 'bg-purple-100 text-purple-700 dark:bg-purple-900/50 dark:text-purple-400';
         }
 
         html += `
@@ -1520,7 +1525,6 @@ window.updateDashboard = function(folderId) {
         }
     }
 
-    // 1. แยกคำนวณ Status และ Warranty ภาพรวม
     allItems.forEach(i => {
         if (i.Status === 'Disposed') {
             disposed++;
@@ -1567,7 +1571,6 @@ window.updateDashboard = function(folderId) {
         document.getElementById('stat-warranty-expired').innerText = warrantyExpired;
     }
     
-    // 2. จัดการหน้า Category Folders
     let overviewGrid = document.getElementById('category-overview-grid');
     if (overviewGrid) {
         overviewGrid.innerHTML = '';
