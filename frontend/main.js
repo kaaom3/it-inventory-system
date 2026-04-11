@@ -101,6 +101,8 @@ const translations = {
         last_name: "Last Name",
         department: "Department",
         save_data: "Save Data",
+        auto_detected: "Auto Detected",
+        add_to_system: "Add to System",
         // Admin
         add_admin: "Add System Admin",
         admin_desc: "This user will be able to login and manage all inventory data.",
@@ -247,6 +249,8 @@ const translations = {
         last_name: "นามสกุล",
         department: "แผนก",
         save_data: "บันทึกข้อมูล",
+        auto_detected: "พบจากอุปกรณ์",
+        add_to_system: "เพิ่มเข้าระบบ",
         // Admin
         add_admin: "เพิ่มผู้ดูแลระบบ",
         admin_desc: "ผู้ใช้นี้จะสามารถล็อกอินและจัดการข้อมูลคลังได้ทั้งหมด",
@@ -606,6 +610,32 @@ async function refreshAllData() {
             if (!selectedItems[collectionName]) selectedItems[collectionName] = [];
         });
 
+        // 🌟 Auto-Discover Users from Devices
+        let staffList = allData.Staff || [];
+        let existingUsernames = new Set(staffList.map(s => (s.UserName || '').toLowerCase()));
+        
+        Object.keys(allData).forEach(key => {
+            if (!['Staff', 'CustomMenus', 'TransactionHistory', 'LoanHistory', 'Maintenance Log', 'admins', 'Software'].includes(key) && Array.isArray(allData[key])) {
+                allData[key].forEach(item => {
+                    if (item.UserName && item.UserName.trim() !== '') {
+                        let uname = item.UserName.trim();
+                        if (!existingUsernames.has(uname.toLowerCase())) {
+                            staffList.push({
+                                id: 'auto-' + Date.now() + Math.random(),
+                                UserName: uname,
+                                FirstName: 'Auto',
+                                LastName: 'Detected',
+                                Department: 'N/A',
+                                isAuto: true
+                            });
+                            existingUsernames.add(uname.toLowerCase());
+                        }
+                    }
+                });
+            }
+        });
+        allData.Staff = staffList;
+
         return true;
     } catch (error) {
         const loadingDiv = document.getElementById('loading-state');
@@ -880,7 +910,7 @@ function generateDynamicPages() {
                     </select>
                 </div>
                 <div class="w-full md:w-3/4">
-                    <input type="text" id="${colName.toLowerCase()}SearchInput" onkeyup="window.handleSearch('${colName}', this.value)" placeholder="${t('search_placeholder')}" class="w-full px-4 py-2 border rounded-lg dark:bg-gray-700 dark:border-gray-600 dark:placeholder-gray-400">
+                    <input type="text" id="${colName.toLowerCase()}SearchInput" onkeyup="window.handleSearch('${colName}', this.value)" placeholder="${t('search')}" class="w-full px-4 py-2 border rounded-lg dark:bg-gray-700 dark:border-gray-600 dark:placeholder-gray-400">
                 </div>
             </div>
 
@@ -2226,12 +2256,12 @@ window.buildHandoverReturnPage = function() {
                 <div class="space-y-4">
                     <div class="bg-gray-50 dark:bg-gray-800/50 p-4 rounded-xl border border-gray-100 dark:border-gray-700">
                         <h3 class="font-bold mb-3 text-gray-800 dark:text-white flex items-center"><span class="bg-indigo-600 text-white w-6 h-6 rounded-full flex items-center justify-center text-xs mr-2">1</span> Select Staff</h3>
-                        <input type="text" onkeyup="window.filterStaffList(this, 'handoverStaffList')" placeholder="${t('search_placeholder')}" class="w-full px-4 py-2.5 border border-gray-300 rounded-lg mb-3 dark:bg-gray-700 dark:border-gray-600 dark:text-white focus:ring-2 focus:ring-indigo-500 shadow-sm">
+                        <input type="text" onkeyup="window.filterStaffList(this, 'handoverStaffList')" placeholder="${t('search')}" class="w-full px-4 py-2.5 border border-gray-300 rounded-lg mb-3 dark:bg-gray-700 dark:border-gray-600 dark:text-white focus:ring-2 focus:ring-indigo-500 shadow-sm">
                         <div id="handoverStaffList" class="max-h-48 overflow-y-auto border border-gray-200 rounded-lg p-2 dark:border-gray-600 bg-white dark:bg-gray-800 custom-scrollbar space-y-1"></div>
                     </div>
                     <div class="bg-gray-50 dark:bg-gray-800/50 p-4 rounded-xl border border-gray-100 dark:border-gray-700">
                         <h3 class="font-bold mb-3 text-gray-800 dark:text-white flex items-center"><span class="bg-indigo-600 text-white w-6 h-6 rounded-full flex items-center justify-center text-xs mr-2">2</span> Select Device (From Storage)</h3>
-                        <input type="text" onkeyup="window.filterDeviceList(this, 'handoverDeviceList')" placeholder="${t('search_device')}" class="w-full px-4 py-2.5 border border-gray-300 rounded-lg mb-3 dark:bg-gray-700 dark:border-gray-600 dark:text-white focus:ring-2 focus:ring-indigo-500 shadow-sm">
+                        <input type="text" onkeyup="window.filterDeviceList(this, 'handoverDeviceList')" placeholder="${t('search')}" class="w-full px-4 py-2.5 border border-gray-300 rounded-lg mb-3 dark:bg-gray-700 dark:border-gray-600 dark:text-white focus:ring-2 focus:ring-indigo-500 shadow-sm">
                         <div id="handoverDeviceList" class="max-h-80 overflow-y-auto border border-gray-200 rounded-lg dark:border-gray-600 bg-white dark:bg-gray-800 custom-scrollbar"></div>
                     </div>
                 </div>
@@ -2263,7 +2293,7 @@ window.buildHandoverReturnPage = function() {
             <div class="grid grid-cols-1 lg:grid-cols-12 gap-8">
                 <div class="lg:col-span-5 bg-gray-50 dark:bg-gray-800/50 p-4 rounded-xl border border-gray-100 dark:border-gray-700">
                     <h3 class="font-bold mb-3 text-gray-800 dark:text-white flex items-center"><span class="bg-green-600 text-white w-6 h-6 rounded-full flex items-center justify-center text-xs mr-2">1</span> Find Staff</h3>
-                    <input type="text" onkeyup="window.filterStaffList(this, 'returnStaffList')" placeholder="${t('search_placeholder')}" class="w-full px-4 py-2.5 border border-gray-300 rounded-lg mb-3 dark:bg-gray-700 dark:border-gray-600 dark:text-white focus:ring-2 focus:ring-green-500 shadow-sm">
+                    <input type="text" onkeyup="window.filterStaffList(this, 'returnStaffList')" placeholder="${t('search')}" class="w-full px-4 py-2.5 border border-gray-300 rounded-lg mb-3 dark:bg-gray-700 dark:border-gray-600 dark:text-white focus:ring-2 focus:ring-green-500 shadow-sm">
                     <div id="returnStaffList" class="max-h-[500px] overflow-y-auto border border-gray-200 rounded-lg p-2 dark:border-gray-600 bg-white dark:bg-gray-800 custom-scrollbar space-y-1"></div>
                 </div>
                 <div class="lg:col-span-7 bg-white dark:bg-gray-800 p-5 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm flex flex-col h-full">
@@ -2292,14 +2322,18 @@ window.populateStaffLists = function(listId, labelId, isReturn = false) {
     if (!list) return;
     const staff = allData.Staff || [];
     if (staff.length === 0) { list.innerHTML = `<p class="p-4 text-center text-gray-500">${t('no_data')}</p>`; return; }
-    list.innerHTML = staff.map(s => `
+    list.innerHTML = staff.map(s => {
+        // 🌟 ใส่ Badge ถ้าเป็น Auto-Detected
+        const autoBadge = s.isAuto ? `<span class="ml-2 px-1.5 py-0.5 text-[9px] bg-yellow-100 text-yellow-800 rounded shadow-sm border border-yellow-200"><i class="fas fa-magic mr-1"></i>${t('auto_detected')}</span>` : '';
+        return `
         <div class="staff-item p-3 hover:bg-indigo-50 dark:hover:bg-gray-700 border border-transparent hover:border-indigo-100 dark:hover:border-gray-600 cursor-pointer rounded-lg transition-colors flex justify-between items-center" onclick="window.selectStaff('${s.UserName}', '${listId}', '${labelId}', ${isReturn})">
             <div>
-                <p class="font-bold text-sm dark:text-white">${s.FirstName || s.UserName} ${s.LastName || ''}</p>
+                <p class="font-bold text-sm dark:text-white">${s.FirstName === 'Auto' ? s.UserName : s.FirstName || s.UserName} ${s.LastName === 'Detected' ? '' : s.LastName || ''} ${autoBadge}</p>
                 <p class="text-xs text-gray-500 dark:text-gray-400">User: ${s.UserName}</p>
             </div>
-            ${s.Department ? `<span class="px-2 py-1 bg-gray-100 dark:bg-gray-600 text-xs rounded font-medium">${s.Department}</span>` : ''}
-        </div>`).join('');
+            ${s.Department && s.Department !== 'N/A' ? `<span class="px-2 py-1 bg-gray-100 dark:bg-gray-600 text-xs rounded font-medium">${s.Department}</span>` : ''}
+        </div>`;
+    }).join('');
 };
 
 window.selectStaff = function(name, listId, labelId, isReturn) {
@@ -2473,20 +2507,40 @@ window.renderStaffTable = function() {
     if(staff.length === 0) tbody.innerHTML = `<tr><td colspan="4" class="text-center p-4 text-gray-500">${t('no_data')}</td></tr>`;
     else tbody.innerHTML = staff.map(s => {
         const id = s._id || s.id;
-        return `<tr><td class="px-6 py-4 font-medium">${s.UserName}</td><td class="px-6 py-4">${s.FirstName||''} ${s.LastName||''}</td><td class="px-6 py-4">${s.Department||''}</td><td class="px-6 py-4 text-right"><button onclick="window.openStaffModal('edit','${id}')" class="text-indigo-600 mr-3"><i class="fas fa-edit"></i></button><button onclick="window.deleteStaff('${id}')" class="text-red-600"><i class="fas fa-trash"></i></button></td></tr>`;
+        // 🌟 เพิ่ม Badge และ ปุ่ม "เพิ่มเข้าระบบ" สำหรับ Auto Detected Users
+        const autoBadge = s.isAuto ? `<span class="ml-2 px-2 py-0.5 text-[10px] bg-yellow-100 text-yellow-800 rounded-full border border-yellow-200 shadow-sm"><i class="fas fa-magic mr-1"></i>${t('auto_detected')}</span>` : '';
+        
+        const actionBtns = s.isAuto 
+            ? `<button onclick="window.openStaffModal('auto','${id}')" class="text-green-600 hover:text-green-800 text-xs font-bold px-3 py-1.5 bg-green-50 rounded border border-green-200 shadow-sm transition"><i class="fas fa-plus mr-1"></i> ${t('add_to_system')}</button>`
+            : `<button onclick="window.openStaffModal('edit','${id}')" class="text-indigo-600 mr-4 text-lg hover:text-indigo-800"><i class="fas fa-edit"></i></button><button onclick="window.deleteStaff('${id}')" class="text-red-600 text-lg hover:text-red-800"><i class="fas fa-trash"></i></button>`;
+        
+        const fName = s.FirstName === 'Auto' ? '' : (s.FirstName||'');
+        const lName = s.LastName === 'Detected' ? '' : (s.LastName||'');
+        const dept = s.Department === 'N/A' ? '' : (s.Department||'');
+
+        return `<tr class="hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors">
+            <td class="px-6 py-4 font-medium">${s.UserName} ${autoBadge}</td>
+            <td class="px-6 py-4 text-gray-600 dark:text-gray-300">${fName} ${lName}</td>
+            <td class="px-6 py-4 text-gray-600 dark:text-gray-300">${dept}</td>
+            <td class="px-6 py-4 text-right">${actionBtns}</td>
+        </tr>`;
     }).join('');
 };
 
 window.openStaffModal = function(mode, id) {
-    currentStaffEdit = { mode, id };
+    // 🌟 หากเป็น Auto Detected ให้ทำเป็นโหมด add
+    currentStaffEdit = { mode: mode === 'auto' ? 'add' : mode, id: mode === 'auto' ? null : id };
     const form = document.getElementById('editStaffForm');
     form.reset();
-    document.getElementById('editStaffModalTitle').innerHTML = mode === 'edit' ? '<i class="fas fa-user-edit text-indigo-500 mr-2"></i> Edit Staff' : '<i class="fas fa-user-plus text-indigo-500 mr-2"></i> Add Staff';
-    if (mode === 'edit') {
+    document.getElementById('editStaffModalTitle').innerHTML = (mode === 'edit' || mode === 'auto') ? '<i class="fas fa-user-edit text-indigo-500 mr-2"></i> Edit Staff' : '<i class="fas fa-user-plus text-indigo-500 mr-2"></i> Add Staff';
+    
+    if (mode === 'edit' || mode === 'auto') {
         const s = allData.Staff.find(i => i._id === id || i.id === id);
         if(s) {
-            document.getElementById('editStaffUserName').value = s.UserName; document.getElementById('editStaffFirstName').value = s.FirstName;
-            document.getElementById('editStaffLastName').value = s.LastName; document.getElementById('editStaffDepartment').value = s.Department;
+            document.getElementById('editStaffUserName').value = s.UserName; 
+            document.getElementById('editStaffFirstName').value = s.FirstName === 'Auto' ? '' : s.FirstName;
+            document.getElementById('editStaffLastName').value = s.LastName === 'Detected' ? '' : s.LastName; 
+            document.getElementById('editStaffDepartment').value = s.Department === 'N/A' ? '' : s.Department;
         }
     }
     window.openModalWindow('editStaffModal');
