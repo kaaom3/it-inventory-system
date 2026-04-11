@@ -1,6 +1,6 @@
 # ===================================================================
 # PowerShell Script to Collect and Send Computer Inventory Data
-# Version 24.0 - Cloud Sync + Heartbeat Monitor
+# Version 24.0 - Cloud Sync + Heartbeat Monitor (Dynamic Collection)
 # ===================================================================
 
 # --- CONFIGURATION (ตั้งค่าสำหรับ Cloud) ---
@@ -252,12 +252,15 @@ Write-Log "========== Full Sync Finished =========="
 Write-Log "Starting Heartbeat Service. This window will remain open in background."
 Write-Host "Entering Heartbeat Mode. Press Ctrl+C to stop." -ForegroundColor Cyan
 
+# 🌟 กำหนดชื่อหมวดหมู่ปลายทางตามประเภทของเครื่อง (ส่งกลับไปให้ Heartbeat)
+$targetCollection = if ($computerType -and $computerType -ne "Unknown") { $computerType } else { "Computers" }
+
 while ($true) {
     try {
         # สร้างข้อมูลแบบย่อส่งไปอัปเดตสถานะ Online
         $heartbeatBody = @{
             hostname = $env:COMPUTERNAME
-            collectionName = "Computers"
+            collectionName = $targetCollection
         } | ConvertTo-Json -Compress
 
         Invoke-RestMethod -Uri $heartbeatUrl -Method Post -Body $heartbeatBody -ContentType "application/json" -ErrorAction Stop

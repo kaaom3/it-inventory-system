@@ -1,6 +1,6 @@
 // ===================================================================
 // Frontend Logic for IT Inventory System (Full Complete Version)
-// FEATURES: Bulk Clone, Dynamic Bulk Edit, Drill-down Dashboard, Rapid Scan, Custom Columns, Clone Menu
+// FEATURES: Bulk Clone, Dynamic Bulk Edit, Drill-down Dashboard, Rapid Scan, Custom Columns, Clone Menu, Move Category
 // ===================================================================
 
 // 🌟 ล็อก URL ไปที่เซิร์ฟเวอร์บน Cloud ของคุณ 100%
@@ -667,7 +667,7 @@ window.renderSettings = function() {
                     <div>
                         <button onclick="window.cloneCustomMenu('${menu.name}', event)" class="text-green-500 hover:text-green-700 mr-3 p-2" title="Clone Menu"><i class="fas fa-copy"></i></button>
                         <button onclick="window.openEditMenuModal('${menu.name}', event)" class="text-blue-500 hover:text-blue-700 mr-3 p-2" title="Edit Menu"><i class="fas fa-edit"></i></button>
-                        <button onclick="window.deleteCustomMenu('${menu.name}', event)" class="text-red-500 hover:text-red-700 p-2" title="Delete Menu"><i class="fas fa-trash"></i></button>
+                        <button onclick="window.deleteCustomMenu('${menu.name}')" class="text-red-500 hover:text-red-700 p-2" title="Delete Menu"><i class="fas fa-trash"></i></button>
                     </div>
                 </li>
             `;
@@ -757,16 +757,14 @@ window.openEditMenuModal = function(menuName, event) {
     window.openModalWindow('addMenuModal');
 };
 
-// 🌟 ฟังก์ชันโคลนโครงสร้างของเมนู (Custom Menu)
 window.cloneCustomMenu = function(menuName, event) {
     if (event) event.stopPropagation();
     const menu = allData.CustomMenus.find(m => m.name === menuName);
     if (!menu) return;
 
     document.getElementById('addMenuModalTitle').innerHTML = `<i class="fas fa-copy text-green-500 mr-2"></i> Clone Custom Menu`;
-    document.getElementById('editMenuMode').value = "create"; // บังคับเป็นโหมดสร้างใหม่
+    document.getElementById('editMenuMode').value = "create"; 
     
-    // ตั้งชื่อให้ผู้ใช้รู้ว่าเป็นตัวโคลน และบังคับให้ผู้ใช้แก้ ID ใหม่เอง
     document.getElementById('newMenuId').value = menu.name + "Copy"; 
     document.getElementById('newMenuId').disabled = false;
     document.getElementById('newMenuId').classList.remove('bg-gray-200', 'cursor-not-allowed');
@@ -777,23 +775,19 @@ window.cloneCustomMenu = function(menuName, event) {
     
     window.populateParentDropdown(menu.parentId); 
     
-    // ล้างค่า Checkbox ก่อนทั้งหมด
     document.querySelectorAll('.col-checkbox').forEach(cb => cb.checked = false);
     document.querySelectorAll('.display-checkbox').forEach(cb => { cb.checked = false; cb.disabled = true; });
 
-    // โหลดค่า Field ฝั่งฟอร์มของเมนูต้นฉบับ
     if (menu.fields && Array.isArray(menu.fields)) {
         menu.fields.forEach(f => {
             const cb = document.getElementById(`field_${f.id}`);
             if(cb) cb.checked = true;
             
-            // เปิดให้ตั้งค่าการแสดงผลได้
             const dCb = document.getElementById(`display_${f.id}`);
             if(dCb) dCb.disabled = false;
         });
     }
 
-    // โหลดค่าคอลัมน์ของฝั่งตารางของเมนูต้นฉบับ
     if (menu.displayColumns && Array.isArray(menu.displayColumns)) {
         menu.displayColumns.forEach(id => {
             const dCb = document.getElementById(`display_${id}`);
@@ -1183,6 +1177,7 @@ window.buildTable = function(collectionName) {
             html += `<td class="px-6 py-4 text-sm font-medium space-x-3 whitespace-nowrap text-center">
                 <button onclick="window.openModal('edit', '${collectionName}', '${id}')" class="text-indigo-600 hover:text-indigo-900 dark:text-indigo-400 dark:hover:text-indigo-300" title="Edit"><i class="fas fa-edit"></i></button>
                 <button onclick="window.openCloneModal('${collectionName}', '${id}')" class="text-blue-600 hover:text-blue-900 dark:text-blue-400 dark:hover:text-blue-300" title="Clone"><i class="fas fa-copy"></i></button>
+                <button onclick="window.openMoveModal('${collectionName}', '${id}')" class="text-purple-600 hover:text-purple-900 dark:text-purple-400 dark:hover:text-purple-300" title="Move Category"><i class="fas fa-exchange-alt"></i></button>
                 <button onclick="window.deleteItem('${collectionName}', '${id}')" class="text-red-600 hover:text-red-900 dark:text-red-400 dark:hover:text-red-300" title="Delete"><i class="fas fa-trash"></i></button>
                 <button onclick="window.showQrModal('${item[config.serialField] || id}', '${item[config.nameField] || 'Asset'}')" class="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200" title="QR Code"><i class="fas fa-qrcode"></i></button>
             </td></tr>`;
@@ -1525,6 +1520,7 @@ window.updateDashboard = function(folderId) {
         }
     }
 
+    // 1. แยกคำนวณ Status และ Warranty ภาพรวม
     allItems.forEach(i => {
         if (i.Status === 'Disposed') {
             disposed++;
@@ -1571,6 +1567,7 @@ window.updateDashboard = function(folderId) {
         document.getElementById('stat-warranty-expired').innerText = warrantyExpired;
     }
     
+    // 2. จัดการหน้า Category Folders
     let overviewGrid = document.getElementById('category-overview-grid');
     if (overviewGrid) {
         overviewGrid.innerHTML = '';
@@ -1701,6 +1698,7 @@ window.updateDashboard = function(folderId) {
         }
     }
 
+    // 3. Render Charts
     const statusCounts = {}; 
     allItems.filter(i => i.Status !== 'Disposed').forEach(i => { statusCounts[i.Status] = (statusCounts[i.Status] || 0) + 1; });
     window.renderStatusChart(statusCounts);
@@ -1720,6 +1718,7 @@ window.updateDashboard = function(folderId) {
 
     window.renderLocationChart(locationCounts);
 
+    // 4. Render Recent Transactions
     const activityContainer = document.getElementById('recent-activity-list');
     if (activityContainer) {
         const transactions = allData['TransactionHistory'] || [];
@@ -2645,5 +2644,61 @@ window.processClone = async function() {
         window.updateDashboard(currentDashboardFolder);
     } catch (error) {
         showNotificationModal('warning', 'การโคลนล้มเหลว', error.message);
+    }
+};
+
+// ==========================================
+// --- 🌟 MOVE CATEGORY MODE ---
+// ==========================================
+window.openMoveModal = function(collectionName, id) {
+    const item = allData[collectionName].find(i => i._id === id || i.id === id);
+    if (!item) return;
+    
+    const config = collectionConfigs[collectionName];
+    const name = item[config.nameField] || item.ComputerName || item.ItemName || item.DeviceName || 'Unknown Device';
+    const serial = item[config.serialField] || item.SerialNumber || id;
+    
+    document.getElementById('moveSourceInfo').textContent = `${name} (${serial}) จากหมวด ${config.displayName || collectionName}`;
+    document.getElementById('moveSourceCollection').value = collectionName;
+    document.getElementById('moveSourceId').value = id;
+    
+    const targetSelect = document.getElementById('moveTargetCollection');
+    targetSelect.innerHTML = '<option value="">-- เลือกหมวดหมู่ปลายทาง --</option>';
+    
+    Object.keys(collectionConfigs).forEach(cat => {
+        const skipKeys = ['Software', 'Staff', 'CustomMenus', 'TransactionHistory', 'LoanHistory', 'Maintenance Log', 'admins'];
+        if (cat !== collectionName && !skipKeys.includes(cat)) {
+            const displayName = collectionConfigs[cat] ? collectionConfigs[cat].displayName : cat;
+            targetSelect.innerHTML += `<option value="${cat}">${displayName}</option>`;
+        }
+    });
+    
+    window.openModalWindow('moveModal');
+};
+
+window.processMove = async function() {
+    const sourceCollection = document.getElementById('moveSourceCollection').value;
+    const sourceId = document.getElementById('moveSourceId').value;
+    const targetCollection = document.getElementById('moveTargetCollection').value;
+    
+    if (!targetCollection) {
+        return showNotificationModal('warning', 'ข้อมูลไม่ครบ', 'กรุณาเลือกหมวดหมู่ปลายทาง');
+    }
+    
+    if (confirm(`คุณแน่ใจหรือไม่ที่จะย้ายอุปกรณ์นี้ไปยังหมวดหมู่ ${collectionConfigs[targetCollection]?.displayName || targetCollection} ?`)) {
+        try {
+            await apiRequest(`/api/inventory/${sourceCollection}/move`, 'POST', {
+                targetCollection: targetCollection,
+                id: sourceId
+            });
+            
+            showNotificationModal('success', 'ย้ายสำเร็จ', `ย้ายอุปกรณ์ไปยังหมวดหมู่ ${collectionConfigs[targetCollection]?.displayName || targetCollection} เรียบร้อยแล้ว`);
+            window.hideModal('moveModal');
+            await refreshAllData();
+            window.buildTable(sourceCollection);
+            window.updateDashboard(currentDashboardFolder);
+        } catch (error) {
+            showNotificationModal('warning', 'การย้ายล้มเหลว', error.message);
+        }
     }
 };

@@ -18,9 +18,9 @@ const frontendPath = path.join(__dirname, '../frontend');
 app.use(express.static(frontendPath));
 
 // Configuration
-const mongoUri = "mongodb+srv://kaaom3:Kaaom321A@cluster0.fx7nlup.mongodb.net/inventoryDB_Cloned?appName=Cluster0"; 
+const mongoUri = process.env.MONGO_URI || "mongodb+srv://kaaom3:Kaaom321A@cluster0.fx7nlup.mongodb.net/inventoryDB_Cloned?appName=Cluster0"; 
 const dbName = "inventoryDB_Cloned"; 
-const jwtSecret = "your_super_secret_key_change_this"; 
+const jwtSecret = process.env.JWT_SECRET || "your_super_secret_key_change_this"; 
 const API_SECRET_KEY = "KAAOM321A"; 
 
 let db;
@@ -397,6 +397,51 @@ app.post('/api/inventory/:collection/clone-bulk', verifyToken, async (req, res) 
     } catch (error) { res.status(500).json({ message: error.message }); }
 });
 
+// 🌟 เพิ่ม API ย้ายหมวดหมู่อุปกรณ์ (Move Category)
+app.post('/api/inventory/:collection/move', verifyToken, async (req, res) => {
+    if (!db) return res.status(500).json({ message: "Database not connected" });
+    try {
+        const sourceCollection = req.params.collection;
+        const { targetCollection, id } = req.body;
+
+        if (!targetCollection || !id) return res.status(400).json({ message: "Missing required fields" });
+        if (sourceCollection === targetCollection) return res.status(400).json({ message: "Cannot move to the same collection" });
+
+        const query = buildIdQuery(id);
+        const item = await db.collection(sourceCollection).findOne(query);
+        if (!item) return res.status(404).json({ message: "Item not found" });
+
+        // 1. เพิ่มข้อมูลเข้าหมวดหมู่ปลายทาง (ใช้ _id เดิมเพื่อรักษา Reference)
+        await db.collection(targetCollection).insertOne(item);
+        
+        // 2. ลบออกจากหมวดหมู่เดิม
+        await db.collection(sourceCollection).deleteOne(query);
+
+        // 3. อัปเดตประวัติการซ่อมบำรุง (Maintenance Log)
+        await db.collection('Maintenance Log').updateMany(
+            { deviceId: id, deviceCollection: sourceCollection },
+            { $set: { deviceCollection: targetCollection } }
+        );
+        
+        // 4. อัปเดตประวัติการยืม (LoanHistory)
+        await db.collection('LoanHistory').updateMany(
+            { DeviceId: id, DeviceType: sourceCollection },
+            { $set: { DeviceType: targetCollection } }
+        );
+
+        // 5. อัปเดตประวัติการส่งมอบและคืน (TransactionHistory - เป็น Nested Array)
+        await db.collection('TransactionHistory').updateMany(
+            { "devices.id": id, "devices.collection": sourceCollection },
+            { $set: { "devices.$[elem].collection": targetCollection } },
+            { arrayFilters: [ { "elem.id": id, "elem.collection": sourceCollection } ] }
+        );
+
+        res.status(200).json({ message: `Successfully moved to ${targetCollection}` });
+    } catch (error) {
+        res.status(500).json({ message: error.message });
+    }
+});
+
 // ===================================================================
 // --- Inventory General CRUD ---
 // ===================================================================
@@ -587,6 +632,7 @@ app.post('/api/custom-menus', verifyToken, async (req, res) => {
     } catch (error) { res.status(500).json({ message: error.message }); }
 });
 
+// 🌟 อัปเดต Route แก้ไขเมนูให้รองรับการบันทึก displayColumns ไปลงฐานข้อมูล
 app.put('/api/custom-menus/:id', verifyToken, async (req, res) => {
     if (!db) return res.status(500).json({ message: "Database not connected" });
     try {
@@ -598,7 +644,7 @@ app.put('/api/custom-menus/:id', verifyToken, async (req, res) => {
                 parentId: req.body.parentId, 
                 order: req.body.order, 
                 fields: req.body.fields,
-                displayColumns: req.body.displayColumns
+                displayColumns: req.body.displayColumns // <--- บันทึกตรงนี้
             } }
         );
         res.json({ message: "Menu updated" });
