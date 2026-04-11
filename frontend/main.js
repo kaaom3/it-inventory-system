@@ -1,10 +1,353 @@
 // ===================================================================
 // Frontend Logic for IT Inventory System (Full Complete Version)
-// FEATURES: Bulk Clone, Dynamic Bulk Edit, Drill-down Dashboard, Rapid Scan, Custom Columns, Clone Menu, Move Category
+// FEATURES: Bilingual (TH/EN), Bulk Clone, Dynamic Bulk Edit, Drill-down Dashboard, Rapid Scan, Custom Columns, Clone Menu, Move Category
 // ===================================================================
 
 // 🌟 ล็อก URL ไปที่เซิร์ฟเวอร์บน Cloud ของคุณ 100%
 const API_BASE_URL = 'https://it-inventory-system-ncd9.onrender.com'; // หรือ window.location.origin
+
+// ==========================================
+// --- 🌟 BILINGUAL SYSTEM (TH/EN DICTIONARY) ---
+// ==========================================
+const translations = {
+    en: {
+        app_title: "Inventory",
+        loading_system: "Loading System...",
+        logged_in_as: "Logged in as",
+        logout: "Logout",
+        dark_mode: "Dark Mode",
+        light_mode: "Light Mode",
+        lang_switch_text: "เปลี่ยนเป็นภาษาไทย",
+        overview_dashboard: "Overview Dashboard",
+        total_assets: "Total Assets",
+        active_loan: "Active / Loan",
+        in_storage: "In Storage",
+        repair_issue: "Repair / Issue",
+        disposed: "Disposed",
+        network_health: "Network & Devices Health",
+        network_health_desc: "Online/Offline status of devices with IP",
+        online: "ONLINE",
+        offline: "OFFLINE",
+        warranty_alerts: "Warranty Alerts",
+        warranty_alerts_desc: "Overall equipment warranty updates",
+        expires_soon: "EXPIRES <30D",
+        expired: "EXPIRED",
+        status_distribution: "Status Distribution",
+        assets_by_category: "Assets by Category",
+        top_locations: "Top Locations",
+        recent_transactions: "Recent Transactions",
+        settings: "Settings",
+        disposed_assets: "Disposed Assets",
+        disposed_assets_desc: "List of disposed assets (with evidence)",
+        device: "Device",
+        sn: "SN",
+        date: "Date",
+        evidence: "Evidence",
+        handover_return_title: "Handover & Return",
+        handover: "Handover",
+        return: "Return",
+        loan_history: "Loan History",
+        maintenance_history: "Maintenance Logs",
+        assets_by_user: "Assets by User",
+        // Modals
+        disposal_evidence: "Disposal Evidence",
+        disposal_desc: "As status changed to 'Disposed', please attach reference document (PDF, JPG max 2MB)",
+        evidence_attached: "Evidence attached",
+        view_evidence: "View Document",
+        add_new_log: "Add New Log",
+        description: "Description*",
+        date_log: "Date*",
+        cost: "Cost",
+        technician: "Technician",
+        save_log: "Save Log",
+        past_records: "Past Records",
+        device_history: "Device Ownership & Usage History",
+        cancel: "Cancel",
+        save_changes: "Save Changes",
+        clone_device: "Clone Device",
+        cloning_from: "Cloning specs from:",
+        enter_new_sns: "Enter new Serial Numbers",
+        one_per_line: "(1 per line)",
+        clone_info: "Cloned devices will be automatically saved to Storage.",
+        create_items: "Create Items",
+        move_category: "Move Category",
+        moving_device: "Moving device:",
+        select_target_category: "Select target category",
+        move_info: "Loan and maintenance history will be moved automatically.",
+        confirm_move: "Confirm Move",
+        bulk_edit_title: "Bulk Edit Items",
+        items: "items",
+        save_all_changes: "Save All Changes",
+        // Menu Modal
+        system_id: "System ID (No spaces)*",
+        display_name: "Display Name*",
+        icon_class: "Icon (FontAwesome Class)",
+        parent_menu: "Parent Menu",
+        order_num: "Order (Number)",
+        select_fields_cat: "Select Fields for this Category",
+        save_menu: "Save Menu",
+        // Import Modal
+        dl_csv_template: "Download CSV Template",
+        req_headers: "Required Headers:",
+        csv_file: "CSV File",
+        encoding: "Encoding (Language Format)",
+        import_data: "Import Data",
+        // QR Modal
+        qr_desc: "Scan this QR code with your mobile device to view complete details of this asset.",
+        close: "Close",
+        // Staff
+        username_req: "Username (Required)",
+        first_name: "First Name",
+        last_name: "Last Name",
+        department: "Department",
+        save_data: "Save Data",
+        // Admin
+        add_admin: "Add System Admin",
+        admin_desc: "This user will be able to login and manage all inventory data.",
+        email_addr: "Email Address",
+        password: "Password",
+        create_admin: "Create Admin",
+        got_it: "Got it",
+        // JS specific dynamic texts
+        search: "Search...",
+        all_statuses: "All Statuses",
+        bulk_edit: "Bulk Edit",
+        bulk_delete: "Bulk Delete",
+        rapid_scan: "Rapid Scan",
+        import_csv: "Import CSV",
+        add_new: "Add New",
+        actions: "Actions",
+        no_data: "No data found.",
+        showing: "Showing",
+        to: "to",
+        of: "of",
+        results: "results",
+        rows: "Rows:",
+        page: "Page",
+        unknown: "Unknown",
+        just_now: "Just now",
+        mins_ago: "mins ago",
+        hours_ago: "hours ago",
+        days_ago: "days ago",
+        active: "Active",
+        storage: "Storage",
+        repair: "Repair",
+        damaged: "Damaged",
+        on_loan: "On Loan",
+        back: "Back",
+        go_back: "Go back",
+        items_count: "Items",
+        view_items: "View items in this category",
+        // Sidebar dynamically translated
+        dashboard: "Dashboard",
+        computers: "Computers",
+        monitors: "Monitors",
+        accessories: "Accessories",
+        printers: "Printers",
+        network: "Network",
+        transactions: "Transactions",
+        loan_page_user: "Loan Page (for User)",
+        reports: "Reports",
+        system_settings: "System Settings",
+        staff_management: "Staff Management",
+        admin_management: "Admin Management",
+        label_printer: "Label Printer",
+        custom_categories: "Custom Categories",
+        assets: "Assets",
+        management: "Management"
+    },
+    th: {
+        app_title: "ระบบคลังอุปกรณ์",
+        loading_system: "กำลังโหลดระบบ...",
+        logged_in_as: "เข้าสู่ระบบโดย",
+        logout: "ออกจากระบบ",
+        dark_mode: "โหมดกลางคืน",
+        light_mode: "โหมดสว่าง",
+        lang_switch_text: "Switch to English",
+        overview_dashboard: "ภาพรวมระบบ",
+        total_assets: "ทรัพย์สินทั้งหมด",
+        active_loan: "ใช้งาน / ถูกยืม",
+        in_storage: "ในคลัง",
+        repair_issue: "ส่งซ่อม / มีปัญหา",
+        disposed: "จำหน่ายออก",
+        network_health: "สถานะเครือข่ายและอุปกรณ์",
+        network_health_desc: "สถานะออนไลน์/ออฟไลน์ของอุปกรณ์ที่มี IP",
+        online: "ออนไลน์",
+        offline: "ออฟไลน์",
+        warranty_alerts: "การแจ้งเตือนประกัน",
+        warranty_alerts_desc: "สถานะประกันของอุปกรณ์ทั้งหมด",
+        expires_soon: "หมดใน <30 วัน",
+        expired: "หมดประกันแล้ว",
+        status_distribution: "สัดส่วนสถานะอุปกรณ์",
+        assets_by_category: "อุปกรณ์แยกตามหมวดหมู่",
+        top_locations: "สถานที่ใช้งานสูงสุด",
+        recent_transactions: "ประวัติทำรายการล่าสุด",
+        settings: "ตั้งค่าระบบ",
+        disposed_assets: "อุปกรณ์ที่จำหน่ายออก",
+        disposed_assets_desc: "รายการอุปกรณ์ที่ถูกแทงจำหน่าย (มีเอกสารแนบ)",
+        device: "อุปกรณ์",
+        sn: "ซีเรียล",
+        date: "วันที่",
+        evidence: "เอกสารอ้างอิง",
+        handover_return_title: "การส่งมอบ & รับคืน",
+        handover: "ส่งมอบ",
+        return: "รับคืน",
+        loan_history: "ประวัติการยืม",
+        maintenance_history: "ประวัติการซ่อมบำรุง",
+        assets_by_user: "อุปกรณ์แยกตามพนักงาน",
+        // Modals
+        disposal_evidence: "หลักฐานการแทงจำหน่าย",
+        disposal_desc: "เนื่องจากมีการเปลี่ยนสถานะเป็น 'Disposed' กรุณาแนบเอกสารอ้างอิง (PDF, JPG ขนาดไม่เกิน 2MB)",
+        evidence_attached: "มีเอกสารแนบไว้แล้ว",
+        view_evidence: "เปิดดูเอกสาร",
+        add_new_log: "เพิ่มประวัติใหม่",
+        description: "รายละเอียด*",
+        date_log: "วันที่*",
+        cost: "ค่าใช้จ่าย",
+        technician: "ช่าง/ผู้ดำเนินการ",
+        save_log: "บันทึกประวัติ",
+        past_records: "ประวัติย้อนหลัง",
+        device_history: "ประวัติการครอบครอง & การใช้งาน",
+        cancel: "ยกเลิก",
+        save_changes: "บันทึกการเปลี่ยนแปลง",
+        clone_device: "โคลนข้อมูลอุปกรณ์",
+        cloning_from: "กำลังคัดลอกสเปคจาก:",
+        enter_new_sns: "ระบุ Serial Number ใหม่",
+        one_per_line: "(1 บรรทัดต่อ 1 เครื่อง)",
+        clone_info: "อุปกรณ์ที่โคลนใหม่จะถูกบันทึกเข้าคลังอัตโนมัติ",
+        create_items: "สร้างรายการใหม่",
+        move_category: "ย้ายหมวดหมู่อุปกรณ์",
+        moving_device: "กำลังย้ายอุปกรณ์:",
+        select_target_category: "เลือกหมวดหมู่ปลายทาง",
+        move_info: "ข้อมูลประวัติการยืมและซ่อมบำรุงจะถูกย้ายตามไปด้วยอัตโนมัติ",
+        confirm_move: "ยืนยันการย้าย",
+        bulk_edit_title: "แก้ไขข้อมูลทีละหลายรายการ",
+        items: "รายการ",
+        save_all_changes: "บันทึกการแก้ไขทั้งหมด",
+        // Menu Modal
+        system_id: "รหัสระบบ (ห้ามเว้นวรรค)*",
+        display_name: "ชื่อที่แสดง*",
+        icon_class: "ไอคอน (Class ของ FontAwesome)",
+        parent_menu: "เมนูหลัก (Parent)",
+        order_num: "ลำดับการแสดงผล",
+        select_fields_cat: "เลือกฟิลด์สำหรับหมวดหมู่นี้",
+        save_menu: "บันทึกเมนู",
+        // Import Modal
+        dl_csv_template: "ดาวน์โหลดแม่แบบ CSV",
+        req_headers: "หัวข้อคอลัมน์ที่จำเป็น:",
+        csv_file: "ไฟล์ CSV",
+        encoding: "รูปแบบการเข้ารหัสภาษา",
+        import_data: "นำเข้าข้อมูล",
+        // QR Modal
+        qr_desc: "สแกนคิวอาร์โค้ดนี้ด้วยสมาร์ทโฟนเพื่อดูรายละเอียดฉบับเต็ม",
+        close: "ปิด",
+        // Staff
+        username_req: "รหัสพนักงาน/ชื่อผู้ใช้ (จำเป็น)",
+        first_name: "ชื่อจริง",
+        last_name: "นามสกุล",
+        department: "แผนก",
+        save_data: "บันทึกข้อมูล",
+        // Admin
+        add_admin: "เพิ่มผู้ดูแลระบบ",
+        admin_desc: "ผู้ใช้นี้จะสามารถล็อกอินและจัดการข้อมูลคลังได้ทั้งหมด",
+        email_addr: "อีเมล",
+        password: "รหัสผ่าน",
+        create_admin: "สร้างผู้ดูแลระบบ",
+        got_it: "รับทราบ",
+        // JS specific dynamic texts
+        search: "ค้นหา...",
+        all_statuses: "ทุกสถานะ",
+        bulk_edit: "แก้ไขหลายรายการ",
+        bulk_delete: "ลบหลายรายการ",
+        rapid_scan: "สแกนด่วน",
+        import_csv: "นำเข้า CSV",
+        add_new: "เพิ่มข้อมูล",
+        actions: "จัดการ",
+        no_data: "ไม่พบข้อมูล",
+        showing: "แสดง",
+        to: "ถึง",
+        of: "จาก",
+        results: "รายการ",
+        rows: "แถว:",
+        page: "หน้า",
+        unknown: "ไม่ทราบ",
+        just_now: "เมื่อสักครู่",
+        mins_ago: "นาทีที่แล้ว",
+        hours_ago: "ชั่วโมงที่แล้ว",
+        days_ago: "วันที่แล้ว",
+        active: "ใช้งานอยู่",
+        storage: "ในคลัง",
+        repair: "ส่งซ่อม",
+        damaged: "ชำรุด",
+        on_loan: "ถูกยืม",
+        back: "ย้อนกลับ",
+        go_back: "กลับหน้าก่อนหน้า",
+        items_count: "รายการ",
+        view_items: "ดูรายการในหมวดนี้",
+        // Sidebar dynamically translated
+        dashboard: "แผงควบคุม",
+        computers: "คอมพิวเตอร์",
+        monitors: "หน้าจอ",
+        accessories: "อุปกรณ์เสริม",
+        printers: "เครื่องพิมพ์",
+        network: "อุปกรณ์เครือข่าย",
+        transactions: "การทำรายการ",
+        loan_page_user: "หน้าเว็บสำหรับยืมอุปกรณ์ (User)",
+        reports: "รายงาน",
+        system_settings: "ตั้งค่าระบบ",
+        staff_management: "จัดการรายชื่อพนักงาน",
+        admin_management: "จัดการผู้ดูแลระบบ",
+        label_printer: "พิมพ์ฉลาก (Label)",
+        custom_categories: "จัดการหมวดหมู่ (Custom)",
+        assets: "ทรัพย์สิน",
+        management: "การจัดการ"
+    }
+};
+
+let currentLang = localStorage.getItem('appLang') || 'th'; // Default to TH
+
+// Helper function to translate keys
+function t(key) {
+    return translations[currentLang][key] || key;
+}
+
+// Update all HTML elements with data-i18n attributes
+function updateUI() {
+    document.querySelectorAll('[data-i18n]').forEach(el => {
+        const key = el.getAttribute('data-i18n');
+        if (translations[currentLang][key]) {
+            // Keep inner HTML structure if it contains icons (e.g., <i class="fas..."></i> Text)
+            if (el.innerHTML.includes('<i')) {
+                const iconHtml = el.innerHTML.match(/<i[^>]*><\/i>/) ? el.innerHTML.match(/<i[^>]*><\/i>/)[0] : '';
+                const extraSpanHtml = el.innerHTML.match(/<span[^>]*>.*?<\/span>/) ? el.innerHTML.match(/<span[^>]*>.*?<\/span>/)[0] : '';
+                el.innerHTML = `${iconHtml} ${translations[currentLang][key]} ${extraSpanHtml}`.trim();
+            } else {
+                el.textContent = translations[currentLang][key];
+            }
+        }
+    });
+
+    // Update specific text nodes
+    const langText = document.getElementById('lang-text');
+    if (langText) langText.textContent = translations[currentLang].lang_switch_text;
+
+    // Refresh dynamic parts if they exist
+    renderSidebarDynamic();
+    generateDynamicPages();
+    
+    const activePage = document.querySelector('.page-content.active');
+    if (activePage && activePage.id !== 'dashboard-page') {
+        const colName = activePage.id.replace('-page', '');
+        const realKey = Object.keys(collectionConfigs).find(k => k.toLowerCase() === colName);
+        if(realKey) window.buildTable(realKey);
+    }
+}
+
+window.toggleLanguage = function() {
+    currentLang = currentLang === 'en' ? 'th' : 'en';
+    localStorage.setItem('appLang', currentLang);
+    updateUI();
+};
 
 // --- Definition of Available Fields for Custom Menus ---
 const AVAILABLE_FIELDS = [
@@ -86,6 +429,7 @@ document.addEventListener('DOMContentLoaded', () => {
         injectRapidEntryModal(); 
         initializeAppLogic();
         bindGlobalEventListeners();
+        updateUI(); // 🌟 Apply translations on load
     } else {
         window.location.replace('/login.html');
     }
@@ -316,7 +660,7 @@ window.renderDisposedAssets = function() {
             
             let evidenceBtn = '<span class="text-gray-400 text-xs italic">ไม่มีเอกสาร</span>';
             if (item.DisposalEvidence) {
-                evidenceBtn = `<button onclick="window.viewDisposalEvidence(this.getAttribute('data-file'))" data-file="${item.DisposalEvidence}" class="px-3 py-1 bg-red-100 text-red-700 hover:bg-red-200 rounded-md text-xs font-bold shadow-sm transition"><i class="fas fa-file-pdf mr-1"></i> ดูเอกสาร</button>`;
+                evidenceBtn = `<button onclick="window.viewDisposalEvidence(this.getAttribute('data-file'))" data-file="${item.DisposalEvidence}" class="px-3 py-1 bg-red-100 text-red-700 hover:bg-red-200 rounded-md text-xs font-bold shadow-sm transition"><i class="fas fa-file-pdf mr-1"></i> ${t('view_evidence')}</button>`;
             }
 
             html += `
@@ -333,7 +677,7 @@ window.renderDisposedAssets = function() {
         });
     }
 
-    if (disposedCount === 0) html = `<tr><td colspan="4" class="px-6 py-10 text-center text-gray-500">ยังไม่มีรายการอุปกรณ์ที่ถูกแทงจำหน่าย</td></tr>`;
+    if (disposedCount === 0) html = `<tr><td colspan="4" class="px-6 py-10 text-center text-gray-500">${t('no_data')}</td></tr>`;
     tbody.innerHTML = html;
 };
 
@@ -349,12 +693,12 @@ function initTheme() {
             document.documentElement.classList.add('dark');
             if (darkIcon) { darkIcon.classList.remove('fa-moon', 'text-gray-600'); darkIcon.classList.add('fa-sun', 'text-yellow-400'); }
             const text = document.getElementById('theme-text');
-            if(text) text.textContent = 'Light Mode';
+            if(text) text.textContent = t('light_mode');
         } else {
             document.documentElement.classList.remove('dark');
             if (darkIcon) { darkIcon.classList.remove('fa-sun', 'text-yellow-400'); darkIcon.classList.add('fa-moon', 'text-gray-600'); }
             const text = document.getElementById('theme-text');
-            if(text) text.textContent = 'Dark Mode';
+            if(text) text.textContent = t('dark_mode');
         }
         localStorage.setItem('color-theme', theme);
     }
@@ -390,13 +734,13 @@ function initPrintStyles() {
 }
 
 window.formatTimeAgo = (dateString) => {
-    if (!dateString) return "ไม่ทราบ";
+    if (!dateString) return t('unknown');
     const date = new Date(dateString);
     const diffMins = Math.floor((new Date() - date) / 60000);
-    if (diffMins < 1) return "เมื่อสักครู่";
-    if (diffMins < 60) return `${diffMins} นาทีที่แล้ว`;
-    if (diffMins < 1440) return `${Math.floor(diffMins / 60)} ชั่วโมงที่แล้ว`;
-    if (diffMins < 10080) return `${Math.floor(diffMins / 1440)} วันที่แล้ว`;
+    if (diffMins < 1) return t('just_now');
+    if (diffMins < 60) return `${diffMins} ${t('mins_ago')}`;
+    if (diffMins < 1440) return `${Math.floor(diffMins / 60)} ${t('hours_ago')}`;
+    if (diffMins < 10080) return `${Math.floor(diffMins / 1440)} ${t('days_ago')}`;
     return date.toLocaleDateString('th-TH');
 };
 
@@ -408,40 +752,40 @@ function renderSidebarDynamic() {
     if (!container) return;
     container.innerHTML = ''; 
 
-    const dashboardNode = { id: 'Dashboard', name: 'Dashboard', icon: 'fa-tachometer-alt', children: [], isSystem: true, clickAction: "window.loadPage('Dashboard', this)" };
+    const dashboardNode = { id: 'Dashboard', name: t('dashboard'), icon: 'fa-tachometer-alt', children: [], isSystem: true, clickAction: "window.loadPage('Dashboard', this)" };
     
     const assetChildren = [
-        { id: 'Computers', name: 'Computers', icon: 'fa-laptop', isSystem: true, clickAction: "window.loadPage('Computers', this)" },
-        { id: 'Monitors', name: 'Monitors', icon: 'fa-desktop', isSystem: true, clickAction: "window.loadPage('Monitors', this)" },
-        { id: 'Accessory', name: 'Accessories', icon: 'fa-keyboard', isSystem: true, clickAction: "window.loadPage('Accessory', this)" },
-        { id: 'Printers', name: 'Printers', icon: 'fa-print', isSystem: true, clickAction: "window.loadPage('Printers', this)" },
-        { id: 'Network', name: 'Network', icon: 'fa-network-wired', isSystem: true, clickAction: "window.loadPage('Network', this)" }
+        { id: 'Computers', name: t('computers'), icon: 'fa-laptop', isSystem: true, clickAction: "window.loadPage('Computers', this)" },
+        { id: 'Monitors', name: t('monitors'), icon: 'fa-desktop', isSystem: true, clickAction: "window.loadPage('Monitors', this)" },
+        { id: 'Accessory', name: t('accessories'), icon: 'fa-keyboard', isSystem: true, clickAction: "window.loadPage('Accessory', this)" },
+        { id: 'Printers', name: t('printers'), icon: 'fa-print', isSystem: true, clickAction: "window.loadPage('Printers', this)" },
+        { id: 'Network', name: t('network'), icon: 'fa-network-wired', isSystem: true, clickAction: "window.loadPage('Network', this)" }
     ];
     
     const managementChildren = [
         { 
-            id: 'Transactions', name: 'Transactions', icon: 'fa-tasks', isSystem: true,
+            id: 'Transactions', name: t('transactions'), icon: 'fa-tasks', isSystem: true,
             children: [
-                { id: 'Handover', name: 'Handover / Return', icon: 'fa-dolly-flatbed', isSystem: true, clickAction: "window.loadPage('Handover', this)" },
-                { id: 'LoanPage', name: 'Loan Page (for User)', icon: 'fa-external-link-alt', isSystem: true, clickAction: "window.open('loan.html', '_blank')" }
+                { id: 'Handover', name: t('handover_return_title'), icon: 'fa-dolly-flatbed', isSystem: true, clickAction: "window.loadPage('Handover', this)" },
+                { id: 'LoanPage', name: t('loan_page_user'), icon: 'fa-external-link-alt', isSystem: true, clickAction: "window.open('loan.html', '_blank')" }
             ]
         },
         { 
-            id: 'Reports', name: 'Reports', icon: 'fa-file-alt', isSystem: true,
+            id: 'Reports', name: t('reports'), icon: 'fa-file-alt', isSystem: true,
             children: [
-                { id: 'LoanHistory', name: 'Loan History', icon: 'fa-history', isSystem: true, clickAction: "window.loadPage('LoanHistory', this)" },
-                { id: 'Maintenance', name: 'Maintenance History', icon: 'fa-tools', isSystem: true, clickAction: "window.loadPage('Maintenance', this)" },
-                { id: 'AssetsByUser', name: 'Assets by User', icon: 'fa-user-tag', isSystem: true, clickAction: "window.loadPage('AssetsByUser', this)" },
-                { id: 'DisposedAssets', name: 'Disposed Assets', icon: 'fa-trash-alt', isSystem: true, clickAction: "window.loadPage('DisposedAssets', this)" }
+                { id: 'LoanHistory', name: t('loan_history'), icon: 'fa-history', isSystem: true, clickAction: "window.loadPage('LoanHistory', this)" },
+                { id: 'Maintenance', name: t('maintenance_history'), icon: 'fa-tools', isSystem: true, clickAction: "window.loadPage('Maintenance', this)" },
+                { id: 'AssetsByUser', name: t('assets_by_user'), icon: 'fa-user-tag', isSystem: true, clickAction: "window.loadPage('AssetsByUser', this)" },
+                { id: 'DisposedAssets', name: t('disposed_assets'), icon: 'fa-trash-alt', isSystem: true, clickAction: "window.loadPage('DisposedAssets', this)" }
             ]
         },
         { 
-            id: 'UserSettings', name: 'System Settings', icon: 'fa-cogs', isSystem: true,
+            id: 'UserSettings', name: t('system_settings'), icon: 'fa-cogs', isSystem: true,
             children: [
-                { id: 'StaffManagement', name: 'Staff Management', icon: 'fa-users', isSystem: true, clickAction: "window.loadPage('StaffManagement', this)" },
-                { id: 'AdminManagement', name: 'Admin Management', icon: 'fa-user-shield', isSystem: true, clickAction: "window.loadPage('AdminManagement', this)" },
-                { id: 'LabelPrinter', name: 'Label Printer', icon: 'fa-tags', isSystem: true, clickAction: "window.loadPage('LabelPrinter', this)" },
-                { id: 'Settings', name: 'Custom Categories', icon: 'fa-sliders-h', isSystem: true, clickAction: "window.loadPage('Settings', this)" }
+                { id: 'StaffManagement', name: t('staff_management'), icon: 'fa-users', isSystem: true, clickAction: "window.loadPage('StaffManagement', this)" },
+                { id: 'AdminManagement', name: t('admin_management'), icon: 'fa-user-shield', isSystem: true, clickAction: "window.loadPage('AdminManagement', this)" },
+                { id: 'LabelPrinter', name: t('label_printer'), icon: 'fa-tags', isSystem: true, clickAction: "window.loadPage('LabelPrinter', this)" },
+                { id: 'Settings', name: t('custom_categories'), icon: 'fa-sliders-h', isSystem: true, clickAction: "window.loadPage('Settings', this)" }
             ]
         }
     ];
@@ -464,10 +808,10 @@ function renderSidebarDynamic() {
     });
 
     const rootNodes = [dashboardNode];
-    rootNodes.push({ type: 'header', label: 'Assets' });
+    rootNodes.push({ type: 'header', label: t('assets') });
     
     rootNodes.push(...assetChildren, ...customNodes.filter(n => !n.parentId));
-    rootNodes.push({ type: 'header', label: 'Management' });
+    rootNodes.push({ type: 'header', label: t('management') });
     rootNodes.push(...managementChildren);
 
     const nodeMap = {};
@@ -512,17 +856,17 @@ function generateDynamicPages() {
         const config = collectionConfigs[colName];
         if (!config) return;
         const pageId = `${colName.toLowerCase()}-page`;
-        const displayName = config.displayName || colName;
-        const statusOptions = config.dropdowns.Status ? config.dropdowns.Status.map(s => `<option value="${s}">${s}</option>`).join('') : '';
+        const displayName = config.isCustom ? config.displayName : t(colName.toLowerCase()) || config.displayName || colName;
+        const statusOptions = config.dropdowns.Status ? config.dropdowns.Status.map(s => `<option value="${s}">${t(s.toLowerCase().replace(' ', '_')) || s}</option>`).join('') : '';
         
         container.innerHTML += `
         <div id="${pageId}" class="page-content hidden">
             <div class="flex flex-wrap justify-between items-center gap-2 mb-6">
                 <h2 class="text-2xl md:text-3xl font-bold text-gray-900 dark:text-white">${displayName}</h2>
                 <div class="flex gap-2">
-                    <button onclick="window.openRapidEntryModal('${colName}')" class="bg-blue-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-blue-700 shadow-sm flex items-center transition-colors"><i class="fas fa-barcode mr-2"></i>Rapid Scan</button>
-                    <button onclick="window.openImportModal('${colName}')" class="bg-green-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-green-700 shadow-sm"><i class="fas fa-file-import mr-2"></i>Import CSV</button>
-                    <button onclick="window.openModal('add', '${colName}')" class="bg-indigo-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-indigo-700 shadow-sm"><i class="fas fa-plus mr-2"></i>Add New</button>
+                    <button onclick="window.openRapidEntryModal('${colName}')" class="bg-blue-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-blue-700 shadow-sm flex items-center transition-colors"><i class="fas fa-barcode mr-2"></i>${t('rapid_scan')}</button>
+                    <button onclick="window.openImportModal('${colName}')" class="bg-green-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-green-700 shadow-sm"><i class="fas fa-file-import mr-2"></i>${t('import_csv')}</button>
+                    <button onclick="window.openModal('add', '${colName}')" class="bg-indigo-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-indigo-700 shadow-sm"><i class="fas fa-plus mr-2"></i>${t('add_new')}</button>
                 </div>
             </div>
             
@@ -531,22 +875,22 @@ function generateDynamicPages() {
             <div class="mb-4 flex flex-col md:flex-row gap-2">
                 <div class="w-full md:w-1/4">
                     <select onchange="window.handleStatusFilter('${colName}', this.value)" class="w-full px-4 py-2 border rounded-lg dark:bg-gray-700 dark:border-gray-600 dark:text-gray-200">
-                        <option value="">All Statuses</option>
+                        <option value="">${t('all_statuses')}</option>
                         ${statusOptions}
                     </select>
                 </div>
                 <div class="w-full md:w-3/4">
-                    <input type="text" id="${colName.toLowerCase()}SearchInput" onkeyup="window.handleSearch('${colName}', this.value)" placeholder="Search ${displayName}..." class="w-full px-4 py-2 border rounded-lg dark:bg-gray-700 dark:border-gray-600 dark:placeholder-gray-400">
+                    <input type="text" id="${colName.toLowerCase()}SearchInput" onkeyup="window.handleSearch('${colName}', this.value)" placeholder="${t('search_placeholder')}" class="w-full px-4 py-2 border rounded-lg dark:bg-gray-700 dark:border-gray-600 dark:placeholder-gray-400">
                 </div>
             </div>
 
             <div id="${colName}BulkActions" class="hidden mb-4 p-3 bg-indigo-50 dark:bg-indigo-900/30 border border-indigo-200 dark:border-indigo-700 rounded-lg flex items-center justify-between">
                 <div class="text-indigo-800 dark:text-indigo-200 text-sm font-semibold">
-                    <i class="fas fa-check-square mr-1"></i> <span class="selected-count">0 item(s) selected</span>
+                    <i class="fas fa-check-square mr-1"></i> <span class="selected-count">0 ${t('items')}</span>
                 </div>
                 <div class="flex space-x-2">
-                    <button onclick="window.openBulkEditModal('${colName}')" class="px-3 py-1.5 bg-indigo-600 text-white text-sm rounded hover:bg-indigo-700 shadow-sm"><i class="fas fa-edit mr-1"></i>Bulk Edit</button>
-                    <button onclick="window.bulkDelete('${colName}')" class="px-3 py-1.5 bg-red-600 text-white text-sm rounded hover:bg-red-700 shadow-sm"><i class="fas fa-trash mr-1"></i>Bulk Delete</button>
+                    <button onclick="window.openBulkEditModal('${colName}')" class="px-3 py-1.5 bg-indigo-600 text-white text-sm rounded hover:bg-indigo-700 shadow-sm"><i class="fas fa-edit mr-1"></i>${t('bulk_edit')}</button>
+                    <button onclick="window.bulkDelete('${colName}')" class="px-3 py-1.5 bg-red-600 text-white text-sm rounded hover:bg-red-700 shadow-sm"><i class="fas fa-trash mr-1"></i>${t('bulk_delete')}</button>
                 </div>
             </div>
 
@@ -858,7 +1202,7 @@ function initColumnSelector() {
             <div class="flex items-center justify-between py-1.5 hover:bg-gray-50 dark:hover:bg-gray-700/50 px-2 rounded transition-colors border-b border-gray-100 dark:border-gray-800 last:border-0">
                 <div class="w-2/3 flex items-center">
                     <label for="field_${field.id}" class="text-sm text-gray-700 dark:text-gray-300 cursor-pointer select-none flex items-center">
-                        ${field.label} ${isRequired ? '<span class="text-xs text-red-50 ml-1" title="จำเป็นต้องมี">*</span>' : ''}
+                        ${field.label} ${isRequired ? '<span class="text-xs text-red-500 ml-1" title="จำเป็นต้องมี">*</span>' : ''}
                     </label>
                 </div>
                 <div class="w-1/3 flex justify-between items-center text-center">
@@ -973,7 +1317,7 @@ window.updateBulkActionBar = function(collectionName) {
     const count = (selectedItems[collectionName] || []).length;
     const bar = document.getElementById(`${collectionName}BulkActions`);
     if (!bar) return;
-    if (count > 0) { bar.classList.remove('hidden'); bar.querySelector('.selected-count').textContent = `${count} item(s) selected`; } 
+    if (count > 0) { bar.classList.remove('hidden'); bar.querySelector('.selected-count').textContent = `${count} ${t('items')}`; } 
     else { bar.classList.add('hidden'); document.getElementById(`selectAll_${collectionName}`).checked = false; }
 };
 
@@ -1109,23 +1453,23 @@ window.buildTable = function(collectionName) {
         summaryContainer.innerHTML = `
             <div class="bg-white dark:bg-gray-800 p-4 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700 flex items-center space-x-3">
                 <div class="bg-indigo-100 dark:bg-indigo-900/50 p-2 rounded-lg text-indigo-600 dark:text-indigo-400"><i class="fas fa-cubes text-xl w-6 text-center"></i></div>
-                <div><p class="text-xs text-gray-500 dark:text-gray-400 font-semibold uppercase">Total</p><p class="text-xl font-bold text-gray-800 dark:text-white leading-none">${total}</p></div>
+                <div><p class="text-xs text-gray-500 dark:text-gray-400 font-semibold uppercase">${t('total_assets')}</p><p class="text-xl font-bold text-gray-800 dark:text-white leading-none">${total}</p></div>
             </div>
             <div class="bg-white dark:bg-gray-800 p-4 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700 flex items-center space-x-3">
                 <div class="bg-green-100 dark:bg-green-900/50 p-2 rounded-lg text-green-600 dark:text-green-400"><i class="fas fa-signal text-xl w-6 text-center"></i></div>
-                <div><p class="text-xs text-gray-500 dark:text-gray-400 font-semibold uppercase">Online</p><p class="text-xl font-bold text-gray-800 dark:text-white leading-none">${onlineCount}</p></div>
+                <div><p class="text-xs text-gray-500 dark:text-gray-400 font-semibold uppercase">${t('online')}</p><p class="text-xl font-bold text-gray-800 dark:text-white leading-none">${onlineCount}</p></div>
             </div>
             <div class="bg-white dark:bg-gray-800 p-4 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700 flex items-center space-x-3">
                 <div class="bg-gray-100 dark:bg-gray-700 p-2 rounded-lg text-gray-600 dark:text-gray-400"><i class="fas fa-power-off text-xl w-6 text-center"></i></div>
-                <div><p class="text-xs text-gray-500 dark:text-gray-400 font-semibold uppercase">Offline</p><p class="text-xl font-bold text-gray-800 dark:text-white leading-none">${offlineCount}</p></div>
+                <div><p class="text-xs text-gray-500 dark:text-gray-400 font-semibold uppercase">${t('offline')}</p><p class="text-xl font-bold text-gray-800 dark:text-white leading-none">${offlineCount}</p></div>
             </div>
             <div class="bg-white dark:bg-gray-800 p-4 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700 flex items-center space-x-3">
                 <div class="bg-blue-100 dark:bg-blue-900/50 p-2 rounded-lg text-blue-600 dark:text-blue-400"><i class="fas fa-box text-xl w-6 text-center"></i></div>
-                <div><p class="text-xs text-gray-500 dark:text-gray-400 font-semibold uppercase">Storage</p><p class="text-xl font-bold text-gray-800 dark:text-white leading-none">${storageCount}</p></div>
+                <div><p class="text-xs text-gray-500 dark:text-gray-400 font-semibold uppercase">${t('storage')}</p><p class="text-xl font-bold text-gray-800 dark:text-white leading-none">${storageCount}</p></div>
             </div>
             <div class="bg-white dark:bg-gray-800 p-4 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700 flex items-center space-x-3">
                 <div class="bg-red-100 dark:bg-red-900/50 p-2 rounded-lg text-red-600 dark:text-red-400"><i class="fas fa-tools text-xl w-6 text-center"></i></div>
-                <div><p class="text-xs text-gray-500 dark:text-gray-400 font-semibold uppercase">Issues</p><p class="text-xl font-bold text-gray-800 dark:text-white leading-none">${issueCount}</p></div>
+                <div><p class="text-xs text-gray-500 dark:text-gray-400 font-semibold uppercase">${t('repair_issue')}</p><p class="text-xl font-bold text-gray-800 dark:text-white leading-none">${issueCount}</p></div>
             </div>
         `;
     }
@@ -1144,9 +1488,9 @@ window.buildTable = function(collectionName) {
         const fieldDef = AVAILABLE_FIELDS.find(f => f.id === h);
         html += `<th class="px-6 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-300 uppercase tracking-wider">${fieldDef ? fieldDef.label : h}</th>`
     });
-    html += `<th class="px-6 py-3 text-center text-xs font-semibold text-gray-500 dark:text-gray-300 uppercase tracking-wider">Actions</th></tr></thead><tbody class="divide-y divide-gray-200 dark:divide-gray-700">`;
+    html += `<th class="px-6 py-3 text-center text-xs font-semibold text-gray-500 dark:text-gray-300 uppercase tracking-wider">${t('actions')}</th></tr></thead><tbody class="divide-y divide-gray-200 dark:divide-gray-700">`;
     
-    if (paginatedData.length === 0) html += `<tr><td colspan="${config.headers.length + 2}" class="px-6 py-4 text-center text-gray-500">No data found.</td></tr>`;
+    if (paginatedData.length === 0) html += `<tr><td colspan="${config.headers.length + 2}" class="px-6 py-4 text-center text-gray-500">${t('no_data')}</td></tr>`;
     else {
         let allCurrentPageSelected = true;
         paginatedData.forEach(item => {
@@ -1159,16 +1503,17 @@ window.buildTable = function(collectionName) {
             config.headers.forEach(header => {
                 let val = item[header] || '';
                 if (header === 'Status') {
-                   let color = 'gray'; if (val === 'Active') color = 'green'; else if (val === 'On Loan') color = 'yellow'; else if (val === 'Repair') color = 'orange'; else if (val === 'Storage') color = 'blue'; else if (val === 'Damaged') color = 'red';
-                   val = `<span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-${color}-100 text-${color}-800 dark:bg-${color}-900/50 dark:text-${color}-300">${val}</span>`; 
+                   let color = 'gray'; let tStatus = t(val.toLowerCase().replace(' ', '_')) || val;
+                   if (val === 'Active') color = 'green'; else if (val === 'On Loan') color = 'yellow'; else if (val === 'Repair') color = 'orange'; else if (val === 'Storage') color = 'blue'; else if (val === 'Damaged') color = 'red';
+                   val = `<span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-${color}-100 text-${color}-800 dark:bg-${color}-900/50 dark:text-${color}-300">${tStatus}</span>`; 
                 } else if (header === 'Last Seen') {
                      let lastSeen = item.lastSeenOnline;
                      if (lastSeen) {
                         const diffMins = (new Date() - new Date(lastSeen)) / 60000;
-                        if (diffMins <= 15) val = `<div class="flex items-center space-x-2"><div class="h-2.5 w-2.5 rounded-full bg-green-500 shadow-[0_0_5px_#22c55e] animate-pulse"></div><span class="font-medium text-green-600 dark:text-green-400">Online</span></div>`;
-                        else val = `<div class="flex flex-col"><div class="flex items-center space-x-2"><div class="h-2.5 w-2.5 rounded-full bg-gray-400"></div><span class="text-gray-500">Offline</span></div><span class="text-[10px] text-gray-400 mt-0.5" title="${new Date(lastSeen).toLocaleString('th-TH')}">ล่าสุด: ${window.formatTimeAgo(lastSeen)}</span></div>`;
+                        if (diffMins <= 15) val = `<div class="flex items-center space-x-2"><div class="h-2.5 w-2.5 rounded-full bg-green-500 shadow-[0_0_5px_#22c55e] animate-pulse"></div><span class="font-medium text-green-600 dark:text-green-400">${t('online')}</span></div>`;
+                        else val = `<div class="flex flex-col"><div class="flex items-center space-x-2"><div class="h-2.5 w-2.5 rounded-full bg-gray-400"></div><span class="text-gray-500">${t('offline')}</span></div><span class="text-[10px] text-gray-400 mt-0.5" title="${new Date(lastSeen).toLocaleString('th-TH')}">${window.formatTimeAgo(lastSeen)}</span></div>`;
                      } else {
-                        val = `<div class="flex items-center space-x-2"><div class="h-2.5 w-2.5 rounded-full bg-yellow-400"></div><span class="text-gray-500">Unknown</span></div>`;
+                        val = `<div class="flex items-center space-x-2"><div class="h-2.5 w-2.5 rounded-full bg-yellow-400"></div><span class="text-gray-500">${t('unknown')}</span></div>`;
                      }
                 }
                 html += `<td class="px-6 py-4 text-sm text-gray-700 dark:text-gray-200 whitespace-nowrap max-w-xs truncate" title="${String(val).replace(/<[^>]*>?/gm, '')}">${val}</td>`;
@@ -1196,7 +1541,7 @@ window.renderPaginationControls = function(collectionName, totalRows) {
     const totalPages = Math.ceil(totalRows / state.rowsPerPage);
     const startItem = totalRows > 0 ? (state.currentPage - 1) * state.rowsPerPage + 1 : 0;
     const endItem = Math.min(state.currentPage * state.rowsPerPage, totalRows);
-    container.innerHTML = `<div class="text-sm">Showing <span class="font-semibold">${startItem}</span> to <span class="font-semibold">${endItem}</span> of <span class="font-semibold">${totalRows}</span> results</div><div class="flex items-center space-x-2"><label class="text-sm font-medium">Rows:</label><select onchange="window.changeRowsPerPage('${collectionName}', this)" class="rounded-md border-gray-300 dark:bg-gray-700 dark:border-gray-600 text-sm"><option value="10" ${state.rowsPerPage == 10 ? 'selected' : ''}>10</option><option value="25" ${state.rowsPerPage == 25 ? 'selected' : ''}>25</option><option value="50" ${state.rowsPerPage == 50 ? 'selected' : ''}>50</option></select><button onclick="window.changePage('${collectionName}', -1)" ${state.currentPage===1?'disabled':''} class="px-2 py-1 border rounded disabled:opacity-50 bg-white dark:bg-gray-700"><i class="fas fa-chevron-left"></i></button><span class="text-sm">Page ${state.currentPage} / ${totalPages || 1}</span><button onclick="window.changePage('${collectionName}', 1)" ${state.currentPage>=totalPages?'disabled':''} class="px-2 py-1 border rounded disabled:opacity-50 bg-white dark:bg-gray-700"><i class="fas fa-chevron-right"></i></button></div>`;
+    container.innerHTML = `<div class="text-sm">${t('showing')} <span class="font-semibold">${startItem}</span> ${t('to')} <span class="font-semibold">${endItem}</span> ${t('of')} <span class="font-semibold">${totalRows}</span> ${t('results')}</div><div class="flex items-center space-x-2"><label class="text-sm font-medium">${t('rows')}</label><select onchange="window.changeRowsPerPage('${collectionName}', this)" class="rounded-md border-gray-300 dark:bg-gray-700 dark:border-gray-600 text-sm"><option value="10" ${state.rowsPerPage == 10 ? 'selected' : ''}>10</option><option value="25" ${state.rowsPerPage == 25 ? 'selected' : ''}>25</option><option value="50" ${state.rowsPerPage == 50 ? 'selected' : ''}>50</option></select><button onclick="window.changePage('${collectionName}', -1)" ${state.currentPage===1?'disabled':''} class="px-2 py-1 border rounded disabled:opacity-50 bg-white dark:bg-gray-700"><i class="fas fa-chevron-left"></i></button><span class="text-sm">${t('page')} ${state.currentPage} / ${totalPages || 1}</span><button onclick="window.changePage('${collectionName}', 1)" ${state.currentPage>=totalPages?'disabled':''} class="px-2 py-1 border rounded disabled:opacity-50 bg-white dark:bg-gray-700"><i class="fas fa-chevron-right"></i></button></div>`;
 };
 
 // ==========================================
@@ -1266,7 +1611,7 @@ window.buildDeviceHistoryInModal = function(item, collectionName) {
     historyEvents.sort((a, b) => b.date - a.date);
 
     if (historyEvents.length === 0) {
-        container.innerHTML = '<div class="flex flex-col items-center justify-center text-gray-400 py-10"><i class="fas fa-history text-4xl mb-3 opacity-50"></i><p>ยังไม่มีประวัติการใช้งาน</p></div>';
+        container.innerHTML = `<div class="flex flex-col items-center justify-center text-gray-400 py-10"><i class="fas fa-history text-4xl mb-3 opacity-50"></i><p>${t('no_data')}</p></div>`;
         return;
     }
 
@@ -1317,7 +1662,7 @@ window.openModal = function(mode, collectionName, id = null) {
     const config = collectionConfigs[collectionName];
     const itemData = (mode === 'edit' && allData[collectionName]) ? allData[collectionName].find(i => i._id === id || i.id === id) || {} : {};
     
-    const actionText = mode === 'edit' ? 'Edit' : 'Add New';
+    const actionText = mode === 'edit' ? 'Edit' : t('add_new');
     const actionIcon = mode === 'edit' ? 'fa-edit' : 'fa-plus-circle';
     
     const modalHeaderTabsHTML = `
@@ -1326,10 +1671,10 @@ window.openModal = function(mode, collectionName, id = null) {
                 <i class="fas fa-layer-group mr-2"></i> Specification
             </button>
             <button onclick="window.switchModalTab('maintenance', this)" class="tab-button px-6 py-2 rounded-lg font-bold text-sm transition-all duration-200 text-gray-500 hover:text-gray-700 dark:hover:text-gray-300">
-                <i class="fas fa-tools mr-2"></i> Maintenance Log
+                <i class="fas fa-tools mr-2"></i> ${t('maintenance_history')}
             </button>
             <button onclick="window.switchModalTab('history', this)" class="tab-button px-6 py-2 rounded-lg font-bold text-sm transition-all duration-200 text-gray-500 hover:text-gray-700 dark:hover:text-gray-300">
-                <i class="fas fa-history mr-2"></i> Usage History
+                <i class="fas fa-history mr-2"></i> ${t('device_history')}
             </button>
         </div>
     `;
@@ -1348,7 +1693,7 @@ window.openModal = function(mode, collectionName, id = null) {
         historyTabContent.innerHTML = `
             <div class="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm overflow-hidden">
                 <div class="bg-gray-50 dark:bg-gray-900/50 px-5 py-3 border-b border-gray-200 dark:border-gray-700">
-                    <h4 class="text-sm font-bold text-gray-700 dark:text-gray-200 uppercase tracking-wider">Device Ownership & Usage History</h4>
+                    <h4 class="text-sm font-bold text-gray-700 dark:text-gray-200 uppercase tracking-wider">${t('device_history')}</h4>
                 </div>
                 <div id="deviceHistoryList" class="p-6"></div>
             </div>
@@ -1362,7 +1707,7 @@ window.openModal = function(mode, collectionName, id = null) {
                 <i class="fas ${actionIcon} text-indigo-600 dark:text-indigo-400 text-xl"></i>
             </div>
             <div>
-                <h3 class="text-2xl font-bold text-gray-900 dark:text-white leading-tight">${actionText} <span class="text-indigo-600 dark:text-indigo-400">${config.displayName || collectionName}</span></h3>
+                <h3 class="text-2xl font-bold text-gray-900 dark:text-white leading-tight">${actionText} <span class="text-indigo-600 dark:text-indigo-400">${config.isCustom ? config.displayName : t(collectionName.toLowerCase()) || config.displayName}</span></h3>
                 <p class="text-xs text-gray-500 font-medium mt-1 uppercase tracking-widest">${mode === 'edit' ? 'System ID: ' + (itemData[config.serialField] || id) : 'Fill in the specification details'}</p>
             </div>
         </div>
@@ -1406,7 +1751,7 @@ window.openModal = function(mode, collectionName, id = null) {
             const inputClasses = `w-full px-4 py-2.5 bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 block dark:bg-gray-700/50 dark:border-gray-600 dark:placeholder-gray-400 dark:text-white transition-all duration-200 hover:border-indigo-300`;
 
             if (dropdown) {
-                formHtml += `<select name="${fieldId}" id="edit-${fieldId}" class="${inputClasses} appearance-none"><option value="">-- Select --</option>${dropdown.map(opt => `<option value="${opt}" ${val === opt ? 'selected' : ''}>${opt}</option>`).join('')}</select>`;
+                formHtml += `<select name="${fieldId}" id="edit-${fieldId}" class="${inputClasses} appearance-none"><option value="">-- Select --</option>${dropdown.map(opt => `<option value="${opt}" ${val === opt ? 'selected' : ''}>${t(opt.toLowerCase().replace(' ', '_')) || opt}</option>`).join('')}</select>`;
                 formHtml += `<div class="pointer-events-none absolute inset-y-0 right-0 top-6 flex items-center px-4 text-gray-500"><i class="fas fa-chevron-down text-xs"></i></div>`;
             } else if (fieldDef.type === 'date') { 
                 const d = new Date(val); if(!isNaN(d) && val) val = d.toISOString().split('T')[0]; 
@@ -1617,8 +1962,8 @@ window.updateDashboard = function(folderId) {
                         <i class="fas fa-arrow-left text-gray-600 dark:text-gray-300"></i>
                     </div>
                     <div class="overflow-hidden">
-                        <p class="text-xs text-gray-500 dark:text-gray-400 truncate">ย้อนกลับ</p>
-                        <p class="text-sm font-bold text-gray-800 dark:text-white truncate">Back</p>
+                        <p class="text-xs text-gray-500 dark:text-gray-400 truncate">${t('go_back')}</p>
+                        <p class="text-sm font-bold text-gray-800 dark:text-white truncate">${t('back')}</p>
                     </div>
                 </div>`;
             }
@@ -1626,6 +1971,9 @@ window.updateDashboard = function(folderId) {
             const action = children.length > 0 ? `window.updateDashboard('${colName}')` : `window.loadPage('${colName}')`;
             const iconMarker = children.length > 0 ? `<div class="absolute top-2 right-2 text-xs text-indigo-400"><i class="fas fa-folder"></i></div>` : '';
             const stats = getFolderStats(colName);
+            
+            // ใช้ชื่อที่ถูกแปลแล้วถ้าเป็นหมวดหมู่มาตรฐาน
+            const finalDisplayName = config.isCustom ? displayName : t(colName.toLowerCase()) || displayName;
 
             return `
             <div class="relative bg-white dark:bg-gray-800 p-4 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700 flex flex-col justify-center cursor-pointer hover:bg-indigo-50 dark:hover:bg-gray-700 transition-colors transform hover:-translate-y-1" onclick="${action}">
@@ -1635,8 +1983,8 @@ window.updateDashboard = function(folderId) {
                         <i class="fas ${config.icon || 'fa-box'} text-indigo-600 dark:text-indigo-400"></i>
                     </div>
                     <div class="flex-1 min-w-0">
-                        <p class="text-sm font-bold text-gray-800 dark:text-white truncate">${displayName}</p>
-                        <p class="text-xs text-gray-500 dark:text-gray-400">รวม ${stats.total} รายการ</p>
+                        <p class="text-sm font-bold text-gray-800 dark:text-white truncate">${finalDisplayName}</p>
+                        <p class="text-xs text-gray-500 dark:text-gray-400">${stats.total} ${t('items_count')}</p>
                     </div>
                 </div>
                 
@@ -1676,7 +2024,7 @@ window.updateDashboard = function(folderId) {
             });
         } else {
             const parentConfig = collectionConfigs[currentDashboardFolder];
-            const parentDisplayName = parentConfig ? parentConfig.displayName : currentDashboardFolder;
+            const parentDisplayName = parentConfig.isCustom ? parentConfig.displayName : t(currentDashboardFolder.toLowerCase()) || currentDashboardFolder;
             const stats = getFolderStats(currentDashboardFolder);
 
             overviewGrid.innerHTML += generateFolderCardHTML(null, null, null, null, true);
@@ -1688,7 +2036,7 @@ window.updateDashboard = function(folderId) {
                             <i class="fas fa-list text-indigo-700 dark:text-indigo-300"></i>
                         </div>
                         <div class="flex-1 min-w-0">
-                            <p class="text-xs text-indigo-500 dark:text-indigo-400 truncate">ดูรายการในหมวดนี้</p>
+                            <p class="text-xs text-indigo-500 dark:text-indigo-400 truncate">${t('view_items')}</p>
                             <p class="text-sm font-bold text-indigo-900 dark:text-indigo-100 truncate">${parentDisplayName}</p>
                         </div>
                     </div>
@@ -1717,7 +2065,8 @@ window.updateDashboard = function(folderId) {
             const activeItems = items.filter(i => i.Status !== 'Disposed');
             if (activeItems.length > 0) {
                 const displayName = collectionConfigs[key] ? collectionConfigs[key].displayName : key;
-                categoryCounts[displayName] = activeItems.length;
+                const translatedDisplayName = collectionConfigs[key].isCustom ? displayName : t(key.toLowerCase()) || displayName;
+                categoryCounts[translatedDisplayName] = activeItems.length;
             }
         }
     }
@@ -1730,7 +2079,7 @@ window.updateDashboard = function(folderId) {
     if (activityContainer) {
         const transactions = allData['TransactionHistory'] || [];
         if (transactions.length === 0) {
-            activityContainer.innerHTML = '<p class="text-gray-500 text-sm">No recent activities found.</p>';
+            activityContainer.innerHTML = `<p class="text-gray-500 text-sm">${t('no_data')}</p>`;
         } else {
             const sorted = transactions.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp)).slice(0, 5);
             let html = '';
@@ -1742,8 +2091,8 @@ window.updateDashboard = function(folderId) {
                     <div class="flex items-start space-x-3 p-3 bg-gray-50 dark:bg-gray-700/50 rounded-lg">
                         <div class="mt-1 ${color}"><i class="fas ${icon}"></i></div>
                         <div>
-                            <p class="text-sm font-semibold text-gray-800 dark:text-gray-200">${tx.type}: <span class="font-normal text-gray-600 dark:text-gray-400">${tx.staffUserName || 'Unknown'}</span></p>
-                            <p class="text-xs text-gray-500">${tx.devices ? tx.devices.length : 0} items • ${date}</p>
+                            <p class="text-sm font-semibold text-gray-800 dark:text-gray-200">${t(tx.type.toLowerCase()) || tx.type}: <span class="font-normal text-gray-600 dark:text-gray-400">${tx.staffUserName || 'Unknown'}</span></p>
+                            <p class="text-xs text-gray-500">${tx.devices ? tx.devices.length : 0} ${t('items')} • ${date}</p>
                         </div>
                     </div>
                 `;
@@ -1756,15 +2105,19 @@ window.updateDashboard = function(folderId) {
 window.renderStatusChart = function(data) {
     const ctx = document.getElementById('statusChart');
     if(!ctx) return;
+    
+    // Translate labels for the chart
+    const translatedLabels = Object.keys(data).map(key => t(key.toLowerCase().replace(' ', '_')) || key);
+    
     if(window.statusChartInstance) { 
-        window.statusChartInstance.data.labels = Object.keys(data); 
+        window.statusChartInstance.data.labels = translatedLabels; 
         window.statusChartInstance.data.datasets[0].data = Object.values(data); 
         window.statusChartInstance.update(); 
     } else { 
         window.statusChartInstance = new Chart(ctx, { 
             type: 'doughnut', 
             data: { 
-                labels: Object.keys(data), 
+                labels: translatedLabels, 
                 datasets: [{ data: Object.values(data), backgroundColor: ['#22c55e', '#eab308', '#f97316', '#3b82f6', '#9ca3af'] }] 
             }, 
             options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'right' } } } 
@@ -1811,7 +2164,7 @@ window.renderLocationChart = function(data) {
             type: 'bar', 
             data: { 
                 labels: labels, 
-                datasets: [{ label: 'Assets by Location', data: values, backgroundColor: '#14b8a6', borderRadius: 4 }] 
+                datasets: [{ label: 'Assets', data: values, backgroundColor: '#14b8a6', borderRadius: 4 }] 
             }, 
             options: { 
                 responsive: true, 
@@ -1873,12 +2226,12 @@ window.buildHandoverReturnPage = function() {
                 <div class="space-y-4">
                     <div class="bg-gray-50 dark:bg-gray-800/50 p-4 rounded-xl border border-gray-100 dark:border-gray-700">
                         <h3 class="font-bold mb-3 text-gray-800 dark:text-white flex items-center"><span class="bg-indigo-600 text-white w-6 h-6 rounded-full flex items-center justify-center text-xs mr-2">1</span> Select Staff</h3>
-                        <input type="text" onkeyup="window.filterStaffList(this, 'handoverStaffList')" placeholder="Search staff by name or dept..." class="w-full px-4 py-2.5 border border-gray-300 rounded-lg mb-3 dark:bg-gray-700 dark:border-gray-600 dark:text-white focus:ring-2 focus:ring-indigo-500 shadow-sm">
+                        <input type="text" onkeyup="window.filterStaffList(this, 'handoverStaffList')" placeholder="${t('search_placeholder')}" class="w-full px-4 py-2.5 border border-gray-300 rounded-lg mb-3 dark:bg-gray-700 dark:border-gray-600 dark:text-white focus:ring-2 focus:ring-indigo-500 shadow-sm">
                         <div id="handoverStaffList" class="max-h-48 overflow-y-auto border border-gray-200 rounded-lg p-2 dark:border-gray-600 bg-white dark:bg-gray-800 custom-scrollbar space-y-1"></div>
                     </div>
                     <div class="bg-gray-50 dark:bg-gray-800/50 p-4 rounded-xl border border-gray-100 dark:border-gray-700">
                         <h3 class="font-bold mb-3 text-gray-800 dark:text-white flex items-center"><span class="bg-indigo-600 text-white w-6 h-6 rounded-full flex items-center justify-center text-xs mr-2">2</span> Select Device (From Storage)</h3>
-                        <input type="text" onkeyup="window.filterDeviceList(this, 'handoverDeviceList')" placeholder="Search by SN, Name, Brand..." class="w-full px-4 py-2.5 border border-gray-300 rounded-lg mb-3 dark:bg-gray-700 dark:border-gray-600 dark:text-white focus:ring-2 focus:ring-indigo-500 shadow-sm">
+                        <input type="text" onkeyup="window.filterDeviceList(this, 'handoverDeviceList')" placeholder="${t('search_device')}" class="w-full px-4 py-2.5 border border-gray-300 rounded-lg mb-3 dark:bg-gray-700 dark:border-gray-600 dark:text-white focus:ring-2 focus:ring-indigo-500 shadow-sm">
                         <div id="handoverDeviceList" class="max-h-80 overflow-y-auto border border-gray-200 rounded-lg dark:border-gray-600 bg-white dark:bg-gray-800 custom-scrollbar"></div>
                     </div>
                 </div>
@@ -1896,7 +2249,7 @@ window.buildHandoverReturnPage = function() {
                             </div>
                         </div>
                         <button id="confirmHandoverBtn" onclick="window.confirmHandover()" class="w-full bg-indigo-600 text-white font-bold py-3.5 rounded-xl disabled:bg-gray-400 disabled:cursor-not-allowed hover:bg-indigo-700 transition shadow-md flex justify-center items-center" disabled>
-                            <i class="fas fa-check-circle mr-2"></i> Confirm Handover
+                            <i class="fas fa-check-circle mr-2"></i> ${t('confirm_move')}
                         </button>
                     </div>
                 </div>
@@ -1910,7 +2263,7 @@ window.buildHandoverReturnPage = function() {
             <div class="grid grid-cols-1 lg:grid-cols-12 gap-8">
                 <div class="lg:col-span-5 bg-gray-50 dark:bg-gray-800/50 p-4 rounded-xl border border-gray-100 dark:border-gray-700">
                     <h3 class="font-bold mb-3 text-gray-800 dark:text-white flex items-center"><span class="bg-green-600 text-white w-6 h-6 rounded-full flex items-center justify-center text-xs mr-2">1</span> Find Staff</h3>
-                    <input type="text" onkeyup="window.filterStaffList(this, 'returnStaffList')" placeholder="Search staff..." class="w-full px-4 py-2.5 border border-gray-300 rounded-lg mb-3 dark:bg-gray-700 dark:border-gray-600 dark:text-white focus:ring-2 focus:ring-green-500 shadow-sm">
+                    <input type="text" onkeyup="window.filterStaffList(this, 'returnStaffList')" placeholder="${t('search_placeholder')}" class="w-full px-4 py-2.5 border border-gray-300 rounded-lg mb-3 dark:bg-gray-700 dark:border-gray-600 dark:text-white focus:ring-2 focus:ring-green-500 shadow-sm">
                     <div id="returnStaffList" class="max-h-[500px] overflow-y-auto border border-gray-200 rounded-lg p-2 dark:border-gray-600 bg-white dark:bg-gray-800 custom-scrollbar space-y-1"></div>
                 </div>
                 <div class="lg:col-span-7 bg-white dark:bg-gray-800 p-5 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm flex flex-col h-full">
@@ -1938,7 +2291,7 @@ window.populateStaffLists = function(listId, labelId, isReturn = false) {
     const list = document.getElementById(listId);
     if (!list) return;
     const staff = allData.Staff || [];
-    if (staff.length === 0) { list.innerHTML = `<p class="p-4 text-center text-gray-500">No staff found.</p>`; return; }
+    if (staff.length === 0) { list.innerHTML = `<p class="p-4 text-center text-gray-500">${t('no_data')}</p>`; return; }
     list.innerHTML = staff.map(s => `
         <div class="staff-item p-3 hover:bg-indigo-50 dark:hover:bg-gray-700 border border-transparent hover:border-indigo-100 dark:hover:border-gray-600 cursor-pointer rounded-lg transition-colors flex justify-between items-center" onclick="window.selectStaff('${s.UserName}', '${listId}', '${labelId}', ${isReturn})">
             <div>
@@ -1958,20 +2311,21 @@ window.selectStaff = function(name, listId, labelId, isReturn) {
         const allDevices = Object.keys(collectionConfigs).flatMap(cat => (allData[cat] || []).map(d => ({ ...d, collection: cat })));
         const userDevices = allDevices.filter(d => d.UserName === name && d.Status !== 'Storage' && d.Status !== 'Disposed');
         const returnList = document.getElementById('returnDeviceList');
-        if(userDevices.length === 0) returnList.innerHTML = `<div class="h-full flex flex-col items-center justify-center text-gray-400"><i class="fas fa-box-open text-4xl mb-3 opacity-50"></i><p>No assigned assets found.</p></div>`;
+        if(userDevices.length === 0) returnList.innerHTML = `<div class="h-full flex flex-col items-center justify-center text-gray-400"><i class="fas fa-box-open text-4xl mb-3 opacity-50"></i><p>${t('no_data')}</p></div>`;
         else {
             returnList.innerHTML = userDevices.map(d => {
                 const config = collectionConfigs[d.collection];
                 const deviceName = d[config.nameField] || d.ComputerName || d.DeviceName || d.ItemName || 'Unnamed Device';
                 const serial = d[config.serialField] || d.SerialNumber || 'No SN';
                 const brandModel = [d.Manufacturer, d.Model].filter(Boolean).join(' ') || '-';
+                const dispName = config.isCustom ? config.displayName : t(d.collection.toLowerCase()) || d.collection;
                 
                 return `
                 <div class="p-3 bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 flex items-center space-x-3 shadow-sm hover:border-indigo-300 transition-colors">
                     <input type="checkbox" class="return-checkbox rounded w-4 h-4 text-indigo-600 focus:ring-indigo-500 cursor-pointer" value="${d._id || d.id}" data-col="${d.collection}">
                     <div class="flex-1 min-w-0">
                         <div class="flex items-center space-x-2">
-                            <span class="px-2 py-0.5 text-[10px] font-bold bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-300 rounded uppercase tracking-wider">${config.displayName || d.collection}</span>
+                            <span class="px-2 py-0.5 text-[10px] font-bold bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-300 rounded uppercase tracking-wider">${dispName}</span>
                             <p class="font-bold text-sm text-gray-800 dark:text-white truncate">${deviceName}</p>
                         </div>
                         <div class="mt-1 flex text-xs text-gray-500 dark:text-gray-400 space-x-3">
@@ -1990,19 +2344,20 @@ window.populateHandoverDeviceList = function() {
     const list = document.getElementById('handoverDeviceList');
     const allDevices = Object.keys(collectionConfigs).flatMap(cat => (allData[cat] || []).map(d => ({ ...d, collection: cat })));
     const available = allDevices.filter(d => d.Status === 'Storage');
-    if (available.length === 0) { list.innerHTML = `<div class="h-full flex flex-col items-center justify-center text-gray-400 py-10"><i class="fas fa-box-open text-4xl mb-3 opacity-50"></i><p>No devices in storage.</p></div>`; return; }
+    if (available.length === 0) { list.innerHTML = `<div class="h-full flex flex-col items-center justify-center text-gray-400 py-10"><i class="fas fa-box-open text-4xl mb-3 opacity-50"></i><p>${t('no_data')}</p></div>`; return; }
     
     list.innerHTML = available.map(d => {
         const config = collectionConfigs[d.collection];
         const name = d[config.nameField] || d.ComputerName || d.DeviceName || d.ItemName || 'Unnamed Device';
         const serial = d[config.serialField] || d.SerialNumber || 'No SN';
         const brandModel = [d.Manufacturer, d.Model].filter(Boolean).join(' ') || '-';
+        const dispName = config.isCustom ? config.displayName : t(d.collection.toLowerCase()) || d.collection;
         
         return `
         <div class="device-item p-3 hover:bg-indigo-50 dark:hover:bg-gray-700 border-b dark:border-gray-600 cursor-pointer flex justify-between items-center transition-colors" onclick="window.addDeviceToHandoverCart('${d._id || d.id}', '${d.collection}')">
             <div class="flex-1 min-w-0 pr-3">
                 <div class="flex items-center space-x-2">
-                    <span class="shrink-0 px-2 py-0.5 text-[10px] font-bold bg-indigo-100 text-indigo-700 dark:bg-indigo-900 dark:text-indigo-300 rounded uppercase tracking-wider">${config.displayName || d.collection}</span>
+                    <span class="shrink-0 px-2 py-0.5 text-[10px] font-bold bg-indigo-100 text-indigo-700 dark:bg-indigo-900 dark:text-indigo-300 rounded uppercase tracking-wider">${dispName}</span>
                     <p class="font-bold text-sm text-gray-800 dark:text-white truncate">${name}</p>
                 </div>
                 <div class="mt-1 flex text-xs text-gray-500 dark:text-gray-400 space-x-3">
@@ -2035,12 +2390,13 @@ window.renderHandoverCart = function() {
             const id = d._id || d.id;
             const name = d[config.nameField] || d.ComputerName || d.DeviceName || d.ItemName || 'Unnamed Device';
             const serial = d[config.serialField] || d.SerialNumber || 'No SN';
+            const dispName = config.isCustom ? config.displayName : t(d.collection.toLowerCase()) || d.collection;
             
             return `
             <div class="p-3 bg-white dark:bg-gray-800 rounded-lg border border-indigo-200 dark:border-indigo-800 shadow-sm flex justify-between items-center">
                 <div class="flex-1 min-w-0 pr-2">
                     <p class="font-bold text-sm text-indigo-900 dark:text-indigo-100 truncate">${name}</p>
-                    <p class="text-xs text-indigo-600 dark:text-indigo-400 mt-0.5 font-mono truncate"><span class="font-semibold px-1.5 py-0.5 bg-indigo-100 dark:bg-indigo-900/50 rounded mr-1">${config.displayName || d.collection}</span> ${serial}</p>
+                    <p class="text-xs text-indigo-600 dark:text-indigo-400 mt-0.5 font-mono truncate"><span class="font-semibold px-1.5 py-0.5 bg-indigo-100 dark:bg-indigo-900/50 rounded mr-1">${dispName}</span> ${serial}</p>
                 </div>
                 <button onclick="window.removeHandoverItem('${id}')" class="shrink-0 text-red-400 hover:text-red-600 bg-red-50 hover:bg-red-100 dark:bg-red-900/30 dark:hover:bg-red-900/50 w-8 h-8 rounded-lg flex items-center justify-center transition-colors">
                     <i class="fas fa-trash-alt"></i>
@@ -2106,7 +2462,7 @@ window.filterDeviceList = function(input, listId) { const term = input.value.toU
 window.buildStaffManagementPage = function() {
     const page = document.getElementById('staffmanagement-page');
     page.innerHTML = `
-        <div class="flex justify-between items-center mb-6"><h2 class="text-2xl font-bold dark:text-white">Staff Management</h2><button onclick="window.openStaffModal('add')" class="bg-indigo-600 text-white px-4 py-2 rounded-lg font-bold">Add Staff</button></div>
+        <div class="flex justify-between items-center mb-6"><h2 class="text-2xl font-bold dark:text-white">${t('staff_management')}</h2><button onclick="window.openStaffModal('add')" class="bg-indigo-600 text-white px-4 py-2 rounded-lg font-bold">${t('add_new')}</button></div>
         <div class="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-100 dark:border-gray-700 overflow-x-auto"><table class="min-w-full"><thead class="bg-gray-50 dark:bg-gray-700"><tr><th class="px-6 py-3 text-left text-xs uppercase text-gray-500 font-semibold">Username</th><th class="px-6 py-3 text-left text-xs uppercase text-gray-500 font-semibold">Name</th><th class="px-6 py-3 text-left text-xs uppercase text-gray-500 font-semibold">Dept</th><th class="px-6 py-3"></th></tr></thead><tbody id="staffTableBody" class="divide-y divide-gray-200 dark:divide-gray-700"></tbody></table></div>`;
     window.renderStaffTable();
 };
@@ -2114,7 +2470,7 @@ window.buildStaffManagementPage = function() {
 window.renderStaffTable = function() {
     const tbody = document.getElementById('staffTableBody');
     const staff = allData.Staff || [];
-    if(staff.length === 0) tbody.innerHTML = `<tr><td colspan="4" class="text-center p-4 text-gray-500">No staff found.</td></tr>`;
+    if(staff.length === 0) tbody.innerHTML = `<tr><td colspan="4" class="text-center p-4 text-gray-500">${t('no_data')}</td></tr>`;
     else tbody.innerHTML = staff.map(s => {
         const id = s._id || s.id;
         return `<tr><td class="px-6 py-4 font-medium">${s.UserName}</td><td class="px-6 py-4">${s.FirstName||''} ${s.LastName||''}</td><td class="px-6 py-4">${s.Department||''}</td><td class="px-6 py-4 text-right"><button onclick="window.openStaffModal('edit','${id}')" class="text-indigo-600 mr-3"><i class="fas fa-edit"></i></button><button onclick="window.deleteStaff('${id}')" class="text-red-600"><i class="fas fa-trash"></i></button></td></tr>`;
@@ -2149,7 +2505,7 @@ window.deleteStaff = async function(id) { if(confirm("Delete this staff?")) { aw
 window.buildAdminManagementPage = function() {
     const page = document.getElementById('adminmanagement-page');
     page.innerHTML = `
-        <div class="flex justify-between items-center mb-6"><h2 class="text-2xl font-bold dark:text-white">Admin Management</h2><button onclick="window.openModalWindow('addUserModal')" class="bg-indigo-600 text-white px-4 py-2 rounded-lg font-bold">Add Admin</button></div>
+        <div class="flex justify-between items-center mb-6"><h2 class="text-2xl font-bold dark:text-white">${t('admin_management')}</h2><button onclick="window.openModalWindow('addUserModal')" class="bg-indigo-600 text-white px-4 py-2 rounded-lg font-bold">${t('add_new')}</button></div>
         <div class="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-100 dark:border-gray-700 overflow-x-auto"><table class="min-w-full"><thead class="bg-gray-50 dark:bg-gray-700"><tr><th class="px-6 py-3 text-left text-xs uppercase text-gray-500 font-semibold">Email</th><th class="px-6 py-3 text-left text-xs uppercase text-gray-500 font-semibold">ID</th><th class="px-6 py-3"></th></tr></thead><tbody id="adminTableBody" class="divide-y divide-gray-200 dark:divide-gray-700"><tr><td colspan="3" class="text-center p-4">Loading...</td></tr></tbody></table></div>`;
     window.renderAdminTable();
 };
@@ -2171,7 +2527,7 @@ window.buildMaintenanceLogInModal = function(item) {
     if(!list) return;
     list.innerHTML = '';
     const logs = (allData['Maintenance Log'] || []).filter(l => l.deviceId === item._id || l.deviceId === item.id);
-    if(logs.length === 0) list.innerHTML = '<p class="text-xs text-gray-500">No logs.</p>';
+    if(logs.length === 0) list.innerHTML = `<p class="text-xs text-gray-500">${t('no_data')}</p>`;
     logs.forEach(l => { list.innerHTML += `<div class="border-b py-2 dark:border-gray-700"><p class="text-sm font-semibold dark:text-gray-200">${new Date(l.logDate).toLocaleDateString()}</p><p class="text-sm dark:text-gray-400">${l.description}</p></div>`; });
 };
 
@@ -2186,7 +2542,8 @@ window.addMaintenanceLog = function() {
 
 window.openImportModal = function(collectionName) {
     currentImportCollection = collectionName;
-    document.getElementById('importModalTitle').innerHTML = `<i class="fas fa-file-import text-green-500 mr-2"></i> Import CSV to ${collectionName}`;
+    const dispName = collectionConfigs[collectionName].isCustom ? collectionConfigs[collectionName].displayName : t(collectionName.toLowerCase()) || collectionName;
+    document.getElementById('importModalTitle').innerHTML = `<i class="fas fa-file-import text-green-500 mr-2"></i> ${t('import_csv')} -> ${dispName}`;
     const config = collectionConfigs[collectionName];
     if (config) document.getElementById('importHeadersExample').textContent = config.formFields.join(', ');
     window.openModalWindow('importModal');
@@ -2228,7 +2585,7 @@ window.buildLoanHistoryCards = function() {
     if(!container) return;
     container.innerHTML = '';
     const loans = allData.LoanHistory || [];
-    if(loans.length === 0) { container.innerHTML = '<p class="text-center text-gray-500">No history found.</p>'; return; }
+    if(loans.length === 0) { container.innerHTML = `<p class="text-center text-gray-500">${t('no_data')}</p>`; return; }
     
     const grouped = {};
     loans.forEach(l => { if(!grouped[l.LoanGroupID]) grouped[l.LoanGroupID] = { ...l, items: [] }; grouped[l.LoanGroupID].items.push(l); });
@@ -2243,11 +2600,11 @@ window.buildLoanHistoryCards = function() {
                     <h4 class="font-bold text-gray-800 dark:text-white">${g.BorrowerName}</h4>
                     <p class="text-xs text-gray-500">${new Date(g.LoanDate).toLocaleDateString('th-TH')} - ${g.LoanGroupID}</p>
                 </div>
-                <span class="px-2 py-1 rounded text-xs font-semibold ${g.Status==='Returned'?'bg-green-100 text-green-800':'bg-yellow-100 text-yellow-800'}">${g.Status}</span>
+                <span class="px-2 py-1 rounded text-xs font-semibold ${g.Status==='Returned'?'bg-green-100 text-green-800':'bg-yellow-100 text-yellow-800'}">${t(g.Status.toLowerCase().replace(' ', '_')) || g.Status}</span>
             </div>
             <div class="hidden mt-3 pt-3 border-t dark:border-gray-700">
                 <ul class="text-sm space-y-2 mb-4">
-                    ${g.items.map(i => `<li class="flex justify-between border-b dark:border-gray-700 pb-1 border-dashed"><span>${i.DeviceSerial} <span class="text-xs text-gray-500 ml-1">(${i.DeviceType})</span></span><span class="${i.Status==='Returned'?'text-green-500':'text-yellow-500'} font-medium">${i.Status}</span></li>`).join('')}
+                    ${g.items.map(i => `<li class="flex justify-between border-b dark:border-gray-700 pb-1 border-dashed"><span>${i.DeviceSerial} <span class="text-xs text-gray-500 ml-1">(${t(i.DeviceType.toLowerCase()) || i.DeviceType})</span></span><span class="${i.Status==='Returned'?'text-green-500':'text-yellow-500'} font-medium">${t(i.Status.toLowerCase().replace(' ', '_')) || i.Status}</span></li>`).join('')}
                 </ul>
                 
                 <div class="bg-gray-50 dark:bg-gray-900/50 p-4 rounded-xl flex flex-col items-center border border-gray-100 dark:border-gray-700">
@@ -2357,7 +2714,7 @@ window.buildAssetsByUserPage = function() {
     Object.keys(byUser).sort().forEach(user => {
         if(user === 'Unassigned') return;
         const assets = byUser[user];
-        container.innerHTML += `<details class="group bg-white dark:bg-gray-800 rounded-lg shadow mb-3"><summary class="p-4 flex justify-between items-center cursor-pointer list-none"><span class="font-bold text-gray-800 dark:text-white"><i class="fas fa-user mr-2"></i>${user}</span><span class="bg-indigo-100 text-indigo-800 text-xs px-2 py-1 rounded-full">${assets.length} items</span></summary><div class="p-4 border-t dark:border-gray-700"><ul class="text-sm space-y-2">${assets.map(a => `<li class="flex justify-between items-center"><span>${a.ComputerName || a.DeviceName || a.ItemName || a.Model} <span class="text-xs text-gray-500">(${a.type})</span></span><span class="text-xs font-mono">${a.SerialNumber || a.MonitorSerial || '-'}</span></li>`).join('')}</ul></div></details>`;
+        container.innerHTML += `<details class="group bg-white dark:bg-gray-800 rounded-lg shadow mb-3"><summary class="p-4 flex justify-between items-center cursor-pointer list-none"><span class="font-bold text-gray-800 dark:text-white"><i class="fas fa-user mr-2"></i>${user}</span><span class="bg-indigo-100 text-indigo-800 text-xs px-2 py-1 rounded-full">${assets.length} items</span></summary><div class="p-4 border-t dark:border-gray-700"><ul class="text-sm space-y-2">${assets.map(a => `<li class="flex justify-between items-center"><span>${a.ComputerName || a.DeviceName || a.ItemName || a.Model} <span class="text-xs text-gray-500">(${t(a.type.toLowerCase()) || a.type})</span></span><span class="text-xs font-mono">${a.SerialNumber || a.MonitorSerial || '-'}</span></li>`).join('')}</ul></div></details>`;
     });
 };
 
@@ -2371,7 +2728,7 @@ window.buildLabelPrinterPage = function() {
 
     pageDiv.innerHTML = `
         <div class="flex justify-between items-center mb-6">
-            <h2 class="text-2xl md:text-3xl font-bold text-gray-900 dark:text-white">Label Printer</h2>
+            <h2 class="text-2xl md:text-3xl font-bold text-gray-900 dark:text-white">${t('label_printer')}</h2>
             <button onclick="window.printLabel()" class="bg-indigo-600 text-white font-bold py-2 px-6 rounded-lg hover:bg-indigo-700 shadow-md flex items-center">
                 <i class="fas fa-print mr-2"></i> Print Label
             </button>
@@ -2419,7 +2776,7 @@ window.buildLabelPrinterPage = function() {
     const skipKeys = ['Staff', 'CustomMenus', 'TransactionHistory', 'LoanHistory', 'Maintenance Log', 'admins', 'Software'];
     Object.keys(allData).forEach(cat => { 
         if (!skipKeys.includes(cat) && Array.isArray(allData[cat])) {
-            const displayName = collectionConfigs[cat] ? collectionConfigs[cat].displayName : cat;
+            const displayName = collectionConfigs[cat] ? collectionConfigs[cat].displayName : t(cat.toLowerCase()) || cat;
             catSelect.innerHTML += `<option value="${cat}">${displayName}</option>`; 
         }
     });
@@ -2525,7 +2882,7 @@ function injectRapidEntryModal() {
                         <i class="fas fa-barcode text-blue-600 dark:text-blue-400 text-xl"></i>
                     </div>
                     <div>
-                        <h3 class="text-xl font-bold text-gray-900 dark:text-white leading-tight">Rapid Scan Mode</h3>
+                        <h3 class="text-xl font-bold text-gray-900 dark:text-white leading-tight">${t('rapid_scan')}</h3>
                         <p class="text-xs text-gray-500 font-medium mt-1 uppercase tracking-widest" id="rapidCollectionName">Category</p>
                     </div>
                 </div>
@@ -2553,7 +2910,7 @@ function injectRapidEntryModal() {
 window.openRapidEntryModal = function(collectionName) {
     window.currentRapidCollection = collectionName;
     const modal = document.getElementById('rapidEntryModal');
-    document.getElementById('rapidCollectionName').innerText = collectionConfigs[collectionName].displayName || collectionName;
+    document.getElementById('rapidCollectionName').innerText = collectionConfigs[collectionName].isCustom ? collectionConfigs[collectionName].displayName : t(collectionName.toLowerCase()) || collectionName;
     document.getElementById('rapidScanInput').value = '';
     document.getElementById('rapidScanLog').innerHTML = '';
     
@@ -2681,7 +3038,7 @@ window.openMoveModal = function(collectionName, id) {
     Object.keys(collectionConfigs).forEach(cat => {
         const skipKeys = ['Software', 'Staff', 'CustomMenus', 'TransactionHistory', 'LoanHistory', 'Maintenance Log', 'admins'];
         if (cat !== collectionName && !skipKeys.includes(cat)) {
-            const displayName = collectionConfigs[cat] ? collectionConfigs[cat].displayName : cat;
+            const displayName = collectionConfigs[cat].isCustom ? collectionConfigs[cat].displayName : t(cat.toLowerCase()) || cat;
             targetSelect.innerHTML += `<option value="${cat}">${displayName}</option>`;
         }
     });
