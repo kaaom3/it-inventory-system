@@ -170,7 +170,6 @@ app.post('/api/inventory/sync', verifyApiKey, async (req, res) => {
 
         const now = new Date();
         
-        // 🌟 ฟังก์ชันตรวจสอบ S/N ว่าเป็นค่าขยะหรือไม่ (N/A, None, ค่าว่าง)
         const isInvalidSN = (sn) => {
             if (!sn) return true;
             const cleanSn = sn.trim().toUpperCase();
@@ -178,24 +177,12 @@ app.post('/api/inventory/sync', verifyApiKey, async (req, res) => {
         };
 
         const scriptHasInvalidSN = isInvalidSN(data.serialNumber);
-
-        // 🌟 กำหนด Collection ปลายทางจาก Type ที่สคริปต์ส่งมา (เช่น Desktop, Laptop)
         const targetCollection = (data.type && data.type !== 'Unknown') ? data.type : 'Computers';
 
-        // 1. ค้นหาอุปกรณ์เดิมในระบบด้วยเงื่อนไขที่รัดกุมขึ้น
         let existingDevice = null;
-        
-        // 1.1 ลองหาจาก Serial Number ก่อน (ถ้าสคริปต์ส่งค่ามาและไม่ใช่ N/A หรือ None)
-        if (!scriptHasInvalidSN) {
-            existingDevice = await db.collection(targetCollection).findOne({ SerialNumber: data.serialNumber });
-        }
-        
-        // 1.2 ถ้าไม่เจอจาก S/N ให้ลองหาจากชื่อ ComputerName (กรณีในเว็บแก้ S/N ไปแล้ว แต่สคริปต์ยังส่ง N/A/None มา)
-        if (!existingDevice && data.computerName) {
-            existingDevice = await db.collection(targetCollection).findOne({ ComputerName: data.computerName });
-        }
+        if (!scriptHasInvalidSN) existingDevice = await db.collection(targetCollection).findOne({ SerialNumber: data.serialNumber });
+        if (!existingDevice && data.computerName) existingDevice = await db.collection(targetCollection).findOne({ ComputerName: data.computerName });
 
-        // 2. เตรียมข้อมูลอัปเดตสเปคเครื่อง (อัปเดตเฉพาะฝั่งฮาร์ดแวร์/OS)
         const updatePayload = {
             $set: {
                 ComputerName: data.computerName,
@@ -212,55 +199,33 @@ app.post('/api/inventory/sync', verifyApiKey, async (req, res) => {
             }
         };
 
-        // 🌟 จัดการสถานะ (Status)
         if (existingDevice) {
-            // ถ้าของเดิมเป็น Storage แต่สคริปต์รันมาได้ แสดงว่าเครื่องถูกเปิดใช้งานแล้ว ให้เปลี่ยนเป็น Active
-            if (existingDevice.Status === 'Storage') {
-                updatePayload.$set.Status = 'Active';
-            }
-            // ถ้านอกเหนือจากนี้ ให้คงสถานะเดิมเอาไว้ ไม่เอา Active ไปทับ
+            if (existingDevice.Status === 'Storage') updatePayload.$set.Status = 'Active';
         } else {
-            updatePayload.$set.Status = 'Active'; // เครื่องใหม่ให้เป็น Active เลย
+            updatePayload.$set.Status = 'Active'; 
         }
 
-        // 🌟 อัปเดต Serial Number เฉพาะเมื่อสคริปต์อ่านค่ามาได้จริง
         if (!scriptHasInvalidSN) {
             updatePayload.$set.SerialNumber = data.serialNumber;
         } else if (!existingDevice) {
             updatePayload.$set.SerialNumber = data.serialNumber || 'None';
         }
 
-        // 🌟 จัดการ Location: ไม่อัปเดตทับถ้าผู้ใช้งานกรอกไว้ในระบบแล้ว
-        if (existingDevice && existingDevice.Location && existingDevice.Location.trim() !== '') {
-            // คงค่า Location เดิมไว้
-        } else {
-            updatePayload.$set.Location = data.location || '';
-        }
+        if (existingDevice && existingDevice.Location && existingDevice.Location.trim() !== '') { } else { updatePayload.$set.Location = data.location || ''; }
+        if (existingDevice && existingDevice.UserName && existingDevice.UserName.trim() !== '') { } else { updatePayload.$set.UserName = data.userName || ''; }
 
-        // 🌟 จัดการ UserName: ไม่อัปเดตทับถ้าผู้ใช้งานกรอก/Assign ไว้ในระบบแล้ว
-        if (existingDevice && existingDevice.UserName && existingDevice.UserName.trim() !== '') {
-            // คงค่า UserName เดิมไว้
-        } else {
-            updatePayload.$set.UserName = data.userName || '';
-        }
-
-        // 3. บันทึกลง Database
         if (existingDevice) {
-            // เจอเครื่องเดิม -> ให้อัปเดตข้อมูลทับเครื่องเดิม
             await db.collection(targetCollection).updateOne({ _id: existingDevice._id }, updatePayload);
         } else {
-            // ไม่เจอเครื่องเดิมเลย -> สร้างอุปกรณ์ใหม่
             await db.collection(targetCollection).insertOne(updatePayload.$set);
         }
 
-        // 🌟 4. บันทึกประวัติการครอบครอง (Usage History) หากพบผู้ใช้งานใหม่จาก Script
         try {
             const syncedDevice = await db.collection(targetCollection).findOne({ ComputerName: data.computerName });
             if (syncedDevice) {
                 let oldUser = existingDevice && existingDevice.UserName ? existingDevice.UserName : '';
                 let newUser = data.userName || '';
                 
-                // ถ้ามีชื่อ User ส่งมา และไม่ตรงกับชื่อเดิม ให้บันทึกประวัติลง TransactionHistory
                 if (newUser !== '' && newUser !== oldUser) {
                     await db.collection('TransactionHistory').insertOne({
                         type: 'Auto-Sync',
@@ -274,30 +239,66 @@ app.post('/api/inventory/sync', verifyApiKey, async (req, res) => {
                     });
                 }
             }
-        } catch (historyErr) {
-            console.error("Error saving auto-sync history:", historyErr);
-        }
+        } catch (historyErr) { console.error("Error saving auto-sync history:", historyErr); }
 
-        // Sync Monitors
-        if (data.monitors && Array.isArray(data.monitors)) {
+        // 🌟 Sync Monitors (อัปเดตให้เชื่อมโยง UserName ให้ด้วย และข้ามการบันทึกหากเป็น POS)
+        if (targetCollection !== 'POS' && data.monitors && Array.isArray(data.monitors)) {
             for (const mon of data.monitors) {
                 if (!isInvalidSN(mon.serial)) {
                     await db.collection('Monitors').updateOne(
                         { MonitorSerial: mon.serial },
-                        { $set: { Manufacturer: mon.manufacturer, Model: mon.model, AssignedComputer: data.computerName, Status: "Active", Timestamp: now } },
+                        { $set: { 
+                            Manufacturer: mon.manufacturer, 
+                            Model: mon.model, 
+                            AssignedComputer: data.computerName, 
+                            UserName: existingDevice?.UserName || data.userName || '', // ผูก User ให้อัตโนมัติ (ยึดของเดิมก่อน)
+                            Status: "Active", 
+                            Timestamp: now 
+                        } },
                         { upsert: true }
                     );
                 }
             }
         }
 
-        // Sync Accessories
+        // 🌟 Sync Accessories (อัปเดตให้เชื่อมโยง UserName ให้ด้วย)
         if (data.accessories && Array.isArray(data.accessories)) {
             for (const acc of data.accessories) {
                 if (!isInvalidSN(acc.SerialNumber)) {
                     await db.collection('Accessory').updateOne(
                         { SerialNumber: acc.SerialNumber },
-                        { $set: { AccessoryType: acc.AccessoryType, Manufacturer: acc.Manufacturer, Model: acc.Model, AssignedComputer: data.computerName, Status: "Active", Timestamp: now } },
+                        { $set: { 
+                            AccessoryType: acc.AccessoryType, 
+                            Manufacturer: acc.Manufacturer, 
+                            Model: acc.Model, 
+                            AssignedComputer: data.computerName, 
+                            UserName: existingDevice?.UserName || data.userName || '', // ผูก User ให้อัตโนมัติ (ยึดของเดิมก่อน)
+                            Status: "Active", 
+                            Timestamp: now 
+                        } },
+                        { upsert: true }
+                    );
+                }
+            }
+        }
+
+        // 🌟 Sync Printers (เพิ่มการบันทึกเครื่องพิมพ์ที่ต่อพ่วงกับคอมพิวเตอร์)
+        if (data.printers && Array.isArray(data.printers)) {
+            for (const prn of data.printers) {
+                if (!isInvalidSN(prn.SerialNumber)) {
+                    await db.collection('Printers').updateOne(
+                        { SerialNumber: prn.SerialNumber },
+                        { $set: { 
+                            Name: prn.Name,
+                            Manufacturer: prn.Manufacturer, 
+                            Model: prn.Model, 
+                            DriverName: prn.DriverName,
+                            PortName: prn.PortName,
+                            AssignedComputer: data.computerName, 
+                            UserName: existingDevice?.UserName || data.userName || '', // ผูก User ให้อัตโนมัติ
+                            Status: "Active", 
+                            Timestamp: now 
+                        } },
                         { upsert: true }
                     );
                 }
@@ -374,7 +375,6 @@ async function startBackgroundPingService() {
 
 // ===================================================================
 // 🌟 Bulk Operations & Utility (แก้ไขหลายรายการ, นำเข้า, โคลน, ย้าย)
-// ต้องวางไว้ด้านบนก่อน General CRUD เพื่อป้องกันการตีความ Route ผิดพลาด
 // ===================================================================
 app.post('/api/inventory/:collection/bulk', verifyToken, async (req, res) => {
     if (!db) return res.status(500).json({ message: "Database not connected" });
@@ -440,7 +440,6 @@ app.post('/api/inventory/:collection/clone-bulk', verifyToken, async (req, res) 
     } catch (error) { res.status(500).json({ message: error.message }); }
 });
 
-// 🌟 เพิ่ม API ย้ายหมวดหมู่อุปกรณ์ (Move Category)
 app.post('/api/inventory/:collection/move', verifyToken, async (req, res) => {
     if (!db) return res.status(500).json({ message: "Database not connected" });
     try {
@@ -454,25 +453,19 @@ app.post('/api/inventory/:collection/move', verifyToken, async (req, res) => {
         const item = await db.collection(sourceCollection).findOne(query);
         if (!item) return res.status(404).json({ message: "Item not found" });
 
-        // 1. เพิ่มข้อมูลเข้าหมวดหมู่ปลายทาง (ใช้ _id เดิมเพื่อรักษา Reference)
         await db.collection(targetCollection).insertOne(item);
-        
-        // 2. ลบออกจากหมวดหมู่เดิม
         await db.collection(sourceCollection).deleteOne(query);
 
-        // 3. อัปเดตประวัติการซ่อมบำรุง (Maintenance Log)
         await db.collection('Maintenance Log').updateMany(
             { deviceId: id, deviceCollection: sourceCollection },
             { $set: { deviceCollection: targetCollection } }
         );
         
-        // 4. อัปเดตประวัติการยืม (LoanHistory)
         await db.collection('LoanHistory').updateMany(
             { DeviceId: id, DeviceType: sourceCollection },
             { $set: { DeviceType: targetCollection } }
         );
 
-        // 5. อัปเดตประวัติการส่งมอบและคืน (TransactionHistory - เป็น Nested Array)
         await db.collection('TransactionHistory').updateMany(
             { "devices.id": id, "devices.collection": sourceCollection },
             { $set: { "devices.$[elem].collection": targetCollection } },
@@ -526,9 +519,6 @@ app.delete('/api/inventory/:collection/:id', verifyToken, async (req, res) => {
     } catch (error) { res.status(500).json({ message: error.message }); }
 });
 
-// ===================================================================
-// --- Device Finder (Public/Scanner) ---
-// ===================================================================
 app.get('/api/inventory/find/:sn', async (req, res) => {
     if (!db) return res.status(500).json({ message: "Database not connected" });
     try {
@@ -550,9 +540,6 @@ app.get('/api/inventory/find/:sn', async (req, res) => {
     } catch (error) { res.status(500).json({ message: error.message }); }
 });
 
-// ===================================================================
-// --- Admin Handover & Return ---
-// ===================================================================
 app.post('/api/transactions/handover', verifyToken, async (req, res) => {
     if (!db) return res.status(500).json({ message: "Database not connected" });
     try {
@@ -595,9 +582,6 @@ app.post('/api/transactions/return', verifyToken, async (req, res) => {
     } catch (error) { res.status(500).json({ message: error.message }); }
 });
 
-// ===================================================================
-// --- Public Loan System ---
-// ===================================================================
 app.get('/api/public/loanable-items', async (req, res) => {
     if (!db) return res.status(500).json({ message: "Database not connected" });
     try {
@@ -661,9 +645,6 @@ app.post('/api/loans/return', async (req, res) => {
     } catch (error) { res.status(500).json({ message: error.message }); }
 });
 
-// ===================================================================
-// --- Custom Menus & Staff Settings ---
-// ===================================================================
 app.post('/api/custom-menus', verifyToken, async (req, res) => {
     if (!db) return res.status(500).json({ message: "Database not connected" });
     try {
@@ -686,7 +667,7 @@ app.put('/api/custom-menus/:id', verifyToken, async (req, res) => {
                 parentId: req.body.parentId, 
                 order: req.body.order, 
                 fields: req.body.fields,
-                displayColumns: req.body.displayColumns // บันทึกคอลัมน์ที่จะแสดงบนหน้าจอ
+                displayColumns: req.body.displayColumns 
             } }
         );
         res.json({ message: "Menu updated" });
@@ -732,12 +713,10 @@ app.get('/api/ping/:target', verifyToken, async (req, res) => {
     } catch (error) { res.status(500).json({ error: "Ping failed" }); }
 });
 
-// 🌟 ตั้งค่าให้รองรับ SPA (Single Page Application) Routing 
 app.get('*', (req, res) => {
     res.sendFile(path.join(frontendPath, 'index.html'));
 });
 
-// Start Server
 app.listen(port, () => {
     console.log(`Inventory Backend API listening on port ${port}`);
 });

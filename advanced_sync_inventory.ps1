@@ -4,6 +4,8 @@
 # ===================================================================
 
 # --- CONFIGURATION (ตั้งค่าสำหรับ Cloud) ---
+# บังคับให้ Windows เก่า (Win 7, 8) ใช้ TLS 1.2 ในการเชื่อมต่อ
+[Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
 # 1. URL ของเว็บ Render.com (ไม่ต้องมี https://)
 $serverIp = "it-inventory-system-ncd9.onrender.com" 
 
