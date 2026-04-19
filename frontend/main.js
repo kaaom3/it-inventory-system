@@ -320,7 +320,6 @@ function updateUI() {
     document.querySelectorAll('[data-i18n]').forEach(el => {
         const key = el.getAttribute('data-i18n');
         if (translations[currentLang][key]) {
-            // Keep inner HTML structure if it contains icons (e.g., <i class="fas..."></i> Text)
             if (el.innerHTML.includes('<i')) {
                 const iconHtml = el.innerHTML.match(/<i[^>]*><\/i>/) ? el.innerHTML.match(/<i[^>]*><\/i>/)[0] : '';
                 const extraSpanHtml = el.innerHTML.match(/<span[^>]*>.*?<\/span>/) ? el.innerHTML.match(/<span[^>]*>.*?<\/span>/)[0] : '';
@@ -331,11 +330,9 @@ function updateUI() {
         }
     });
 
-    // Update specific text nodes
     const langText = document.getElementById('lang-text');
     if (langText) langText.textContent = translations[currentLang].lang_switch_text;
 
-    // Refresh dynamic parts if they exist
     renderSidebarDynamic();
     generateDynamicPages();
     
@@ -533,9 +530,9 @@ async function refreshAllData() {
         
         const defaultConfigs = {
             Computers: { displayName: 'Computers', headers: ['Last Seen', 'ComputerName', 'SerialNumber', 'UserName', 'Status'], formFields: ['ComputerName', 'Manufacturer', 'Model', 'Type', 'SerialNumber', 'CPU', 'RAM_GB', 'DiskSize_GB', 'OS', 'IPAddress', 'MacAddress', 'UserName', 'Location', 'PurchaseDate', 'WarrantyEndDate', 'Status', 'Description'], nameField: 'ComputerName', serialField: 'SerialNumber', icon: 'fa-laptop', dropdowns: { Status: ['Active', 'On Loan', 'Repair', 'Storage', 'Damaged', 'Disposed'], Type: ['Desktop', 'Laptop', 'MacBook', 'Tablet', 'POS', 'Server', 'Other'] }, isCustom: false },
-            Monitors: { displayName: 'Monitors', headers: ['Manufacturer', 'Model', 'MonitorSerial', 'UserName', 'Status'], formFields: ['Manufacturer', 'Model', 'MonitorSerial', 'UserName', 'Location', 'AssignedComputer', 'PurchaseDate', 'WarrantyEndDate', 'Status', 'Description'], nameField: 'Model', serialField: 'MonitorSerial', icon: 'fa-desktop', dropdowns: { Status: ['Active', 'On Loan', 'Repair', 'Storage', 'Damaged', 'Disposed'] }, isCustom: false },
-            Accessory: { displayName: 'Accessories', headers: ['AccessoryType', 'Model', 'SerialNumber', 'UserName', 'Status'], formFields: ['AccessoryType', 'Manufacturer', 'Model', 'SerialNumber', 'UserName', 'Location', 'AssignedComputer', 'PurchaseDate', 'Status', 'Description'], nameField: 'Model', serialField: 'SerialNumber', icon: 'fa-keyboard', dropdowns: { Status: ['Active', 'On Loan', 'Repair', 'Storage', 'Damaged', 'Disposed'], AccessoryType: ['Mouse', 'Keyboard', 'Webcam', 'Docking', 'Adapter', 'Other'] }, isCustom: false },
-            Printers: { displayName: 'Printers', headers: ['Last Seen', 'Name', 'Model', 'SerialNumber', 'IPAddress', 'Status'], formFields: ['Name', 'Manufacturer', 'Model', 'SerialNumber', 'IPAddress', 'MacAddress', 'Location', 'PurchaseDate', 'Status', 'Description'], nameField: 'Name', serialField: 'SerialNumber', icon: 'fa-print', dropdowns: { Status: ['Active', 'On Loan', 'Repair', 'Storage', 'Damaged', 'Disposed'] }, isCustom: false },
+            Monitors: { displayName: 'Monitors', headers: ['Model', 'MonitorSerial', 'AssignedComputer', 'UserName', 'Status'], formFields: ['Manufacturer', 'Model', 'MonitorSerial', 'UserName', 'Location', 'AssignedComputer', 'PurchaseDate', 'WarrantyEndDate', 'Status', 'Description'], nameField: 'Model', serialField: 'MonitorSerial', icon: 'fa-desktop', dropdowns: { Status: ['Active', 'On Loan', 'Repair', 'Storage', 'Damaged', 'Disposed'] }, isCustom: false },
+            Accessory: { displayName: 'Accessories', headers: ['AccessoryType', 'Model', 'AssignedComputer', 'UserName', 'Status'], formFields: ['AccessoryType', 'Manufacturer', 'Model', 'SerialNumber', 'UserName', 'Location', 'AssignedComputer', 'PurchaseDate', 'Status', 'Description'], nameField: 'Model', serialField: 'SerialNumber', icon: 'fa-keyboard', dropdowns: { Status: ['Active', 'On Loan', 'Repair', 'Storage', 'Damaged', 'Disposed'], AccessoryType: ['Mouse', 'Keyboard', 'Webcam', 'Docking', 'Adapter', 'Other'] }, isCustom: false },
+            Printers: { displayName: 'Printers', headers: ['Last Seen', 'Name', 'AssignedComputer', 'IPAddress', 'Status'], formFields: ['Name', 'Manufacturer', 'Model', 'SerialNumber', 'IPAddress', 'MacAddress', 'Location', 'AssignedComputer', 'UserName', 'PurchaseDate', 'Status', 'Description'], nameField: 'Name', serialField: 'SerialNumber', icon: 'fa-print', dropdowns: { Status: ['Active', 'On Loan', 'Repair', 'Storage', 'Damaged', 'Disposed'] }, isCustom: false },
             Network: { displayName: 'Network Devices', headers: ['Last Seen', 'DeviceName', 'Model', 'IPAddress', 'Status'], formFields: ['DeviceName', 'Manufacturer', 'Model', 'SerialNumber', 'Type', 'IPAddress', 'MacAddress', 'Location', 'PurchaseDate', 'Status', 'Description'], nameField: 'DeviceName', serialField: 'SerialNumber', icon: 'fa-network-wired', dropdowns: { Status: ['Active', 'On Loan', 'Repair', 'Storage', 'Damaged', 'Disposed'], Type: ['Router', 'Switch', 'Access Point', 'Firewall', 'CCTV', 'Other'] }, isCustom: false }
         };
         
@@ -610,7 +607,7 @@ async function refreshAllData() {
             if (!selectedItems[collectionName]) selectedItems[collectionName] = [];
         });
 
-        // 🌟 Auto-Discover Users from Devices
+        // 🌟 Auto-Discover Users from Devices (ป้องกันรายชื่อแปลกๆ เข้าตาราง Staff จริง)
         let staffList = allData.Staff || [];
         let existingUsernames = new Set(staffList.map(s => (s.UserName || '').toLowerCase()));
         
@@ -2002,7 +1999,6 @@ window.updateDashboard = function(folderId) {
             const iconMarker = children.length > 0 ? `<div class="absolute top-2 right-2 text-xs text-indigo-400"><i class="fas fa-folder"></i></div>` : '';
             const stats = getFolderStats(colName);
             
-            // ใช้ชื่อที่ถูกแปลแล้วถ้าเป็นหมวดหมู่มาตรฐาน
             const finalDisplayName = config.isCustom ? displayName : t(colName.toLowerCase()) || displayName;
 
             return `
@@ -2323,7 +2319,6 @@ window.populateStaffLists = function(listId, labelId, isReturn = false) {
     const staff = allData.Staff || [];
     if (staff.length === 0) { list.innerHTML = `<p class="p-4 text-center text-gray-500">${t('no_data')}</p>`; return; }
     list.innerHTML = staff.map(s => {
-        // 🌟 ใส่ Badge ถ้าเป็น Auto-Detected
         const autoBadge = s.isAuto ? `<span class="ml-2 px-1.5 py-0.5 text-[9px] bg-yellow-100 text-yellow-800 rounded shadow-sm border border-yellow-200"><i class="fas fa-magic mr-1"></i>${t('auto_detected')}</span>` : '';
         return `
         <div class="staff-item p-3 hover:bg-indigo-50 dark:hover:bg-gray-700 border border-transparent hover:border-indigo-100 dark:hover:border-gray-600 cursor-pointer rounded-lg transition-colors flex justify-between items-center" onclick="window.selectStaff('${s.UserName}', '${listId}', '${labelId}', ${isReturn})">
@@ -2507,7 +2502,6 @@ window.renderStaffTable = function() {
     if(staff.length === 0) tbody.innerHTML = `<tr><td colspan="4" class="text-center p-4 text-gray-500">${t('no_data')}</td></tr>`;
     else tbody.innerHTML = staff.map(s => {
         const id = s._id || s.id;
-        // 🌟 เพิ่ม Badge และ ปุ่ม "เพิ่มเข้าระบบ" สำหรับ Auto Detected Users
         const autoBadge = s.isAuto ? `<span class="ml-2 px-2 py-0.5 text-[10px] bg-yellow-100 text-yellow-800 rounded-full border border-yellow-200 shadow-sm"><i class="fas fa-magic mr-1"></i>${t('auto_detected')}</span>` : '';
         
         const actionBtns = s.isAuto 
@@ -2528,7 +2522,6 @@ window.renderStaffTable = function() {
 };
 
 window.openStaffModal = function(mode, id) {
-    // 🌟 หากเป็น Auto Detected ให้ทำเป็นโหมด add
     currentStaffEdit = { mode: mode === 'auto' ? 'add' : mode, id: mode === 'auto' ? null : id };
     const form = document.getElementById('editStaffForm');
     form.reset();
@@ -2830,7 +2823,7 @@ window.buildLabelPrinterPage = function() {
     const skipKeys = ['Staff', 'CustomMenus', 'TransactionHistory', 'LoanHistory', 'Maintenance Log', 'admins', 'Software'];
     Object.keys(allData).forEach(cat => { 
         if (!skipKeys.includes(cat) && Array.isArray(allData[cat])) {
-            const displayName = collectionConfigs[cat] ? collectionConfigs[cat].displayName : t(cat.toLowerCase()) || cat;
+            const displayName = collectionConfigs[cat].isCustom ? collectionConfigs[cat].displayName : t(cat.toLowerCase()) || cat;
             catSelect.innerHTML += `<option value="${cat}">${displayName}</option>`; 
         }
     });
