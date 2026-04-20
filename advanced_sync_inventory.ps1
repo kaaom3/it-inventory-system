@@ -1,11 +1,12 @@
 # ===================================================================
 # PowerShell Script to Collect and Send Computer Inventory Data
-# Version 24.0 - Cloud Sync + Heartbeat Monitor (Dynamic Collection)
+# Version 24.7 - Cloud Sync + POS Printers + Split Mice/Keyboards
 # ===================================================================
 
 # --- CONFIGURATION (ตั้งค่าสำหรับ Cloud) ---
 # บังคับให้ Windows เก่า (Win 7, 8) ใช้ TLS 1.2 ในการเชื่อมต่อ
 [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
+
 # 1. URL ของเว็บ Render.com (ไม่ต้องมี https://)
 $serverIp = "it-inventory-system-ncd9.onrender.com" 
 
@@ -20,6 +21,10 @@ $apiKey = "KAAOM321A"
 
 # 5. ระบุสถานที่ของเครื่องนี้ (จะไปโผล่ในฟิลด์ Location)
 $location = "Office_Building_A" 
+
+# 🌟 6. บังคับเลือกหมวดหมู่ (Force Category) 
+# ปล่อยเป็น "" เพื่อให้ระบบแยกอัตโนมัติ หรือใส่ "POS" เพื่อบังคับให้อุปกรณ์นี้เข้าหมวด POS บนเว็บ
+$forceCategory = ""
 
 # ไฟล์ Log สำหรับตรวจสอบการทำงาน
 $logFilePath = "C:\Temp\inventory_log.txt"
@@ -62,7 +67,7 @@ function Convert-PnpIdTo-ManufacturerName {
 # ===================================================================
 # PART 1: INVENTORY SYNC (รวบรวมข้อมูลสเปคคอมพิวเตอร์)
 # ===================================================================
-Write-Log "========== Script Run Started (v24.0) =========="
+Write-Log "========== Script Run Started (v24.7) =========="
 Write-Log "Target Server: $apiUrl"
 
 try {
@@ -101,9 +106,14 @@ try {
     $localIp = (Get-CimInstance Win32_NetworkAdapterConfiguration | Where-Object { $_.IPEnabled -and $_.DefaultIPGateway }).IPAddress[0]
     if (-not $localIp) { $localIp = "N/A" }
 
-    # 4. Computer Type Detection
+    # 4. Computer Type Detection (เพิ่มระบบ Force Category)
     $computerType = "Unknown"
-    if ($computerName -like '*POS*') {
+    
+    if (-not [string]::IsNullOrWhiteSpace($forceCategory)) {
+        # กรณีมีการบังคับหมวดหมู่จากตั้งค่าด้านบน
+        $computerType = $forceCategory.Trim()
+        Write-Log "Using forced custom category: $computerType"
+    } elseif ($computerName -like '*POS*') {
         $computerType = "POS"
     } else {
         try {
@@ -149,7 +159,7 @@ try {
                     $ser = (($monitor.SerialNumberID | Where-Object { $_ -ne 0 } | % {[char]$_}) -join '').Trim()
                     
                     if ((Clean-Data $ser)) {
-                        $monitorList += [PSCustomObject]@{ manufacturer = (Clean-Data $manuf); model = (Clean-Data $mod); serial = (Clean-Data $ser) }
+                        $monitorList += [PSCustomObject]@{ manufacturer = (Clean-Data $manuf); model = (Clean-Data $mod); serial = (Clean-Data $ser); ComputerName = $computerName; AssignedComputer = $computerName; UserName = $userName }
                     }
                 }
             }
@@ -161,41 +171,64 @@ try {
         Where-Object { $_.DisplayName -and !$_.SystemComponent } | 
         Select-Object @{N="name";E={Clean-Data $_.DisplayName}}, @{N="version";E={Clean-Data $_.DisplayVersion}}
 
-    # 7. Accessories (Keyboard/Mouse)
-    $accessoryList = @()
+    # 7. Accessories (🌟 แยก Keyboards และ Mice ออกจากกันอย่างชัดเจน)
+    $keyboardList = @()
+    $mouseList = @()
     try {
         Get-CimInstance -ClassName Win32_Keyboard | ForEach-Object {
             $desc = $_.Description; $devId = $_.DeviceID
             if ($devId -notlike "ACPI*" -and $desc -notlike "*PS/2*" -and $devId -notlike "USB*") {
-                $accessoryList += [PSCustomObject]@{ AccessoryType = "Keyboard"; Model = (Clean-Data "$desc [External]"); SerialNumber = (Clean-Data $devId); Manufacturer = "Generic" }
+                $keyboardList += [PSCustomObject]@{ AccessoryType = "Keyboard"; Model = (Clean-Data "$desc [External]"); SerialNumber = (Clean-Data $devId); Manufacturer = "Generic"; ComputerName = $computerName; AssignedComputer = $computerName; UserName = $userName }
             }
         }
         Get-CimInstance -ClassName Win32_PointingDevice | ForEach-Object {
             $desc = $_.Description; $devId = $_.DeviceID; $manuf = $_.Manufacturer
             if ($devId -notlike "ACPI*" -and $desc -notlike "*TouchPad*" -and $desc -notlike "*PS/2*" -and $devId -notlike "USB*") {
-                $accessoryList += [PSCustomObject]@{ AccessoryType = "Mouse"; Model = (Clean-Data "$desc [External]"); SerialNumber = (Clean-Data $devId); Manufacturer = (Clean-Data $manuf) }
+                $mouseList += [PSCustomObject]@{ AccessoryType = "Mouse"; Model = (Clean-Data "$desc [External]"); SerialNumber = (Clean-Data $devId); Manufacturer = (Clean-Data $manuf); ComputerName = $computerName; AssignedComputer = $computerName; UserName = $userName }
             }
         }
     } catch { Write-Log "Accessory info warning: $_" }
     
-    # 8. Printers
+    # 8. Printers (ดึงเฉพาะพอร์ต USB และ ESDPRT ที่เครื่องพิมพ์สถานะออนไลน์)
     $printerList = @()
     try {
-        Get-CimInstance -ClassName Win32_Printer | ? { ($_.Name -notlike "Microsoft*" -and $_.Name -notlike "*OneNote*" -and $_.Name -notlike "*PDF*" -and $_.Name -notlike "*XPS*") -and ($_.PortName -like "USB*") } | % {
+        # กรองเอาเฉพาะ Printer ที่ใช้พอร์ต USB หรือ ESDPRT และต้องไม่ได้อยู่ในโหมด Offline
+        Get-CimInstance -ClassName Win32_Printer | ? { 
+            ($_.PortName -like "USB*" -or $_.PortName -like "ESDPRT*") -and
+            $_.Name -notlike "*Microsoft*" -and 
+            $_.Name -notlike "*OneNote*" -and 
+            $_.Name -notlike "*PDF*" -and 
+            $_.Name -notlike "*XPS*" -and
+            $_.Name -notlike "*Webex*" -and
+            $_.Name -notlike "*Fax*" -and
+            $_.WorkOffline -eq $false -and     
+            $_.PrinterStatus -ne 7             
+        } | % {
             $p = $_
             $pnpDevice = $null
-            try { $pnpDevice = Get-CimInstance -ClassName Win32_PnPEntity | ? { $_.Name -eq $p.DeviceID } | Select -First 1 } catch {}
+            # พยายามหาข้อมูล PnP ของปริ้นเตอร์เพื่อดึง Serial Number แท้ๆ ออกมา
+            try { $pnpDevice = Get-CimInstance -ClassName Win32_PnPEntity | ? { $_.Name -match $p.Name -or $p.Name -match $_.Name } | Select -First 1 } catch {}
             
+            # ถ้าหา S/N ของจริงไม่เจอ ให้ Generate ชื่อรหัสจำลองขึ้นมาโดยใช้ตัวย่อ PRN- ตามด้วยชื่อเครื่อง
+            $sn = if($pnpDevice -and $pnpDevice.PNPDeviceID) { ($pnpDevice.PNPDeviceID -split '\\')[-1] } else { "N/A" }
+            if ($sn -eq "N/A" -or [string]::IsNullOrWhiteSpace($sn)) {
+                $cleanName = $p.Name -replace '[^a-zA-Z0-9]',''
+                $sn = "PRN-$cleanName"
+            }
+
             $printerList += [PSCustomObject]@{
                 Name = Clean-Data $p.Name
-                Manufacturer = if($pnpDevice){Clean-Data $pnpDevice.Manufacturer}else{"Unknown"}
-                Model = if($pnpDevice){Clean-Data $pnpDevice.Caption}else{Clean-Data $p.Name}
+                Manufacturer = if($pnpDevice -and $pnpDevice.Manufacturer){Clean-Data $pnpDevice.Manufacturer}else{"Unknown"}
+                Model = Clean-Data $p.DriverName 
                 DriverName = Clean-Data $p.DriverName
                 PortName = Clean-Data $p.PortName
-                SerialNumber = if($pnpDevice){Clean-Data $pnpDevice.DeviceID}else{"N/A"}
+                SerialNumber = Clean-Data $sn
+                ComputerName = $computerName
+                AssignedComputer = $computerName
+                UserName = $userName
             }
         }
-    } catch {}
+    } catch { Write-Log "Printer info warning: $_" }
 
     # --- Construct Payload ---
     $inventoryData = [PSCustomObject]@{
@@ -213,7 +246,8 @@ try {
         ipAddress = $localIp
         monitors = $monitorList
         software = $softwareList
-        accessories = $accessoryList
+        keyboards = $keyboardList  # 🌟 ส่ง List Keyboard
+        mice = $mouseList          # 🌟 ส่ง List Mouse
         printers = $printerList
         warrantyStartDate = ""
         warrantyEndDate = ""

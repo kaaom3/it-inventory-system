@@ -251,7 +251,8 @@ app.post('/api/inventory/sync', verifyApiKey, async (req, res) => {
                             Manufacturer: mon.manufacturer, 
                             Model: mon.model, 
                             AssignedComputer: data.computerName, 
-                            UserName: existingDevice?.UserName || data.userName || '', // ผูก User ให้อัตโนมัติ (ยึดของเดิมก่อน)
+                            ComputerName: data.computerName, 
+                            UserName: existingDevice?.UserName || data.userName || '',
                             Status: "Active", 
                             Timestamp: now 
                         } },
@@ -261,18 +262,41 @@ app.post('/api/inventory/sync', verifyApiKey, async (req, res) => {
             }
         }
 
-        // 🌟 Sync Accessories (อัปเดตให้เชื่อมโยง UserName ให้ด้วย)
-        if (data.accessories && Array.isArray(data.accessories)) {
-            for (const acc of data.accessories) {
-                if (!isInvalidSN(acc.SerialNumber)) {
-                    await db.collection('Accessory').updateOne(
-                        { SerialNumber: acc.SerialNumber },
+        // 🌟 Sync Keyboards (แยกออกมาจาก Accessories เดิม)
+        if (data.keyboards && Array.isArray(data.keyboards)) {
+            for (const kb of data.keyboards) {
+                if (!isInvalidSN(kb.SerialNumber)) {
+                    await db.collection('Keyboards').updateOne(
+                        { SerialNumber: kb.SerialNumber },
                         { $set: { 
-                            AccessoryType: acc.AccessoryType, 
-                            Manufacturer: acc.Manufacturer, 
-                            Model: acc.Model, 
+                            AccessoryType: kb.AccessoryType, 
+                            Manufacturer: kb.Manufacturer, 
+                            Model: kb.Model, 
                             AssignedComputer: data.computerName, 
-                            UserName: existingDevice?.UserName || data.userName || '', // ผูก User ให้อัตโนมัติ (ยึดของเดิมก่อน)
+                            ComputerName: data.computerName, 
+                            UserName: existingDevice?.UserName || data.userName || '', 
+                            Status: "Active", 
+                            Timestamp: now 
+                        } },
+                        { upsert: true }
+                    );
+                }
+            }
+        }
+
+        // 🌟 Sync Mice (แยกออกมาจาก Accessories เดิม)
+        if (data.mice && Array.isArray(data.mice)) {
+            for (const mouse of data.mice) {
+                if (!isInvalidSN(mouse.SerialNumber)) {
+                    await db.collection('Mice').updateOne(
+                        { SerialNumber: mouse.SerialNumber },
+                        { $set: { 
+                            AccessoryType: mouse.AccessoryType, 
+                            Manufacturer: mouse.Manufacturer, 
+                            Model: mouse.Model, 
+                            AssignedComputer: data.computerName, 
+                            ComputerName: data.computerName, 
+                            UserName: existingDevice?.UserName || data.userName || '', 
                             Status: "Active", 
                             Timestamp: now 
                         } },
@@ -295,7 +319,8 @@ app.post('/api/inventory/sync', verifyApiKey, async (req, res) => {
                             DriverName: prn.DriverName,
                             PortName: prn.PortName,
                             AssignedComputer: data.computerName, 
-                            UserName: existingDevice?.UserName || data.userName || '', // ผูก User ให้อัตโนมัติ
+                            ComputerName: data.computerName, 
+                            UserName: existingDevice?.UserName || data.userName || '',
                             Status: "Active", 
                             Timestamp: now 
                         } },
