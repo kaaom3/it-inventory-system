@@ -825,53 +825,75 @@ function renderSidebarDynamic() {
             id: m.name, name: m.displayName, icon: m.icon, isSystem: false, parentId: m.parentId, clickAction: `window.loadPage('${m.name}', this)`, allowDelete: true, allowEdit: true, order: m.order
         }));
 
+    const existingSidebarIds = ['Computers', 'Monitors', 'Accessory', 'Printers', 'Network'];
+    const customIds = customNodes.map(n => n.id);
+    const allKnown = [...existingSidebarIds, ...customIds];
+    Object.keys(collectionConfigs).forEach(key => {
+        if (!allKnown.includes(key)) {
+            customNodes.push({ id: key, name: collectionConfigs[key].displayName, icon: 'fa-box', isSystem: false, parentId: null, clickAction: `window.loadPage('${key}', this)`, allowDelete: false, allowEdit: true, order: 99 });
+        }
+    });
+
     const rootNodes = [dashboardNode];
-    const assetHeader = { type: 'header', label: t('assets') };
-    const managementHeader = { type: 'header', label: t('management') };
+    rootNodes.push({ type: 'header', label: t('assets') });
+    rootNodes.push(...assetChildren, ...customNodes.filter(n => !n.parentId));
+    rootNodes.push({ type: 'header', label: t('management') });
+    rootNodes.push(...managementChildren);
+
+    const nodeMap = {};
+    [...rootNodes, ...customNodes].forEach(n => { if(n.id) nodeMap[n.id] = n; });
+    customNodes.forEach(node => {
+        if (node.parentId && nodeMap[node.parentId]) {
+            if (!nodeMap[node.parentId].children) nodeMap[node.parentId].children = [];
+            if (!nodeMap[node.parentId].children.find(c => c.id === node.id)) {
+                nodeMap[node.parentId].children.push(node);
+                nodeMap[node.parentId].children.sort((a, b) => (a.order || 0) - (b.order || 0) || a.name.localeCompare(b.name));
+            }
+        }
+    });
 
     function createMenuHTML(node) {
-        if (node.type === 'header') return `<li class="sidebar-header-text">${node.label}</li>`;
+        if (node.type === 'header') return `<li class="pt-6 mb-2 px-4 text-[10px] font-black uppercase tracking-widest text-slate-400/80 dark:text-slate-500">${node.label}</li>`;
         
         const hasChildren = node.children && node.children.length > 0;
         const activeClass = (window.currentPage === node.id) ? 'active' : '';
-        const editBtn = node.allowEdit ? `<button onclick="window.openEditMenuModal('${node.id}', event)" class="ml-2 text-[10px] text-slate-500 hover:text-white opacity-40 hover:opacity-100"><i class="fas fa-edit"></i></button>` : '';
-        const deleteBtn = node.allowDelete ? `<button onclick="window.deleteCustomMenu('${node.id}', event)" class="ml-2 text-[10px] text-rose-500 hover:text-white opacity-40 hover:opacity-100"><i class="fas fa-trash"></i></button>` : '';
+        const editBtn = node.allowEdit ? `<button onclick="window.openEditMenuModal('${node.id}', event)" class="ml-2 text-[10px] text-indigo-400 hover:text-indigo-600 opacity-0 group-hover:opacity-100 transition-opacity"><i class="fas fa-edit"></i></button>` : '';
+        const deleteBtn = node.allowDelete ? `<button onclick="window.deleteCustomMenu('${node.id}', event)" class="ml-2 text-[10px] text-rose-400 hover:text-rose-600 opacity-0 group-hover:opacity-100 transition-opacity"><i class="fas fa-trash"></i></button>` : '';
 
         if (hasChildren) {
             return `
                 <li>
-                    <details class="group" ${node.id === 'AssetsGrp' || node.id === 'ManagementGrp' ? 'open' : ''}>
-                        <summary class="nav-link cursor-pointer list-none flex items-center justify-between hover:bg-slate-800">
+                    <details class="group">
+                        <summary class="nav-link cursor-pointer list-none flex items-center justify-between group">
                             <div class="flex items-center space-x-3">
-                                <i class="fas ${node.icon || 'fa-folder'} w-5 text-center text-blue-500"></i>
-                                <span class="text-sm font-bold">${node.name}</span>
+                                <i class="fas ${node.icon || 'fa-folder'} w-5 text-center text-indigo-500/80"></i>
+                                <span class="text-sm font-semibold tracking-wide">${node.name}</span>
                             </div>
-                            <i class="fas fa-chevron-right text-[10px] transition-transform group-open:rotate-90 opacity-40"></i>
+                            <div class="flex items-center">
+                                ${editBtn}${deleteBtn}
+                                <i class="fas fa-chevron-right text-[10px] transition-transform group-open:rotate-90 opacity-40 ml-2"></i>
+                            </div>
                         </summary>
-                        <ul class="mt-1 space-y-1 ml-4 border-l border-slate-800 pl-2">
+                        <ul class="mt-1 space-y-1 ml-4 border-l dark:border-slate-800 pl-2">
                             ${node.children.map(createMenuHTML).join('')}
                         </ul>
                     </details>
                 </li>`;
         }
         
+        const iconColor = activeClass ? 'text-white' : 'text-indigo-500/60';
         return `
             <li>
                 <a href="#" id="nav-${node.id}" onclick="${node.clickAction}; return false;" 
-                   class="nav-link group ${activeClass} hover:bg-slate-800">
-                    <i class="fas ${node.icon || 'fa-circle'} w-5 text-center ${activeClass ? 'text-white' : 'text-blue-500'}"></i>
-                    <span class="flex-1 text-sm font-bold ml-3">${node.name}</span>
+                   class="nav-link group ${activeClass}">
+                    <i class="fas ${node.icon || 'fa-circle'} w-5 text-center ${iconColor}"></i>
+                    <span class="flex-1 text-sm">${node.name}</span>
                     ${editBtn}${deleteBtn}
                 </a>
             </li>`;
     }
 
-    container.insertAdjacentHTML('beforeend', createMenuHTML(dashboardNode));
-    container.insertAdjacentHTML('beforeend', createMenuHTML(assetHeader));
-    assetChildren.forEach(n => container.insertAdjacentHTML('beforeend', createMenuHTML(n)));
-    customNodes.filter(n => !n.parentId).forEach(n => container.insertAdjacentHTML('beforeend', createMenuHTML(n)));
-    container.insertAdjacentHTML('beforeend', createMenuHTML(managementHeader));
-    managementChildren.forEach(n => container.insertAdjacentHTML('beforeend', createMenuHTML(n)));
+    rootNodes.forEach(node => { if (node.type === 'header' || !node.parentId) container.insertAdjacentHTML('beforeend', createMenuHTML(node)); });
 }
 
 function generateDynamicPages() {
@@ -888,20 +910,20 @@ function generateDynamicPages() {
         const statusOptions = config.dropdowns && config.dropdowns.Status ? config.dropdowns.Status.map(s => `<option value="${s}">${t(s.toLowerCase().replace(' ', '_')) || s}</option>`).join('') : '';
 
         container.innerHTML += `
-        <div id="${pageId}" class="page-content hidden p-6 md:p-10">
-            <header class="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-10 border-b border-slate-300 dark:border-slate-800 pb-6">
+        <div id="${pageId}" class="page-content hidden">
+            <header class="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-10">
                 <div>
-                    <h2 class="text-4xl font-black text-slate-900 dark:text-white tracking-tight uppercase">${displayName}</h2>
-                    <p class="text-slate-600 dark:text-slate-400 mt-1 font-bold">Manage and track your ${displayName.toLowerCase()} inventory</p>
+                    <h2 class="text-3xl font-black text-slate-800 dark:text-white tracking-tight">${displayName}</h2>
+                    <p class="text-slate-500 dark:text-slate-400 mt-1">Manage and track your ${displayName.toLowerCase()} assets</p>
                 </div>
                 <div class="flex flex-wrap gap-3">
-                    <button onclick="window.openRapidEntryModal('${colName}')" class="px-5 py-2.5 bg-white dark:bg-slate-900 border-2 border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 rounded-lg font-black shadow-sm hover:border-blue-500 transition-all flex items-center uppercase tracking-tighter text-xs">
-                        <i class="fas fa-barcode mr-2 text-blue-500"></i>${t('rapid_scan')}
+                    <button onclick="window.openRapidEntryModal('${colName}')" class="px-5 py-2.5 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 rounded-xl font-bold shadow-sm hover:bg-slate-50 dark:hover:bg-slate-700 transition-all flex items-center">
+                        <i class="fas fa-barcode mr-2 text-indigo-500"></i>${t('rapid_scan')}
                     </button>
-                    <button onclick="window.openImportModal('${colName}')" class="px-5 py-2.5 bg-white dark:bg-slate-900 border-2 border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 rounded-lg font-black shadow-sm hover:border-emerald-500 transition-all flex items-center uppercase tracking-tighter text-xs">
+                    <button onclick="window.openImportModal('${colName}')" class="px-5 py-2.5 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 rounded-xl font-bold shadow-sm hover:bg-slate-50 dark:hover:bg-slate-700 transition-all flex items-center">
                         <i class="fas fa-file-import mr-2 text-emerald-500"></i>${t('import_csv')}
                     </button>
-                    <button onclick="window.openModal('add', '${colName}')" class="btn-primary flex items-center shadow-lg uppercase tracking-widest text-xs">
+                    <button onclick="window.openModal('add', '${colName}')" class="btn-primary flex items-center">
                         <i class="fas fa-plus mr-2"></i>${t('add_new')}
                     </button>
                 </div>
@@ -909,42 +931,40 @@ function generateDynamicPages() {
             
             <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-6 mb-10" id="${colName}SummaryCards"></div>
             
-            <div class="mb-8 flex flex-col md:flex-row gap-4 bg-white dark:bg-slate-900 p-4 rounded-xl border-2 border-slate-200 dark:border-slate-800 shadow-sm">
+            <div class="mb-6 flex flex-col md:flex-row gap-4">
                 <div class="w-full md:w-64">
-                    <label class="block text-[10px] font-black text-slate-500 uppercase tracking-widest mb-1 ml-1">Filter Status</label>
                     <select onchange="window.handleStatusFilter('${colName}', this.value)" class="input-modern w-full">
                         <option value="">${t('all_statuses')}</option>
                         ${statusOptions}
                     </select>
                 </div>
                 <div class="flex-1">
-                    <label class="block text-[10px] font-black text-slate-500 uppercase tracking-widest mb-1 ml-1">Search Database</label>
                     <div class="relative">
                         <div class="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
                             <i class="fas fa-search text-slate-400"></i>
                         </div>
-                        <input type="text" id="${colName.toLowerCase()}SearchInput" onkeyup="window.handleSearch('${colName}', this.value)" placeholder="Type to search anything..." class="input-modern w-full pl-11">
+                        <input type="text" id="${colName.toLowerCase()}SearchInput" onkeyup="window.handleSearch('${colName}', this.value)" placeholder="${t('search')}" class="input-modern w-full pl-11">
                     </div>
                 </div>
             </div>
 
-            <div id="${colName}BulkActions" class="hidden mb-6 p-5 bg-blue-600 text-white rounded-xl flex items-center justify-between shadow-xl">
-                <div class="text-sm font-black flex items-center uppercase tracking-widest">
-                    <i class="fas fa-check-square mr-3 text-xl"></i>
+            <div id="${colName}BulkActions" class="hidden mb-6 p-4 bg-indigo-50 dark:bg-indigo-900/30 border border-indigo-200 dark:border-indigo-700 rounded-2xl flex items-center justify-between shadow-sm">
+                <div class="text-indigo-800 dark:text-indigo-200 text-sm font-bold flex items-center">
+                    <div class="w-8 h-8 bg-indigo-600 rounded-lg flex items-center justify-center text-white mr-3 shadow-lg">
+                        <i class="fas fa-check-square text-xs"></i>
+                    </div>
                     <span class="selected-count">0</span> ${t('items_selected')}
                 </div>
-                <div class="flex space-x-3">
-                    <button onclick="window.openBulkEditModal('${colName}')" class="px-4 py-2 bg-white text-blue-600 text-xs font-black rounded-lg hover:bg-blue-50 transition-all uppercase tracking-widest shadow-md"><i class="fas fa-edit mr-2"></i>${t('bulk_edit')}</button>
-                    <button onclick="window.bulkDelete('${colName}')" class="px-4 py-2 bg-rose-500 text-white text-xs font-black rounded-lg hover:bg-rose-600 transition-all uppercase tracking-widest shadow-md"><i class="fas fa-trash mr-2"></i>${t('bulk_delete')}</button>
+                <div class="flex space-x-2">
+                    <button onclick="window.openBulkEditModal('${colName}')" class="px-4 py-2 bg-indigo-600 text-white text-xs font-bold rounded-xl hover:bg-indigo-700 transition-all shadow-sm flex items-center"><i class="fas fa-edit mr-2"></i>${t('bulk_edit')}</button>
+                    <button onclick="window.bulkDelete('${colName}')" class="px-4 py-2 bg-rose-600 text-white text-xs font-bold rounded-xl hover:bg-rose-700 transition-all shadow-sm flex items-center"><i class="fas fa-trash mr-2"></i>${t('bulk_delete')}</button>
                 </div>
             </div>
 
-            <div class="card-modern p-0 overflow-hidden border-2 border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-md">
-                <div class="overflow-x-auto">
-                    <table id="${colName}Table" class="modern-table w-full"></table>
-                </div>
+            <div class="card-modern overflow-hidden">
+                <div class="overflow-x-auto"><table id="${colName}Table" class="modern-table"></table></div>
             </div>
-            <div id="${colName}Pagination" class="flex items-center justify-between mt-8 p-6 bg-white dark:bg-slate-900 rounded-xl border-2 border-slate-200 dark:border-slate-800 shadow-sm text-sm text-slate-600 font-bold uppercase tracking-tighter"></div>
+            <div id="${colName}Pagination" class="flex items-center justify-between mt-6 text-sm text-slate-500 font-medium"></div>
         </div>`;
     });
 }

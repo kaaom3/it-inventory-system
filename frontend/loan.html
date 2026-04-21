@@ -187,41 +187,11 @@
       </div>
   </div>
 
-  <!-- Device Detail Modal (Scan Result) -->
-  <div id="deviceDetailModal" class="modal pointer-events-none fixed inset-0 z-50 flex items-center justify-center bg-black/60 opacity-0 p-4 backdrop-blur-sm">
-      <div class="modal-content bg-white dark:bg-gray-800 rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden transform scale-95">
-          <div class="px-6 py-4 border-b border-gray-100 dark:border-gray-700 bg-gray-50 dark:bg-gray-900/50 flex justify-between items-center">
-              <h3 id="deviceDetailTitle" class="text-lg font-bold text-gray-800 dark:text-white flex items-center">
-                  <i class="fas fa-info-circle text-indigo-500 mr-2"></i> Device Details
-              </h3>
-              <button onclick="hideModal('deviceDetailModal')" class="text-gray-400 hover:text-red-500 transition-colors"><i class="fas fa-times text-xl"></i></button>
-          </div>
-          
-          <div id="deviceDetailContent" class="p-6 space-y-3">
-              <!-- Injected details -->
-          </div>
-          
-          <div class="px-6 py-4 bg-gray-50 dark:bg-gray-900/50 border-t border-gray-100 dark:border-gray-700 flex justify-end space-x-3">
-              <button onclick="hideModal('deviceDetailModal')" class="px-5 py-2.5 font-semibold bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-200 rounded-xl hover:bg-gray-50 dark:hover:bg-gray-600 shadow-sm transition-colors">ยกเลิก</button>
-              <button id="addToCartButton" class="px-5 py-2.5 font-bold bg-indigo-600 text-white rounded-xl hover:bg-indigo-700 shadow-md flex items-center transition-colors">
-                  <i class="fas fa-cart-plus mr-2"></i> เพิ่มลงตะกร้า
-              </button>
-          </div>
-      </div>
-  </div>
-
-  <!-- ========================================== -->
-  <!-- JavaScript Logic -->
-  <!-- ========================================== -->
   <script>
-    // 🌟 ล็อก URL ไปที่ Cloud
-    const API_BASE_URL = 'https://it-inventory-system-ncd9.onrender.com';
-    
+    const API_BASE_URL = window.location.origin;
     let allData = {};
     let cartItems = [];
     let html5QrCode;
-
-    // Config สำหรับหน้ายืม (สร้างมารองรับหมวดหมู่หลัก)
     let collectionConfigs = {
         Computers: { displayName: 'Computers', nameField: 'ComputerName', serialField: 'SerialNumber', icon: 'fa-laptop' },
         Network: { displayName: 'Network', nameField: 'DeviceName', serialField: 'SerialNumber', icon: 'fa-network-wired' },
@@ -232,134 +202,59 @@
     
     async function apiRequest(endpoint, method = 'GET', body = null) {
         const headers = { 'Content-Type': 'application/json' };
-        
-        // 🌟 แก้ไข: แนบ Token (ถ้ามี) ป้องกัน Error 401 ในบาง API ย่อย
         const token = localStorage.getItem('authToken');
-        if (token) {
-            headers['Authorization'] = `Bearer ${token}`;
-        }
-        
+        if (token) headers['Authorization'] = `Bearer ${token}`;
         const config = { method, headers };
         if (body) config.body = JSON.stringify(body);
-        
         try {
             const response = await fetch(`${API_BASE_URL}${endpoint}`, config);
-            if (!response.ok) throw new Error(`API request failed with status ${response.status}`);
-            if (response.status === 204) return null;
-            return await response.json();
+            if (!response.ok) throw new Error(`API failed: ${response.status}`);
+            return response.status === 204 ? null : await response.json();
         } catch (error) { throw error; }
     }
 
-    window.hideModal = (modalId) => {
-        const modal = document.getElementById(modalId);
-        modal.classList.add('opacity-0', 'pointer-events-none');
-        const content = modal.querySelector('.modal-content');
-        if(content) content.classList.add('scale-95');
+    window.hideModal = (id) => {
+        document.getElementById(id).classList.add('opacity-0', 'pointer-events-none');
     };
-    
-    window.openModal = (modalId) => {
-        const modal = document.getElementById(modalId);
-        modal.classList.remove('opacity-0', 'pointer-events-none');
-        const content = modal.querySelector('.modal-content');
-        if(content) content.classList.remove('scale-95');
+    window.openModal = (id) => {
+        document.getElementById(id).classList.remove('opacity-0', 'pointer-events-none');
     };
 
     window.switchLoanTab = (tabName, btn) => {
-        document.querySelectorAll('#loan-page .tab-button').forEach(b => {
-            b.classList.remove('active', 'border-indigo-600', 'text-indigo-600', 'dark:text-indigo-400');
-            b.classList.add('border-transparent', 'text-gray-500');
-        });
-        btn.classList.add('active', 'border-indigo-600', 'text-indigo-600', 'dark:text-indigo-400');
-        btn.classList.remove('border-transparent', 'text-gray-500');
-        
+        document.querySelectorAll('.tab-button').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
         document.getElementById('scan-view').style.display = tabName === 'scan' ? 'flex' : 'none';
         document.getElementById('select-view').style.display = tabName === 'select' ? 'flex' : 'none';
-        
-        // Stop scanning if switching away
-        if (tabName !== 'scan' && html5QrCode) {
-            html5QrCode.stop().then(() => {
-                document.getElementById('start-scan-button').disabled = false;
-                document.getElementById('camera-placeholder').style.display = 'block';
-            }).catch(err => console.log("Failed to stop scanner"));
-        }
     };
 
     function populateCategories() {
         const container = document.getElementById('category-selection');
-        let html = `<h3 class="text-lg font-bold mb-4 text-gray-800 dark:text-white border-b border-gray-100 dark:border-gray-700 pb-2">เลือกหมวดหมู่อุปกรณ์</h3><div class="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-4">`;
-        
-        // Loop through allData dynamically to build categories
+        let html = '<div class="grid grid-cols-2 md:grid-cols-4 gap-4">';
         Object.keys(allData).forEach(key => {
-            const skipKeys = ['Staff', 'CustomMenus', 'TransactionHistory', 'LoanHistory', 'Maintenance Log', 'admins'];
-            if (skipKeys.includes(key) || !Array.isArray(allData[key])) return;
-            
-            const items = allData[key];
-            const storageItems = items.filter(i => i.Status === 'Storage');
-            
-            // Build config if not exists
-            if (!collectionConfigs[key]) {
-                collectionConfigs[key] = { displayName: key, nameField: 'SerialNumber', serialField: 'SerialNumber', icon: 'fa-box' };
-            }
-            
-            const config = collectionConfigs[key];
-            const iconColor = storageItems.length > 0 ? 'text-indigo-500' : 'text-gray-400';
-            const bgHover = storageItems.length > 0 ? 'hover:bg-indigo-50 dark:hover:bg-gray-700' : '';
-            const opacity = storageItems.length > 0 ? 'opacity-100' : 'opacity-60';
-
-            html += `
-                <div class="border border-gray-200 dark:border-gray-700 rounded-xl p-5 flex flex-col items-center justify-center text-center ${bgHover} ${opacity} transition-colors cursor-pointer bg-white dark:bg-gray-800 shadow-sm" onclick="showDeviceCategory('${key}')">
-                    <div class="h-14 w-14 rounded-full bg-gray-50 dark:bg-gray-900/50 flex items-center justify-center mb-3">
-                        <i class="fas ${config.icon} text-2xl ${iconColor}"></i>
-                    </div>
-                    <p class="font-bold text-gray-800 dark:text-gray-200 text-sm mb-1">${config.displayName || key}</p>
-                    <span class="px-2.5 py-0.5 rounded-full bg-gray-100 dark:bg-gray-700 text-xs font-semibold text-gray-600 dark:text-gray-400">${storageItems.length} in storage</span>
-                </div>
-            `;
+            if (['Staff', 'admins', 'CustomMenus', 'TransactionHistory'].includes(key)) return;
+            const config = collectionConfigs[key] || { icon: 'fa-box' };
+            html += `<div class="card-modern p-6 text-center cursor-pointer hover:bg-indigo-50 dark:hover:bg-indigo-900/20" onclick="showDeviceCategory('${key}')">
+                <i class="fas ${config.icon} text-3xl text-indigo-500 mb-3"></i>
+                <p class="font-bold">${key}</p>
+            </div>`;
         });
-        
-        container.innerHTML = html + `</div>`;
+        container.innerHTML = html + '</div>';
     }
 
-    window.showDeviceCategory = (collectionName) => {
+    window.showDeviceCategory = (key) => {
         document.getElementById('category-selection').style.display = 'none';
-        document.getElementById('device-list-view').style.display = 'flex';
-        document.getElementById('current-category-title').textContent = collectionConfigs[collectionName]?.displayName || collectionName;
-        
+        document.getElementById('device-list-view').style.display = 'block';
+        document.getElementById('current-category-title').innerText = key;
         const container = document.getElementById('device-list-container');
-        const allItems = allData[collectionName] || [];
-        const availableItems = allItems.filter(i => i.Status === 'Storage');
-        
-        if (availableItems.length > 0) {
-            let html = `<div class="grid grid-cols-1 md:grid-cols-2 gap-3">`;
-            availableItems.forEach(item => {
-                const config = collectionConfigs[collectionName];
-                const name = item[config.nameField] || item.ComputerName || item.ItemName || item.DeviceName || 'Unnamed Device';
-                const serial = item[config.serialField] || item.SerialNumber || item._id;
-                const id = item._id || item.id;
-                const isSelected = cartItems.some(c => c.id === id);
-                
-                html += `
-                <div class="device-card border border-gray-200 dark:border-gray-700 rounded-xl p-4 flex items-center space-x-4 bg-white dark:bg-gray-800 cursor-pointer ${isSelected ? 'selected' : 'hover:border-indigo-300 dark:hover:border-indigo-500'}" onclick="toggleCartItem(this, '${collectionName}', '${id}')">
-                    <div class="bg-gray-100 dark:bg-gray-700 p-2.5 rounded-lg">
-                        <i class="fas ${config.icon} text-xl text-gray-500 dark:text-gray-400"></i>
-                    </div>
-                    <div class="flex-1 min-w-0">
-                        <p class="font-bold text-sm text-gray-900 dark:text-white truncate">${name}</p>
-                        <p class="text-xs text-gray-500 dark:text-gray-400 font-mono mt-0.5">SN: ${serial}</p>
-                    </div>
-                    <div class="h-6 w-6 rounded-full border-2 ${isSelected ? 'border-indigo-500 bg-indigo-500' : 'border-gray-300 dark:border-gray-600'} flex items-center justify-center transition-colors">
-                        <i class="fas fa-check text-white text-xs selected-icon ${isSelected ? 'opacity-100' : 'opacity-0'}"></i>
-                    </div>
-                </div>`;
-            });
-            container.innerHTML = html + `</div>`;
-        } else {
-            container.innerHTML = `
-            <div class="flex flex-col items-center justify-center py-12 text-gray-400 dark:text-gray-500">
-                <i class="fas fa-box-open text-4xl mb-3 opacity-50"></i>
-                <p class="text-sm font-medium">ไม่มีอุปกรณ์ว่างในหมวดหมู่นี้</p>
+        const items = allData[key].filter(i => i.Status === 'Storage');
+        let html = '';
+        items.forEach(item => {
+            html += `<div class="card-modern p-4 cursor-pointer" onclick="addDeviceToCart('${key}', '${item.id}')">
+                <p class="font-bold">${item.ComputerName || item.ItemName || item.SerialNumber}</p>
+                <p class="text-xs text-slate-500">${item.SerialNumber}</p>
             </div>`;
-        }
+        });
+        container.innerHTML = html || '<p>No available items</p>';
     };
 
     window.showCategorySelection = () => {
@@ -367,333 +262,61 @@
         document.getElementById('device-list-view').style.display = 'none';
     };
 
-    window.toggleCartItem = (cardElement, collectionName, id) => {
-        const isInCart = cartItems.some(c => c.id === id);
-        
-        if (isInCart) {
-            cartItems = cartItems.filter(c => c.id !== id);
-            cardElement.classList.remove('selected');
-            const iconContainer = cardElement.querySelector('.h-6.w-6');
-            iconContainer.classList.remove('border-indigo-500', 'bg-indigo-500');
-            iconContainer.classList.add('border-gray-300', 'dark:border-gray-600');
-            iconContainer.querySelector('i').classList.replace('opacity-100', 'opacity-0');
-        } else {
-            const item = allData[collectionName]?.find(i => (i._id === id || i.id === id));
-            if(item) {
-                cartItems.push({ ...item, id: id, collection: collectionName });
-                cardElement.classList.add('selected');
-                const iconContainer = cardElement.querySelector('.h-6.w-6');
-                iconContainer.classList.add('border-indigo-500', 'bg-indigo-500');
-                iconContainer.classList.remove('border-gray-300', 'dark:border-gray-600');
-                iconContainer.querySelector('i').classList.replace('opacity-0', 'opacity-100');
-            }
+    window.addDeviceToCart = (col, id) => {
+        const item = allData[col].find(i => i.id === id);
+        if (item && !cartItems.some(c => c.id === id)) {
+            cartItems.push({...item, collection: col});
+            renderCart();
         }
-        renderCart();
     };
-
-    window.startScanning = () => {
-        document.getElementById('start-scan-button').disabled = true;
-        document.getElementById('camera-placeholder').style.display = 'none';
-        html5QrCode = new Html5Qrcode("qr-reader");
-        html5QrCode.start(
-            { facingMode: "environment" }, 
-            { fps: 10, qrbox: {width: 250, height: 250} }, 
-            code => handleScannedCode(code)
-        ).catch(err => {
-            alert("ไม่สามารถเปิดกล้องได้ กรุณาอนุญาตสิทธิ์การเข้าถึงกล้อง");
-            document.getElementById('start-scan-button').disabled = false;
-            document.getElementById('camera-placeholder').style.display = 'block';
-        });
-    };
-    
-    async function handleScannedCode(code) {
-        if(html5QrCode) {
-            html5QrCode.stop();
-            document.getElementById('start-scan-button').disabled = false;
-            document.getElementById('camera-placeholder').style.display = 'block';
-        }
-
-        try {
-            // Check if it's a URL (from our system's labels)
-            let searchSerial = code;
-            if (code.includes('details.html')) {
-                const url = new URL(code);
-                searchSerial = url.searchParams.get('sn');
-            } else if (code.includes('return.html')) {
-                window.location.href = code; // If scanning a return receipt, go to return page
-                return;
-            }
-
-            // Call server to find the device globally
-            const { item, collectionName } = await apiRequest(`/api/inventory/find/${searchSerial}`);
-            
-            if (item) {
-                if (item.Status !== 'Storage') {
-                    alert(`อุปกรณ์ชิ้นนี้ไม่สามารถยืมได้ (สถานะปัจจุบัน: ${item.Status})`);
-                    return;
-                }
-                showDeviceDetails(item, collectionName);
-            } else {
-                alert(`ไม่พบอุปกรณ์หมายเลข ${searchSerial} ในระบบ`);
-            }
-        } catch (e) {
-            alert(`เกิดข้อผิดพลาด หรือไม่พบอุปกรณ์ในระบบ: ${e.message}`);
-        }
-    }
-
-    function showDeviceDetails(item, collectionName) {
-        const title = document.getElementById('deviceDetailTitle');
-        const content = document.getElementById('deviceDetailContent');
-        const addToCartBtn = document.getElementById('addToCartButton');
-        const config = collectionConfigs[collectionName] || {};
-        
-        const name = item[config.nameField] || item.ComputerName || item.ItemName || item.DeviceName || 'Unknown Device';
-        title.innerHTML = `<i class="fas ${config.icon || 'fa-box'} text-indigo-500 mr-2"></i> ${name}`;
-        
-        content.innerHTML = '';
-        
-        const fieldsToShow = ['SerialNumber', 'MonitorSerial', 'Status', 'Location', 'Description'];
-        let html = '';
-        fieldsToShow.forEach(header => {
-            if(item[header]) {
-                let val = item[header];
-                if (header === 'Status') {
-                    val = `<span class="px-2 py-1 text-xs font-bold rounded bg-blue-100 text-blue-800">${val}</span>`;
-                }
-                html += `
-                <div class="flex flex-col border-b border-gray-100 dark:border-gray-700 py-3 last:border-0">
-                    <span class="text-xs font-bold text-gray-400 uppercase tracking-wider mb-1">${header.replace(/([A-Z])/g, ' $1').trim()}</span>
-                    <span class="font-medium text-gray-800 dark:text-gray-200">${val}</span>
-                </div>`;
-            }
-        });
-        content.innerHTML = html;
-        
-        const id = item._id || item.id;
-        
-        // Check if already in cart
-        if (cartItems.some(c => c.id === id)) {
-            addToCartBtn.innerHTML = `<i class="fas fa-check mr-2"></i> อยู่ในตะกร้าแล้ว`;
-            addToCartBtn.classList.replace('bg-indigo-600', 'bg-green-600');
-            addToCartBtn.classList.replace('hover:bg-indigo-700', 'hover:bg-green-700');
-            addToCartBtn.disabled = true;
-        } else {
-            addToCartBtn.innerHTML = `<i class="fas fa-cart-plus mr-2"></i> เพิ่มลงตะกร้า`;
-            addToCartBtn.classList.replace('bg-green-600', 'bg-indigo-600');
-            addToCartBtn.classList.replace('hover:bg-green-700', 'hover:bg-indigo-700');
-            addToCartBtn.disabled = false;
-            addToCartBtn.onclick = () => { 
-                addDeviceToCart(collectionName, id); 
-                window.hideModal('deviceDetailModal'); 
-            };
-        }
-        
-        window.openModal('deviceDetailModal');
-    }
-
-    function addDeviceToCart(collectionName, id) {
-        const item = allData[collectionName]?.find(i => (i._id === id || i.id === id));
-        if (!item || item.Status !== 'Storage' || cartItems.some(c => c.id === id)) return;
-        cartItems.push({ ...item, id: id, collection: collectionName });
-        renderCart();
-        
-        // Update UI if user is on select view
-        const cardElement = document.querySelector(`.device-card[onclick*="'${id}'"]`);
-        if(cardElement) {
-            cardElement.classList.add('selected');
-            const iconContainer = cardElement.querySelector('.h-6.w-6');
-            iconContainer.classList.add('border-indigo-500', 'bg-indigo-500');
-            iconContainer.classList.remove('border-gray-300', 'dark:border-gray-600');
-            iconContainer.querySelector('i').classList.replace('opacity-0', 'opacity-100');
-        }
-    }
 
     function renderCart() {
-        const cartDiv = document.getElementById('cart');
-        
-        if (cartItems.length === 0) {
-            cartDiv.innerHTML = `
-                <div class="h-full flex flex-col items-center justify-center text-gray-400 dark:text-gray-500 py-6">
-                    <i class="fas fa-box-open text-3xl mb-2 opacity-50"></i>
-                    <p class="text-sm font-medium">ยังไม่มีอุปกรณ์ในตะกร้า</p>
-                </div>`;
-            return;
-        }
-
-        let html = '';
-        cartItems.forEach((item, index) => {
-            const config = collectionConfigs[item.collection] || {};
-            const name = item[config.nameField] || item.ComputerName || item.ItemName || 'Device';
-            const serial = item[config.serialField] || item.SerialNumber || item.id;
-            
-            html += `
-            <div class="flex justify-between items-center bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 p-3 rounded-lg shadow-sm">
-                <div class="flex items-center">
-                    <div class="bg-indigo-50 dark:bg-gray-700 p-2 rounded mr-3">
-                        <i class="fas ${config.icon || 'fa-box'} text-indigo-500"></i>
-                    </div>
-                    <div>
-                        <p class="text-sm font-bold text-gray-800 dark:text-gray-200">${name}</p>
-                        <p class="text-xs text-gray-500 font-mono">${serial}</p>
-                    </div>
-                </div>
-                <button type="button" onclick="removeFromCart(${index})" class="text-red-400 hover:text-red-600 p-2 transition-colors">
-                    <i class="fas fa-trash-alt"></i>
-                </button>
-            </div>`;
-        });
-        cartDiv.innerHTML = html;
+        const container = document.getElementById('cart');
+        if (cartItems.length === 0) { container.innerHTML = '<p class="text-center text-slate-400">Empty</p>'; return; }
+        container.innerHTML = cartItems.map((item, i) => `
+            <div class="flex justify-between items-center p-2 bg-slate-50 dark:bg-slate-800 rounded">
+                <span class="text-sm font-bold truncate">${item.SerialNumber}</span>
+                <button onclick="removeFromCart(${i})" class="text-rose-500"><i class="fas fa-trash"></i></button>
+            </div>
+        `).join('');
     }
-    
-    window.removeFromCart = (index) => {
-        const removedItem = cartItems.splice(index, 1)[0];
-        renderCart();
-        const card = document.querySelector(`.device-card[onclick*="'${removedItem.id}'"]`);
-        if (card) {
-            card.classList.remove('selected');
-            const iconContainer = card.querySelector('.h-6.w-6');
-            if(iconContainer) {
-                iconContainer.classList.remove('border-indigo-500', 'bg-indigo-500');
-                iconContainer.classList.add('border-gray-300', 'dark:border-gray-600');
-                iconContainer.querySelector('i').classList.replace('opacity-100', 'opacity-0');
-            }
-        }
-    };
+
+    window.removeFromCart = (i) => { cartItems.splice(i, 1); renderCart(); };
 
     window.submitLoan = async () => {
-        const borrowerName = document.getElementById('borrowerName').value.trim();
+        const borrowerName = document.getElementById('borrowerName').value;
         const dueDate = document.getElementById('dueDate').value;
-        const notes = document.getElementById('loanNotes').value.trim();
-        
-        if (!borrowerName) return alert('กรุณาระบุชื่อผู้ยืม');
-        if (!dueDate) return alert('กรุณาระบุกำหนดคืน');
-        if (cartItems.length === 0) return alert('กรุณาเพิ่มอุปกรณ์ลงตะกร้าอย่างน้อย 1 ชิ้น');
-        
-        if (new Date(dueDate) < new Date(new Date().toDateString())) {
-            return alert('กำหนดคืนไม่สามารถเป็นวันที่ผ่านมาแล้วได้');
-        }
-        
-        const btn = document.querySelector('#loanForm button');
-        const originalText = btn.innerHTML;
-        btn.innerHTML = `<i class="fas fa-spinner fa-spin mr-2"></i> กำลังดำเนินการ...`;
-        btn.disabled = true;
-
-        const loanPayload = {
-            borrowerName, dueDate, notes,
-            items: cartItems.map(item => ({
-                deviceId: item.id,
-                deviceSerial: item[collectionConfigs[item.collection]?.serialField] || item.SerialNumber || item.id,
-                deviceType: item.collection
-            }))
-        };
-
+        if (!borrowerName || !dueDate || cartItems.length === 0) return alert('Fill all fields');
         try {
-            const response = await apiRequest('/api/loans/submit', 'POST', loanPayload);
-            showLoanReceipt(response.loanGroupId, { borrowerName, dueDate, items: cartItems });
-            cartItems = []; renderCart(); document.getElementById('loanForm').reset();
-            initializeAppLogic(); 
-        } catch (error) { 
-            alert(`เกิดข้อผิดพลาด: ${error.message}`); 
-        } finally {
-            btn.innerHTML = originalText;
-            btn.disabled = false;
-        }
+            const res = await apiRequest('/api/loans/submit', 'POST', {
+                borrowerName, dueDate, items: cartItems.map(i => ({ deviceId: i.id, deviceSerial: i.SerialNumber, deviceType: i.collection }))
+            });
+            showLoanReceipt(res.loanGroupId, { borrowerName, dueDate, items: cartItems });
+            cartItems = []; renderCart();
+        } catch (e) { alert(e.message); }
     };
-    
-    function showLoanReceipt(loanGroupId, loanDetails) {
-        const canvas = document.getElementById('receiptQrCanvas');
-        const returnUrl = `${window.location.origin}/return.html?id=${loanGroupId}`;
-        QRCode.toCanvas(canvas, returnUrl, { width: 200, margin: 1, color: { dark: '#000000', light: '#ffffff' } });
-        
-        const dateObj = new Date(loanDetails.dueDate);
-        const formattedDate = dateObj.toLocaleDateString('th-TH', { year: 'numeric', month: 'long', day: 'numeric' });
 
-        let detailsHtml = `
-            <div class="grid grid-cols-2 gap-2 mb-4">
-                <div><p class="text-xs text-gray-500 uppercase">รหัสการยืม</p><p class="font-bold text-gray-800 dark:text-white text-sm">${loanGroupId}</p></div>
-                <div><p class="text-xs text-gray-500 uppercase">ผู้ยืม</p><p class="font-bold text-indigo-600 dark:text-indigo-400 text-sm">${loanDetails.borrowerName}</p></div>
-                <div class="col-span-2"><p class="text-xs text-gray-500 uppercase">กำหนดคืน</p><p class="font-bold text-red-600 text-sm">${formattedDate}</p></div>
-            </div>
-            <div class="border-t border-gray-200 dark:border-gray-600 pt-3">
-                <p class="text-xs font-bold text-gray-500 mb-2">รายการอุปกรณ์ (${loanDetails.items.length} ชิ้น):</p>
-                <ul class="text-xs space-y-1.5 text-gray-700 dark:text-gray-300">
-        `;
-        
-        loanDetails.items.forEach(item => { 
-            const config = collectionConfigs[item.collection] || {};
-            const name = item[config.nameField] || item.ComputerName || 'Device';
-            const serial = item[config.serialField] || item.SerialNumber || item.id;
-            detailsHtml += `<li class="flex justify-between"><span>${name}</span><span class="font-mono text-gray-500">${serial}</span></li>`; 
-        });
-        
-        document.getElementById('receiptDetails').innerHTML = detailsHtml + `</ul></div>`;
-        window.openModal('receiptModal');
+    function showLoanReceipt(id, details) {
+        QRCode.toCanvas(document.getElementById('receiptQrCanvas'), `${window.location.origin}/return.html?id=${id}`);
+        document.getElementById('receiptDetails').innerHTML = `<p>ID: ${id}</p><p>Name: ${details.borrowerName}</p>`;
+        openModal('receiptModal');
     }
 
-    window.closeReceiptModal = () => {
-        window.hideModal('receiptModal');
-        window.switchLoanTab('select', document.querySelector('.tab-button:nth-child(2)'));
-        window.showCategorySelection();
-    };
+    window.closeReceiptModal = () => hideModal('receiptModal');
 
-    async function initializeAppLogic() {
+    window.addEventListener('load', async () => {
         try {
-            // 🌟 แก้ไข: เรียกใช้งาน API สาธารณะสำหรับหน้าระบบยืมโดยเฉพาะ
             const data = await apiRequest('/api/public/loanable-items');
-            
-            for (const key in data) {
-                if (Array.isArray(data[key])) {
-                    allData[key] = data[key].map(item => ({...item, id: item._id }));
-                }
-            }
-
-            // ถ้าไม่มี CustomMenus แนบมา ให้พยายามหาชื่อและไอคอนจาก Collection ที่ดึงมา
-            Object.keys(allData).forEach(key => {
-                if (!collectionConfigs[key]) {
-                    collectionConfigs[key] = { 
-                        displayName: key, 
-                        nameField: 'SerialNumber',
-                        serialField: 'SerialNumber',
-                        icon: 'fa-box'
-                    };
-                }
-            });
-
+            for(let k in data) allData[k] = data[k].map(i => ({...i, id: i._id}));
             document.getElementById('loading-state').style.display = 'none';
             document.getElementById('loan-page').style.display = 'block';
             populateCategories();
-            
-            const tomorrow = new Date();
-            tomorrow.setDate(tomorrow.getDate() + 1);
-            document.getElementById('dueDate').value = tomorrow.toISOString().split('T')[0];
-
-        } catch (error) { 
-            document.getElementById('loading-state').innerHTML = `
-                <div class="text-center">
-                    <i class="fas fa-exclamation-triangle text-4xl text-red-500 mb-3"></i>
-                    <p class="text-gray-800 dark:text-white font-bold text-xl">ไม่สามารถโหลดข้อมูลได้</p>
-                    <p class="text-gray-500 mt-2">${error.message}</p>
-                </div>`; 
-        }
-    }
-
-    // --- Theme Toggle ---
-    const themeToggleBtn = document.getElementById('theme-toggle');
-    function applyTheme(theme) {
-        const isDark = theme === 'dark';
-        document.documentElement.classList.toggle('dark', isDark);
-        themeToggleBtn.querySelector('#theme-toggle-dark-icon').classList.toggle('hidden', isDark);
-        themeToggleBtn.querySelector('#theme-toggle-light-icon').classList.toggle('hidden', !isDark);
-    }
-    themeToggleBtn.addEventListener('click', () => {
-        const newTheme = document.documentElement.classList.contains('dark') ? 'light' : 'dark';
-        localStorage.setItem('color-theme', newTheme);
-        applyTheme(newTheme);
+        } catch(e) { console.error(e); }
     });
-    window.addEventListener('load', () => {
-        const savedTheme = localStorage.getItem('color-theme') || (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
-        applyTheme(savedTheme);
-        initializeAppLogic();
+
+    // Theme Toggle
+    document.getElementById('theme-toggle').addEventListener('click', () => {
+        document.documentElement.classList.toggle('dark');
     });
   </script>
 </body>
