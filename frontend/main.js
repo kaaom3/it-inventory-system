@@ -910,6 +910,8 @@ function generateDynamicPages() {
         const pageId = `${colName.toLowerCase()}-page`;
         const displayName = config.isCustom ? config.displayName : t(colName.toLowerCase()) || config.displayName || colName;
         
+        const statusOptions = config.dropdowns && config.dropdowns.Status ? config.dropdowns.Status.map(s => `<option value="${s}">${t(s.toLowerCase().replace(' ', '_')) || s}</option>`).join('') : '';
+
         container.innerHTML += `
         <div id="${pageId}" class="page-content hidden">
             <header class="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-10">
@@ -932,32 +934,40 @@ function generateDynamicPages() {
             
             <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-6 mb-10" id="${colName}SummaryCards"></div>
             
-            <div class="mb-4 flex flex-col md:flex-row gap-2">
-                <div class="w-full md:w-1/4">
-                    <select onchange="window.handleStatusFilter('${colName}', this.value)" class="w-full px-4 py-2 border rounded-lg dark:bg-gray-700 dark:border-gray-600 dark:text-gray-200">
+            <div class="mb-6 flex flex-col md:flex-row gap-4">
+                <div class="w-full md:w-64">
+                    <select onchange="window.handleStatusFilter('${colName}', this.value)" class="input-modern w-full">
                         <option value="">${t('all_statuses')}</option>
                         ${statusOptions}
                     </select>
                 </div>
-                <div class="w-full md:w-3/4">
-                    <input type="text" id="${colName.toLowerCase()}SearchInput" onkeyup="window.handleSearch('${colName}', this.value)" placeholder="${t('search')}" class="w-full px-4 py-2 border rounded-lg dark:bg-gray-700 dark:border-gray-600 dark:placeholder-gray-400">
+                <div class="flex-1">
+                    <div class="relative">
+                        <div class="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
+                            <i class="fas fa-search text-slate-400"></i>
+                        </div>
+                        <input type="text" id="${colName.toLowerCase()}SearchInput" onkeyup="window.handleSearch('${colName}', this.value)" placeholder="${t('search')}" class="input-modern w-full pl-11">
+                    </div>
                 </div>
             </div>
 
-            <div id="${colName}BulkActions" class="hidden mb-4 p-3 bg-indigo-50 dark:bg-indigo-900/30 border border-indigo-200 dark:border-indigo-700 rounded-lg flex items-center justify-between">
-                <div class="text-indigo-800 dark:text-indigo-200 text-sm font-semibold">
-                    <i class="fas fa-check-square mr-1"></i> <span class="selected-count">0 ${t('items')}</span>
+            <div id="${colName}BulkActions" class="hidden mb-6 p-4 bg-indigo-50 dark:bg-indigo-900/30 border border-indigo-200 dark:border-indigo-700 rounded-2xl flex items-center justify-between shadow-sm">
+                <div class="text-indigo-800 dark:text-indigo-200 text-sm font-bold flex items-center">
+                    <div class="w-8 h-8 bg-indigo-600 rounded-lg flex items-center justify-center text-white mr-3 shadow-lg">
+                        <i class="fas fa-check-square text-xs"></i>
+                    </div>
+                    <span class="selected-count">0</span> ${t('items_selected')}
                 </div>
                 <div class="flex space-x-2">
-                    <button onclick="window.openBulkEditModal('${colName}')" class="px-3 py-1.5 bg-indigo-600 text-white text-sm rounded hover:bg-indigo-700 shadow-sm"><i class="fas fa-edit mr-1"></i>${t('bulk_edit')}</button>
-                    <button onclick="window.bulkDelete('${colName}')" class="px-3 py-1.5 bg-red-600 text-white text-sm rounded hover:bg-red-700 shadow-sm"><i class="fas fa-trash mr-1"></i>${t('bulk_delete')}</button>
+                    <button onclick="window.openBulkEditModal('${colName}')" class="px-4 py-2 bg-indigo-600 text-white text-xs font-bold rounded-xl hover:bg-indigo-700 transition-all shadow-sm flex items-center"><i class="fas fa-edit mr-2"></i>${t('bulk_edit')}</button>
+                    <button onclick="window.bulkDelete('${colName}')" class="px-4 py-2 bg-rose-600 text-white text-xs font-bold rounded-xl hover:bg-rose-700 transition-all shadow-sm flex items-center"><i class="fas fa-trash mr-2"></i>${t('bulk_delete')}</button>
                 </div>
             </div>
 
-            <div class="bg-white dark:bg-gray-800 rounded-lg shadow-sm overflow-hidden border border-gray-100 dark:border-gray-700">
-                <div class="overflow-x-auto"><table id="${colName}Table" class="min-w-full table-fixed"></table></div>
+            <div class="card-modern overflow-hidden">
+                <div class="overflow-x-auto"><table id="${colName}Table" class="modern-table"></table></div>
             </div>
-            <div id="${colName}Pagination" class="flex items-center justify-between mt-4 text-sm text-gray-600 dark:text-gray-300"></div>
+            <div id="${colName}Pagination" class="flex items-center justify-between mt-6 text-sm text-slate-500 font-medium"></div>
         </div>`;
     });
 }
@@ -967,8 +977,7 @@ function generateDynamicPages() {
 // ==========================================
 window.loadPage = function(pageName, navElement) {
     document.querySelectorAll('.nav-link').forEach(l => {
-        l.classList.remove('bg-indigo-50', 'text-indigo-600', 'dark:bg-gray-700', 'dark:text-white', 'font-semibold');
-        l.classList.add('text-gray-600', 'dark:text-gray-300');
+        l.classList.remove('active');
     });
 
     document.querySelectorAll('.page-content').forEach(p => {
@@ -978,6 +987,30 @@ window.loadPage = function(pageName, navElement) {
     });
 
     let targetNav = navElement || document.getElementById(`nav-${pageName}`);
+    if (targetNav) targetNav.classList.add('active');
+
+    const targetPage = document.getElementById(`${pageName.toLowerCase()}-page`);
+    if (targetPage) {
+        targetPage.classList.remove('hidden');
+        targetPage.classList.add('active');
+        targetPage.style.display = 'block';
+        window.currentPage = pageName;
+
+        if (pageName === 'Dashboard') {
+            window.updateDashboard();
+        } else if (collectionConfigs[pageName]) {
+            window.buildTable(pageName);
+        }
+    }
+    
+    // Auto-close mobile sidebar
+    if (window.innerWidth < 768) {
+        const sidebar = document.getElementById('sidebar');
+        const overlay = document.getElementById('sidebar-overlay');
+        if (sidebar) sidebar.classList.add('-translate-x-full');
+        if (overlay) overlay.classList.add('hidden');
+    }
+};
     if (targetNav) {
         targetNav.classList.remove('text-gray-600', 'dark:text-gray-300');
         targetNav.classList.add('bg-indigo-50', 'text-indigo-600', 'dark:bg-gray-700', 'dark:text-white', 'font-semibold');
