@@ -1626,9 +1626,6 @@ window.buildTable = function(collectionName) {
     window.renderPaginationControls(collectionName, totalRows);
     window.updateBulkActionBar(collectionName);
 };
-    window.renderPaginationControls(collectionName, totalRows);
-    window.updateBulkActionBar(collectionName);
-};
 
 window.renderPaginationControls = function(collectionName, totalRows) {
     const container = document.getElementById(collectionName + 'Pagination');
