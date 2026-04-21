@@ -30,21 +30,21 @@
         .modal.active .modal-content { transform: scale(1); }
     </style>
 </head>
-<body class="bg-slate-50 dark:bg-[#0f172a] text-slate-900 dark:text-slate-100 min-h-screen flex flex-col transition-colors duration-300 antialiased">
+<body class="bg-slate-100 dark:bg-slate-950 text-slate-900 dark:text-slate-100 min-h-screen flex flex-col transition-colors duration-300 antialiased font-sans">
     
     <!-- Header -->
-    <header class="w-full bg-white/80 dark:bg-slate-900/80 backdrop-blur-md border-b dark:border-slate-800 p-4 sticky top-0 z-40">
+    <header class="w-full bg-slate-900 text-white p-4 sticky top-0 z-40 border-b border-slate-800 shadow-xl">
         <div class="max-w-7xl mx-auto flex items-center justify-between">
             <div class="flex items-center space-x-4">
-                <div class="w-10 h-10 bg-indigo-600 rounded-xl flex items-center justify-center text-white shadow-xl shadow-indigo-200 dark:shadow-none">
+                <div class="w-10 h-10 bg-blue-600 rounded flex items-center justify-center text-white shadow-lg">
                     <i class="fas fa-undo-alt text-xl"></i>
                 </div>
                 <div>
-                    <h1 class="text-xl font-black text-slate-800 dark:text-white tracking-tight">Return Assets</h1>
-                    <p class="text-[10px] text-indigo-500 font-bold uppercase tracking-widest">Inventory Recovery</p>
+                    <h1 class="text-xl font-black tracking-tight uppercase">Recovery Protocol</h1>
+                    <p class="text-[10px] text-blue-400 font-bold uppercase tracking-[0.2em]">Asset Return Terminal</p>
                 </div>
             </div>
-            <button id="theme-toggle" class="w-10 h-10 flex items-center justify-center rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 transition-all hover:bg-slate-200 dark:hover:bg-slate-700">
+            <button id="theme-toggle" class="w-10 h-10 flex items-center justify-center rounded bg-slate-800 text-slate-300 transition-all hover:bg-slate-700">
                 <i id="theme-toggle-dark-icon" class="fas fa-moon"></i>
                 <i id="theme-toggle-light-icon" class="fas fa-sun text-yellow-400 hidden"></i>
             </button>
@@ -53,66 +53,62 @@
 
     <!-- Main Content -->
     <main class="flex-1 p-6 md:p-10 w-full max-w-4xl mx-auto flex flex-col justify-center relative">
-        <!-- Background Elements -->
-        <div class="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-full h-full bg-indigo-500/5 rounded-full blur-[120px] -z-10"></div>
+        <!-- Solid Background Accent -->
+        <div class="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-full h-full bg-blue-600/5 -z-10 rotate-12 transform scale-150"></div>
 
-        <div class="bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl p-8 md:p-12 rounded-[2.5rem] shadow-2xl border border-white/20 dark:border-slate-800/50 relative overflow-hidden">
+        <div class="bg-white dark:bg-slate-900 p-8 md:p-14 rounded-2xl shadow-[0_30px_60px_rgba(0,0,0,0.15)] border-2 border-slate-200 dark:border-slate-800 relative overflow-hidden">
             
             <!-- Loading State -->
             <div id="loading" class="flex flex-col items-center justify-center py-24 text-slate-500">
-                <div class="relative w-12 h-12 mb-6">
-                    <div class="absolute inset-0 border-4 border-indigo-100 dark:border-indigo-900/30 rounded-full"></div>
-                    <div class="absolute inset-0 border-4 border-indigo-600 rounded-full border-t-transparent animate-spin"></div>
-                </div>
-                <p class="text-[10px] font-black uppercase tracking-widest">Verifying Transaction...</p>
+                <div class="w-12 h-12 border-4 border-blue-600 border-t-transparent rounded-full animate-spin mb-6"></div>
+                <p class="text-[10px] font-black uppercase tracking-[0.3em]">Validating Return Request...</p>
             </div>
             
             <!-- Content State -->
             <div id="content" class="hidden">
-                <div class="mb-10">
-                    <h2 class="text-3xl font-black text-slate-800 dark:text-white tracking-tight">Return Manifest</h2>
-                    <p class="text-slate-500 dark:text-slate-400 mt-1">Review and process item returns</p>
+                <div class="mb-12 border-b-2 border-slate-100 dark:border-slate-800 pb-8">
+                    <h2 class="text-4xl font-black text-slate-900 dark:text-white tracking-tight uppercase">Return Manifest</h2>
+                    <p class="text-slate-600 dark:text-slate-400 mt-2 font-bold uppercase tracking-widest text-xs">Verify items for inventory re-entry</p>
                 </div>
                 
                 <!-- Borrower Details -->
-                <div id="returnDetails" class="mb-10 p-8 bg-indigo-50 dark:bg-indigo-900/20 rounded-3xl border border-indigo-100 dark:border-indigo-800/50 shadow-sm relative overflow-hidden">
-                    <div class="absolute top-0 right-0 p-4 opacity-5">
-                        <i class="fas fa-receipt text-6xl"></i>
+                <div id="returnDetails" class="mb-12 p-10 bg-slate-50 dark:bg-slate-950 rounded-2xl border-2 border-slate-200 dark:border-slate-800 shadow-inner relative overflow-hidden">
+                    <div class="absolute top-0 right-0 p-6 opacity-5">
+                        <i class="fas fa-receipt text-8xl text-blue-600"></i>
                     </div>
                     <!-- Injected by JS -->
                 </div>
                 
-                <h3 class="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-[0.2em] mb-6 flex items-center">
-                    <span class="w-8 h-8 bg-indigo-50 dark:bg-indigo-900/30 rounded-lg flex items-center justify-center text-indigo-500 mr-3">
-                        <i class="fas fa-box-open text-[10px]"></i>
-                    </span>
-                    Items in this Session
+                <h3 class="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-[0.4em] mb-8 flex items-center">
+                    <i class="fas fa-boxes mr-4 text-blue-600"></i>
+                    Inventory Breakdown
                 </h3>
                 
                 <!-- Item List -->
-                <div id="return-items-list" class="space-y-4 mb-10">
+                <div id="return-items-list" class="space-y-4 mb-12">
                     <!-- Injected by JS -->
                 </div>
                 
                 <!-- Action Buttons -->
-                <div id="return-actions" class="mt-10 flex flex-col sm:flex-row justify-end gap-4 pt-10 border-t dark:border-slate-800">
+                <div id="return-actions" class="mt-12 flex flex-col sm:flex-row justify-end gap-5 pt-10 border-t-2 border-slate-100 dark:border-slate-800">
                     <!-- Injected by JS -->
                 </div>
             </div>
             
             <!-- Not Found State -->
-            <div id="not-found" class="hidden flex flex-col items-center justify-center py-20 text-center">
-                 <div class="w-24 h-24 bg-rose-50 dark:bg-rose-900/20 rounded-full flex items-center justify-center mb-8">
-                     <i class="fas fa-exclamation-triangle text-4xl text-rose-500"></i>
+            <div id="not-found" class="hidden flex flex-col items-center justify-center py-24 text-center">
+                 <div class="w-24 h-24 bg-rose-100 dark:bg-rose-900/20 rounded-full flex items-center justify-center mb-10 border-4 border-rose-200">
+                     <i class="fas fa-exclamation-triangle text-4xl text-rose-600"></i>
                  </div>
-                 <h2 class="text-3xl font-black text-slate-800 dark:text-white mb-3 tracking-tight">Invalid Transaction</h2>
-                 <p class="text-slate-500 dark:text-slate-400 mb-10 max-w-sm mx-auto font-medium">We couldn't locate this loan ID. Please verify your receipt or contact IT support for manual return.</p>
-                 <button onclick="window.location.href='loan.html'" class="btn-primary px-10 py-4">
+                 <h2 class="text-3xl font-black text-slate-900 dark:text-white mb-4 uppercase tracking-tight">Access Denied</h2>
+                 <p class="text-slate-500 dark:text-slate-400 mb-12 max-w-sm mx-auto font-bold uppercase tracking-widest text-xs">This loan identifier is either invalid or has already been processed.</p>
+                 <button onclick="window.location.href='loan.html'" class="bg-slate-900 dark:bg-white text-white dark:text-slate-900 px-12 py-5 rounded-xl font-black uppercase tracking-widest shadow-xl transition-all">
                      Back to Portal
                  </button>
             </div>
         </div>
     </main>
+
 
     <!-- Notification Modal Update -->
     <div id="notificationModal" class="modal opacity-0 pointer-events-none fixed inset-0 z-[60] flex items-center justify-center bg-slate-900/60 p-6 backdrop-blur-md transition-all duration-300">

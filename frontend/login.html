@@ -11,65 +11,69 @@
         body { font-family: 'Inter', sans-serif; }
     </style>
 </head>
-<body class="bg-slate-50 dark:bg-[#0f172a] text-slate-900 dark:text-slate-100 antialiased">
+<body class="bg-slate-100 dark:bg-slate-950 text-slate-900 dark:text-slate-100 antialiased font-sans">
     <div class="min-h-screen flex items-center justify-center p-6 relative overflow-hidden">
-        <!-- Abstract Background Elements -->
-        <div class="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] bg-indigo-500/10 rounded-full blur-[120px]"></div>
-        <div class="absolute bottom-[-10%] right-[-10%] w-[40%] h-[40%] bg-emerald-500/10 rounded-full blur-[120px]"></div>
+        <!-- Defined Shapes Background -->
+        <div class="absolute top-0 right-0 w-1/3 h-full bg-blue-600/5 -skew-x-12 transform origin-top shadow-inner"></div>
+        <div class="absolute bottom-0 left-0 w-1/4 h-1/2 bg-blue-500/5 skew-x-12 transform origin-bottom shadow-inner"></div>
 
-        <div class="max-w-md w-full relative group">
-            <div class="absolute -inset-1 bg-gradient-to-r from-indigo-500 to-emerald-500 rounded-3xl blur opacity-20 group-hover:opacity-30 transition duration-1000 group-hover:duration-200"></div>
-            <div class="relative bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl p-10 rounded-3xl shadow-2xl border border-white/20 dark:border-slate-800/50">
+        <div class="max-w-md w-full relative">
+            <div class="bg-white dark:bg-slate-900 p-10 rounded-2xl shadow-[0_20px_50px_rgba(0,0,0,0.1)] border-2 border-slate-200 dark:border-slate-800">
                 
                 <div class="text-center mb-10">
-                    <div class="inline-flex items-center justify-center w-20 h-20 bg-indigo-600 rounded-2xl shadow-xl shadow-indigo-200 dark:shadow-none mb-6 transform group-hover:scale-110 transition-transform duration-500">
+                    <div class="inline-flex items-center justify-center w-20 h-20 bg-blue-600 rounded-xl shadow-lg mb-6">
                         <i class="fas fa-cubes text-3xl text-white"></i>
                     </div>
-                    <h1 class="text-3xl font-black text-slate-800 dark:text-white tracking-tight">Inventory System</h1>
-                    <p class="text-slate-500 dark:text-slate-400 mt-2 font-medium">Enterprise Asset Management</p>
+                    <h1 class="text-3xl font-black text-slate-900 dark:text-white tracking-tight uppercase">Inventory</h1>
+                    <p class="text-slate-500 dark:text-slate-400 mt-2 font-bold tracking-widest text-xs">OPERATOR TERMINAL</p>
                 </div>
                 
                 <form id="loginForm" class="space-y-6">
                     <div>
-                        <label for="email" class="block text-xs font-black text-slate-500 dark:text-slate-400 uppercase tracking-widest mb-2">Email Address</label>
+                        <label for="email" class="block text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-[0.2em] mb-2 ml-1">Secure Email</label>
                         <div class="relative">
                             <div class="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
-                                <i class="far fa-envelope text-slate-400 text-sm"></i>
+                                <i class="fas fa-envelope text-slate-400 text-sm"></i>
                             </div>
                             <input type="email" id="email" name="email" required 
-                                class="block w-full pl-11 pr-4 py-3.5 bg-slate-50/50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white text-sm rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all outline-none"
-                                placeholder="name@company.com">
+                                class="block w-full pl-11 pr-4 py-4 bg-slate-50 dark:bg-slate-800 border-2 border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white text-sm rounded-xl focus:ring-4 focus:ring-blue-500/10 focus:border-blue-600 transition-all outline-none font-medium"
+                                placeholder="name@organization.com">
                         </div>
                     </div>
                     
                     <div>
-                        <div class="flex justify-between items-center mb-2">
-                            <label for="password" class="block text-xs font-black text-slate-500 dark:text-slate-400 uppercase tracking-widest">Password</label>
-                            <a href="#" class="text-[10px] font-bold text-indigo-600 dark:text-indigo-400 uppercase tracking-wider hover:underline">Forgot?</a>
+                        <div class="flex justify-between items-center mb-2 ml-1">
+                            <label for="password" class="block text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-[0.2em]">Keycode</label>
                         </div>
                         <div class="relative">
                             <div class="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
                                 <i class="fas fa-lock text-slate-400 text-sm"></i>
                             </div>
                             <input type="password" id="password" name="password" required 
-                                class="block w-full pl-11 pr-4 py-3.5 bg-slate-50/50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white text-sm rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all outline-none"
+                                class="block w-full pl-11 pr-4 py-4 bg-slate-50 dark:bg-slate-800 border-2 border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white text-sm rounded-xl focus:ring-4 focus:ring-blue-500/10 focus:border-blue-600 transition-all outline-none font-medium"
                                 placeholder="••••••••">
                         </div>
                     </div>
                     
-                    <div id="errorMessage" class="text-rose-500 text-xs font-bold text-center h-5"></div>
+                    <div id="errorMessage" class="text-rose-600 text-xs font-black text-center h-5 uppercase tracking-tighter"></div>
                     
                     <button type="submit" id="loginButton" 
-                        class="w-full flex justify-center py-4 px-4 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-black rounded-xl shadow-lg shadow-indigo-200 dark:shadow-none focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition-all transform active:scale-[0.98] uppercase tracking-widest">
-                        Sign In
+                        class="w-full flex justify-center items-center py-4 px-4 bg-blue-600 hover:bg-blue-700 text-white text-sm font-black rounded-xl shadow-xl hover:shadow-blue-500/20 focus:outline-none transition-all transform active:scale-[0.98] uppercase tracking-[0.2em]">
+                        Establish Connection <i class="fas fa-arrow-right ml-3"></i>
                     </button>
                 </form>
 
-                <div class="mt-8 pt-8 border-t border-slate-100 dark:border-slate-800 text-center">
-                    <p class="text-xs text-slate-500 dark:text-slate-400">
-                        Need access? Contact <a href="mailto:it@company.com" class="text-indigo-600 dark:text-indigo-400 font-bold hover:underline">IT Support</a>
+                <div class="mt-10 pt-8 border-t-2 border-slate-50 dark:border-slate-800 text-center">
+                    <p class="text-[10px] text-slate-400 font-bold uppercase tracking-widest">
+                        Unauthorized access is prohibited
                     </p>
                 </div>
+            </div>
+            
+            <div class="mt-8 text-center">
+                <p class="text-xs text-slate-500 font-medium">
+                    Need assistance? <a href="#" class="text-blue-600 dark:text-blue-400 font-black hover:underline underline-offset-4">Technical Support</a>
+                </p>
             </div>
         </div>
     </div>

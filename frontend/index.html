@@ -28,255 +28,189 @@
     <script src="https://cdn.jsdelivr.net/npm/qrcode/build/qrcode.min.js"></script>
     
     <style>
-        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
-        .page-content { animation: fadeIn 0.4s cubic-bezier(0.4, 0, 0.2, 1); }
+        .page-content { animation: fadeIn 0.3s ease-out; }
+        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
         
-        /* Custom UI fixes for dynamic components */
-        .custom-scrollbar::-webkit-scrollbar { width: 4px; }
-        .custom-scrollbar::-webkit-scrollbar-thumb { background: #e2e8f0; border-radius: 10px; }
-        .dark .custom-scrollbar::-webkit-scrollbar-thumb { background: #334155; }
+        .custom-scrollbar::-webkit-scrollbar { width: 6px; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: #475569; border-radius: 10px; }
         
-        .tab-button { transition: all 0.2s ease; border-bottom: 2px solid transparent; }
-        .tab-button.active { border-color: #4f46e5; color: #4f46e5; }
-        .dark .tab-button.active { border-color: #818cf8; color: #818cf8; }
+        .sidebar-header-text { color: #64748b; font-size: 0.7rem; font-weight: 800; letter-spacing: 0.1em; text-transform: uppercase; padding: 1.5rem 1.5rem 0.5rem; }
     </style>
 </head>
-<body class="bg-slate-50 dark:bg-[#0f172a] text-slate-900 dark:text-slate-100 transition-colors duration-300 antialiased">
+<body class="bg-slate-100 dark:bg-slate-950 text-slate-900 dark:text-slate-200 antialiased">
 
     <!-- Loading State -->
-    <div id="loading-state" class="fixed inset-0 bg-white dark:bg-[#0f172a] z-[100] flex items-center justify-center backdrop-blur-xl">
+    <div id="loading-state" class="fixed inset-0 bg-slate-900 z-[100] flex items-center justify-center">
         <div class="text-center">
-            <div class="relative w-20 h-20 mx-auto mb-6">
-                <div class="absolute inset-0 border-4 border-indigo-100 dark:border-indigo-900/30 rounded-full"></div>
-                <div class="absolute inset-0 border-4 border-indigo-600 rounded-full border-t-transparent animate-spin"></div>
-            </div>
-            <h2 class="text-xl font-bold text-slate-800 dark:text-white" data-i18n="loading_system">Loading System...</h2>
+            <div class="w-16 h-16 border-4 border-blue-500 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
+            <h2 class="text-xl font-bold text-white tracking-widest uppercase" data-i18n="loading_system">System Initializing...</h2>
         </div>
     </div>
 
     <!-- Mobile Header -->
-    <div class="md:hidden bg-white/80 dark:bg-slate-900/80 backdrop-blur-md border-b dark:border-slate-800 p-4 flex justify-between items-center sticky top-0 z-40">
+    <div class="md:hidden bg-slate-900 text-white p-4 flex justify-between items-center sticky top-0 z-40 shadow-lg">
         <div class="flex items-center space-x-3">
-            <div class="w-8 h-8 bg-indigo-600 rounded-lg flex items-center justify-center text-white shadow-lg shadow-indigo-200 dark:shadow-none">
-                <i class="fas fa-cubes text-sm"></i>
-            </div>
-            <span class="font-bold text-lg tracking-tight" data-i18n="app_title">Inventory</span>
+            <i class="fas fa-cubes text-blue-500 text-xl"></i>
+            <span class="font-black text-lg uppercase tracking-tight" data-i18n="app_title">Inventory</span>
         </div>
-        <button onclick="document.getElementById('sidebar').classList.toggle('-translate-x-full'); document.getElementById('sidebar-overlay').classList.toggle('hidden');" class="w-10 h-10 flex items-center justify-center rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300">
-            <i class="fas fa-bars"></i>
+        <button onclick="document.getElementById('sidebar').classList.toggle('-translate-x-full'); document.getElementById('sidebar-overlay').classList.toggle('hidden');" class="p-2 text-slate-300">
+            <i class="fas fa-bars text-2xl"></i>
         </button>
     </div>
-    <div id="sidebar-overlay" class="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-40 hidden md:hidden" onclick="document.getElementById('sidebar').classList.add('-translate-x-full'); this.classList.add('hidden');"></div>
+    <div id="sidebar-overlay" class="fixed inset-0 bg-black/60 z-40 hidden md:hidden" onclick="document.getElementById('sidebar').classList.add('-translate-x-full'); this.classList.add('hidden');"></div>
 
-    <div id="app-container" class="relative min-h-screen flex flex-col md:flex-row overflow-hidden hidden">
+    <div id="app-container" class="relative min-h-screen flex flex-col md:flex-row hidden">
         
         <!-- Sidebar -->
-        <nav id="sidebar" class="w-72 bg-white dark:bg-slate-900 border-r dark:border-slate-800 flex flex-col fixed inset-y-0 left-0 transform -translate-x-full md:relative md:translate-x-0 z-50 transition-transform duration-300 h-screen shadow-2xl md:shadow-none">
-            <div class="p-6 flex flex-col h-full">
+        <nav id="sidebar" class="w-72 bg-slate-900 border-r border-slate-800 flex flex-col fixed inset-y-0 left-0 transform -translate-x-full md:relative md:translate-x-0 z-50 transition-transform duration-300 h-screen">
+            <div class="flex flex-col h-full overflow-hidden">
                 <!-- Brand -->
-                <div class="flex items-center space-x-4 mb-10 px-2">
-                    <div class="w-10 h-10 bg-indigo-600 rounded-xl flex items-center justify-center text-white shadow-xl shadow-indigo-200 dark:shadow-none">
+                <div class="p-8 flex items-center space-x-3 border-b border-slate-800">
+                    <div class="w-10 h-10 bg-blue-600 rounded flex items-center justify-center text-white shadow-lg">
                         <i class="fas fa-cubes text-xl"></i>
                     </div>
                     <div>
-                        <h1 class="text-xl font-black text-slate-800 dark:text-white tracking-tight" data-i18n="app_title">Inventory</h1>
-                        <p class="text-[10px] text-indigo-500 font-bold uppercase tracking-widest">Enterprise Edition</p>
+                        <h1 class="text-xl font-black text-white tracking-tight uppercase" data-i18n="app_title">Inventory</h1>
+                        <p class="text-[10px] text-blue-400 font-bold tracking-widest">MANAGEMENT</p>
                     </div>
                 </div>
 
                 <!-- User Info -->
-                <div class="mb-8 px-4 py-3 bg-slate-50 dark:bg-slate-800/50 rounded-2xl border border-slate-100 dark:border-slate-700/50">
-                    <p class="text-[10px] text-slate-500 uppercase font-bold tracking-wider mb-1" data-i18n="logged_in_as">Logged in as</p>
-                    <div class="flex items-center space-x-2">
-                        <div class="w-2 h-2 bg-emerald-500 rounded-full animate-pulse"></div>
-                        <p id="user-email-display" class="text-sm font-semibold text-slate-700 dark:text-slate-200 truncate">admin</p>
-                    </div>
+                <div class="mx-6 my-6 p-4 bg-slate-800/50 rounded-lg border border-slate-700">
+                    <p class="text-[10px] text-slate-500 uppercase font-bold tracking-widest mb-1" data-i18n="logged_in_as">Operator</p>
+                    <p id="user-email-display" class="text-sm font-bold text-white truncate">admin</p>
                 </div>
                 
                 <!-- Menu -->
-                <ul id="sidebar-menu-container" class="space-y-1 overflow-y-auto flex-1 pb-4 custom-scrollbar -mx-2 px-2">
+                <ul id="sidebar-menu-container" class="space-y-1 overflow-y-auto flex-1 px-4 custom-scrollbar">
                     <!-- Menus injected by main.js -->
                 </ul>
 
                 <!-- Footer Menu -->
-                <div class="mt-auto pt-6 border-t dark:border-slate-800 space-y-2">
-                    <button id="lang-toggle" onclick="window.toggleLanguage()" class="nav-link w-full">
-                        <i class="fas fa-globe w-5 text-indigo-500"></i>
-                        <span id="lang-text" class="text-sm">เปลี่ยนเป็นภาษาไทย</span>
+                <div class="p-6 border-t border-slate-800 space-y-2">
+                    <button id="lang-toggle" onclick="window.toggleLanguage()" class="nav-link w-full text-left hover:bg-slate-800">
+                        <i class="fas fa-globe w-5 text-blue-500"></i>
+                        <span id="lang-text" class="text-sm font-bold">TH/EN</span>
                     </button>
-                    <button id="theme-toggle" class="nav-link w-full">
-                        <i class="fas fa-moon w-5 text-indigo-500" id="theme-icon"></i>
-                        <span id="theme-text" class="text-sm" data-i18n="dark_mode">Dark Mode</span>
+                    <button id="theme-toggle" class="nav-link w-full text-left hover:bg-slate-800">
+                        <i class="fas fa-moon w-5 text-blue-500" id="theme-icon"></i>
+                        <span id="theme-text" class="text-sm font-bold" data-i18n="dark_mode">Dark Mode</span>
                     </button>
-                    <button id="logout-btn" onclick="window.logout()" class="w-full flex items-center px-4 py-3 rounded-xl text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-900/20 transition-all font-semibold mt-4">
+                    <button id="logout-btn" onclick="window.logout()" class="w-full flex items-center px-4 py-3 rounded-lg text-rose-400 hover:bg-rose-950/30 transition-all font-bold mt-4">
                         <i class="fas fa-sign-out-alt w-5"></i>
-                        <span class="text-sm" data-i18n="logout">Logout</span>
+                        <span class="text-sm ml-3 uppercase tracking-widest" data-i18n="logout">Sign Out</span>
                     </button>
                 </div>
             </div>
         </nav>
 
         <!-- Main Content -->
-        <main id="main-content" class="flex-1 p-4 md:p-10 overflow-y-auto max-h-screen bg-slate-50 dark:bg-[#0f172a] w-full relative">
+        <main id="main-content" class="flex-1 overflow-y-auto max-h-screen bg-slate-100 dark:bg-slate-950 w-full relative">
             
+            <div id="dynamic-pages-container"></div>
+
             <!-- Dashboard -->
-            <div id="dashboard-page" class="page-content active">
-                <header class="mb-10">
-                    <h2 class="text-3xl font-black text-slate-800 dark:text-white tracking-tight" data-i18n="overview_dashboard">Overview Dashboard</h2>
-                    <p class="text-slate-500 dark:text-slate-400 mt-1">Real-time assets and infrastructure status</p>
+            <div id="dashboard-page" class="page-content active p-6 md:p-10">
+                <header class="mb-10 border-b border-slate-300 dark:border-slate-800 pb-6">
+                    <h2 class="text-4xl font-black text-slate-900 dark:text-white tracking-tight uppercase" data-i18n="overview_dashboard">Control Center</h2>
+                    <p class="text-slate-600 dark:text-slate-400 mt-1 font-bold">Comprehensive Asset & Infrastructure Real-time Health</p>
                 </header>
                 
                 <!-- Main Stats -->
                 <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-6 mb-10">
-                    <div class="stat-card-vibrant group cursor-default">
-                        <div class="flex justify-between items-start mb-4">
-                            <div class="w-12 h-12 bg-indigo-50 dark:bg-indigo-900/30 rounded-2xl flex items-center justify-center text-indigo-600 group-hover:scale-110 transition-transform">
-                                <i class="fas fa-cubes text-xl"></i>
-                            </div>
-                            <span class="text-[10px] font-bold text-indigo-500 uppercase tracking-widest bg-indigo-50 dark:bg-indigo-900/30 px-2 py-1 rounded">Growth +5%</span>
-                        </div>
-                        <h3 class="text-slate-500 dark:text-slate-400 text-xs font-bold uppercase tracking-wider" data-i18n="total_assets">Total Assets</h3>
-                        <p class="text-4xl font-black text-slate-800 dark:text-white mt-1" id="stat-total">0</p>
+                    <div class="stat-card-vibrant border-l-4 border-l-blue-600 shadow-md">
+                        <p class="text-slate-500 dark:text-slate-400 text-xs font-black uppercase tracking-widest mb-2" data-i18n="total_assets">Total Registry</p>
+                        <p class="text-4xl font-black text-slate-900 dark:text-white" id="stat-total">0</p>
                     </div>
 
-                    <div class="stat-card-vibrant group cursor-default">
-                        <div class="flex justify-between items-start mb-4">
-                            <div class="w-12 h-12 bg-emerald-50 dark:bg-emerald-900/30 rounded-2xl flex items-center justify-center text-emerald-600 group-hover:scale-110 transition-transform">
-                                <i class="fas fa-check-circle text-xl"></i>
-                            </div>
-                        </div>
-                        <h3 class="text-slate-500 dark:text-slate-400 text-xs font-bold uppercase tracking-wider" data-i18n="active_loan">Active / Loan</h3>
-                        <p class="text-4xl font-black text-emerald-600 mt-1" id="stat-active">0</p>
+                    <div class="stat-card-vibrant border-l-4 border-l-emerald-600 shadow-md">
+                        <p class="text-slate-500 dark:text-slate-400 text-xs font-black uppercase tracking-widest mb-2" data-i18n="active_loan">In Use / Loan</p>
+                        <p class="text-4xl font-black text-emerald-600" id="stat-active">0</p>
                     </div>
 
-                    <div class="stat-card-vibrant group cursor-default">
-                        <div class="flex justify-between items-start mb-4">
-                            <div class="w-12 h-12 bg-blue-50 dark:bg-blue-900/30 rounded-2xl flex items-center justify-center text-blue-600 group-hover:scale-110 transition-transform">
-                                <i class="fas fa-box text-xl"></i>
-                            </div>
-                        </div>
-                        <h3 class="text-slate-500 dark:text-slate-400 text-xs font-bold uppercase tracking-wider" data-i18n="in_storage">In Storage</h3>
-                        <p class="text-4xl font-black text-blue-600 mt-1" id="stat-storage">0</p>
+                    <div class="stat-card-vibrant border-l-4 border-l-slate-600 shadow-md">
+                        <p class="text-slate-500 dark:text-slate-400 text-xs font-black uppercase tracking-widest mb-2" data-i18n="in_storage">Inventory</p>
+                        <p class="text-4xl font-black text-slate-700 dark:text-slate-300" id="stat-storage">0</p>
                     </div>
 
-                    <div class="stat-card-vibrant group cursor-default">
-                        <div class="flex justify-between items-start mb-4">
-                            <div class="w-12 h-12 bg-amber-50 dark:bg-amber-900/30 rounded-2xl flex items-center justify-center text-amber-600 group-hover:scale-110 transition-transform">
-                                <i class="fas fa-tools text-xl"></i>
-                            </div>
-                        </div>
-                        <h3 class="text-slate-500 dark:text-slate-400 text-xs font-bold uppercase tracking-wider" data-i18n="repair_issue">Repair / Issue</h3>
-                        <p class="text-4xl font-black text-amber-600 mt-1" id="stat-issues">0</p>
+                    <div class="stat-card-vibrant border-l-4 border-l-amber-600 shadow-md">
+                        <p class="text-slate-500 dark:text-slate-400 text-xs font-black uppercase tracking-widest mb-2" data-i18n="repair_issue">Under Repair</p>
+                        <p class="text-4xl font-black text-amber-600" id="stat-issues">0</p>
                     </div>
 
-                    <div class="stat-card-vibrant group cursor-default">
-                        <div class="flex justify-between items-start mb-4">
-                            <div class="w-12 h-12 bg-rose-50 dark:bg-rose-900/30 rounded-2xl flex items-center justify-center text-rose-600 group-hover:scale-110 transition-transform">
-                                <i class="fas fa-trash-alt text-xl"></i>
-                            </div>
-                        </div>
-                        <h3 class="text-slate-500 dark:text-slate-400 text-xs font-bold uppercase tracking-wider" data-i18n="disposed">Disposed</h3>
-                        <p class="text-4xl font-black text-rose-600 mt-1" id="stat-disposed">0</p>
+                    <div class="stat-card-vibrant border-l-4 border-l-rose-600 shadow-md">
+                        <p class="text-slate-500 dark:text-slate-400 text-xs font-black uppercase tracking-widest mb-2" data-i18n="disposed">Disposed</p>
+                        <p class="text-4xl font-black text-rose-600" id="stat-disposed">0</p>
                     </div>
                 </div>
 
                 <!-- Secondary Stats -->
                 <div class="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-10">
-                    <div class="card-modern p-8 bg-gradient-to-br from-white to-slate-50 dark:from-slate-800 dark:to-slate-900">
-                        <div class="flex items-center justify-between mb-8">
-                            <div class="flex items-center space-x-4">
-                                <div class="w-14 h-14 bg-indigo-600 rounded-2xl flex items-center justify-center text-white shadow-xl shadow-indigo-200 dark:shadow-none">
-                                    <i class="fas fa-network-wired text-2xl"></i>
-                                </div>
-                                <div>
-                                    <h3 class="text-xl font-bold text-slate-800 dark:text-white" data-i18n="network_health">Network & Devices Health</h3>
-                                    <p class="text-sm text-slate-500" data-i18n="network_health_desc">Status of IP-enabled infrastructure</p>
-                                </div>
+                    <div class="card-modern bg-white dark:bg-slate-900 border-2">
+                        <h3 class="text-xl font-black text-slate-900 dark:text-white mb-6 uppercase tracking-tight flex items-center">
+                            <i class="fas fa-network-wired text-blue-600 mr-3"></i>
+                            <span data-i18n="network_health">Connectivity Health</span>
+                        </h3>
+                        <div class="grid grid-cols-2 gap-4">
+                            <div class="bg-emerald-50 dark:bg-emerald-950/30 p-6 rounded-lg border border-emerald-200 dark:border-emerald-800 text-center">
+                                <p class="text-xs font-black text-emerald-700 dark:text-emerald-400 uppercase tracking-widest mb-1" data-i18n="online">ONLINE</p>
+                                <p class="text-5xl font-black text-emerald-600" id="stat-online">0</p>
                             </div>
-                        </div>
-                        <div class="grid grid-cols-2 gap-8">
-                            <div class="bg-white dark:bg-slate-800/50 p-6 rounded-2xl border border-slate-100 dark:border-slate-700/50 text-center">
-                                <p class="text-[10px] font-black text-emerald-500 uppercase tracking-widest mb-1" data-i18n="online">ONLINE</p>
-                                <p class="text-4xl font-black text-slate-800 dark:text-white" id="stat-online">0</p>
-                            </div>
-                            <div class="bg-white dark:bg-slate-800/50 p-6 rounded-2xl border border-slate-100 dark:border-slate-700/50 text-center">
-                                <p class="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1" data-i18n="offline">OFFLINE</p>
-                                <p class="text-4xl font-black text-slate-800 dark:text-white" id="stat-offline">0</p>
+                            <div class="bg-slate-50 dark:bg-slate-800/50 p-6 rounded-lg border border-slate-200 dark:border-slate-700 text-center">
+                                <p class="text-xs font-black text-slate-500 dark:text-slate-400 uppercase tracking-widest mb-1" data-i18n="offline">OFFLINE</p>
+                                <p class="text-5xl font-black text-slate-900 dark:text-white" id="stat-offline">0</p>
                             </div>
                         </div>
                     </div>
 
-                    <div class="card-modern p-8 bg-gradient-to-br from-white to-slate-50 dark:from-slate-800 dark:to-slate-900">
-                        <div class="flex items-center justify-between mb-8">
-                            <div class="flex items-center space-x-4">
-                                <div class="w-14 h-14 bg-amber-500 rounded-2xl flex items-center justify-center text-white shadow-xl shadow-amber-200 dark:shadow-none">
-                                    <i class="fas fa-shield-alt text-2xl"></i>
-                                </div>
-                                <div>
-                                    <h3 class="text-xl font-bold text-slate-800 dark:text-white" data-i18n="warranty_alerts">Warranty Alerts</h3>
-                                    <p class="text-sm text-slate-500" data-i18n="warranty_alerts_desc">Upcoming coverage expirations</p>
-                                </div>
+                    <div class="card-modern bg-white dark:bg-slate-900 border-2">
+                        <h3 class="text-xl font-black text-slate-900 dark:text-white mb-6 uppercase tracking-tight flex items-center">
+                            <i class="fas fa-shield-alt text-amber-600 mr-3"></i>
+                            <span data-i18n="warranty_alerts">Lifecycle Alerts</span>
+                        </h3>
+                        <div class="grid grid-cols-2 gap-4">
+                            <div class="bg-amber-50 dark:bg-amber-950/30 p-6 rounded-lg border border-amber-200 dark:border-amber-800 text-center">
+                                <p class="text-xs font-black text-amber-700 dark:text-amber-400 uppercase tracking-widest mb-1" data-i18n="expires_soon">< 30 DAYS</p>
+                                <p class="text-5xl font-black text-amber-600" id="stat-warranty-soon">0</p>
                             </div>
-                        </div>
-                        <div class="grid grid-cols-2 gap-8">
-                            <div class="bg-white dark:bg-slate-800/50 p-6 rounded-2xl border border-slate-100 dark:border-slate-700/50 text-center">
-                                <p class="text-[10px] font-black text-amber-500 uppercase tracking-widest mb-1" data-i18n="expires_soon">EXPIRES <30D</p>
-                                <p class="text-4xl font-black text-slate-800 dark:text-white" id="stat-warranty-soon">0</p>
-                            </div>
-                            <div class="bg-white dark:bg-slate-800/50 p-6 rounded-2xl border border-slate-100 dark:border-slate-700/50 text-center">
-                                <p class="text-[10px] font-black text-rose-500 uppercase tracking-widest mb-1" data-i18n="expired">EXPIRED</p>
-                                <p class="text-4xl font-black text-slate-800 dark:text-white" id="stat-warranty-expired">0</p>
+                            <div class="bg-rose-50 dark:bg-rose-950/30 p-6 rounded-lg border border-rose-200 dark:border-rose-800 text-center">
+                                <p class="text-xs font-black text-rose-700 dark:text-rose-400 uppercase tracking-widest mb-1" data-i18n="expired">EXPIRED</p>
+                                <p class="text-5xl font-black text-rose-600" id="stat-warranty-expired">0</p>
                             </div>
                         </div>
                     </div>
                 </div>
 
                 <!-- Category Overview -->
-                <div id="category-overview-grid" class="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-6 mb-10"></div>
+                <div class="mb-6"><h3 class="text-sm font-black text-slate-500 uppercase tracking-[0.2em] mb-4">Directory Explorer</h3></div>
+                <div id="category-overview-grid" class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-6 mb-10"></div>
 
                 <!-- Charts -->
                 <div class="grid grid-cols-1 lg:grid-cols-3 gap-8 mb-10">
-                    <div class="card-modern p-6">
-                        <h3 class="font-bold text-slate-800 dark:text-white mb-6 flex items-center">
-                            <span class="w-8 h-8 bg-indigo-50 dark:bg-indigo-900/30 rounded-lg flex items-center justify-center text-indigo-600 mr-3">
-                                <i class="fas fa-chart-pie text-sm"></i>
-                            </span>
-                            <span data-i18n="status_distribution">Status Distribution</span>
-                        </h3>
+                    <div class="card-modern bg-white dark:bg-slate-900">
+                        <h4 class="font-black text-slate-800 dark:text-white mb-6 text-sm uppercase tracking-widest border-b pb-2" data-i18n="status_distribution">Status Mix</h4>
                         <div class="h-64"><canvas id="statusChart"></canvas></div>
                     </div>
-                    <div class="card-modern p-6">
-                        <h3 class="font-bold text-slate-800 dark:text-white mb-6 flex items-center">
-                            <span class="w-8 h-8 bg-emerald-50 dark:bg-emerald-900/30 rounded-lg flex items-center justify-center text-emerald-600 mr-3">
-                                <i class="fas fa-chart-bar text-sm"></i>
-                            </span>
-                            <span data-i18n="assets_by_category">Assets by Category</span>
-                        </h3>
+                    <div class="card-modern bg-white dark:bg-slate-900">
+                        <h4 class="font-black text-slate-800 dark:text-white mb-6 text-sm uppercase tracking-widest border-b pb-2" data-i18n="assets_by_category">Asset Loading</h4>
                         <div class="h-64"><canvas id="categoryChart"></canvas></div>
                     </div>
-                    <div class="card-modern p-6">
-                        <h3 class="font-bold text-slate-800 dark:text-white mb-6 flex items-center">
-                            <span class="w-8 h-8 bg-amber-50 dark:bg-amber-900/30 rounded-lg flex items-center justify-center text-amber-600 mr-3">
-                                <i class="fas fa-map-marker-alt text-sm"></i>
-                            </span>
-                            <span data-i18n="top_locations">Top Locations</span>
-                        </h3>
+                    <div class="card-modern bg-white dark:bg-slate-900">
+                        <h4 class="font-black text-slate-800 dark:text-white mb-6 text-sm uppercase tracking-widest border-b pb-2" data-i18n="top_locations">Deployment Zones</h4>
                         <div class="h-64"><canvas id="locationChart"></canvas></div>
                     </div>
                 </div>
 
                 <!-- Recent Activity -->
-                <div class="card-modern overflow-hidden">
-                    <div class="px-8 py-6 border-b dark:border-slate-800 bg-white dark:bg-slate-800 flex justify-between items-center">
-                        <h3 class="font-bold text-slate-800 dark:text-white flex items-center">
-                            <span class="w-10 h-10 bg-indigo-600 rounded-xl flex items-center justify-center text-white shadow-lg mr-4">
-                                <i class="fas fa-history"></i>
-                            </span>
-                            <span data-i18n="recent_transactions">Recent Transactions</span>
+                <div class="card-modern bg-white dark:bg-slate-900 p-0 overflow-hidden border-2">
+                    <div class="px-8 py-5 border-b border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800 flex justify-between items-center">
+                        <h3 class="font-black text-slate-900 dark:text-white uppercase tracking-tight flex items-center">
+                            <i class="fas fa-history text-blue-600 mr-3"></i>
+                            <span data-i18n="recent_transactions">Log Activity</span>
                         </h3>
-                        <button class="text-sm font-bold text-indigo-600 hover:text-indigo-700 transition-colors">View All History</button>
+                        <button class="text-xs font-black text-blue-600 hover:text-blue-700 uppercase tracking-widest">Full Audit Log</button>
                     </div>
-                    <div id="recent-activity-list" class="divide-y dark:divide-slate-800"></div>
+                    <div id="recent-activity-list" class="divide-y divide-slate-100 dark:divide-slate-800"></div>
                 </div>
             </div>
 
