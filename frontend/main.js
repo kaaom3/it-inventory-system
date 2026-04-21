@@ -976,63 +976,44 @@ function generateDynamicPages() {
 // --- PAGE ROUTING ---
 // ==========================================
 window.loadPage = function(pageName, navElement) {
+    // 1. Update Sidebar Active State
     document.querySelectorAll('.nav-link').forEach(l => {
         l.classList.remove('active');
     });
+    
+    let targetNav = navElement || document.getElementById(`nav-${pageName}`);
+    if (targetNav) {
+        targetNav.classList.add('active');
+        const parentDetails = targetNav.closest('details');
+        if (parentDetails) parentDetails.setAttribute('open', 'true');
+    }
 
+    // 2. Switch Pages
     document.querySelectorAll('.page-content').forEach(p => {
         p.classList.remove('active');
         p.classList.add('hidden');
         p.style.display = 'none';
     });
 
-    let targetNav = navElement || document.getElementById(`nav-${pageName}`);
-    if (targetNav) targetNav.classList.add('active');
-
-    const targetPage = document.getElementById(`${pageName.toLowerCase()}-page`);
-    if (targetPage) {
-        targetPage.classList.remove('hidden');
-        targetPage.classList.add('active');
-        targetPage.style.display = 'block';
-        window.currentPage = pageName;
-
-        if (pageName === 'Dashboard') {
-            window.updateDashboard();
-        } else if (collectionConfigs[pageName]) {
-            window.buildTable(pageName);
-        }
-    }
-    
-    // Auto-close mobile sidebar
-    if (window.innerWidth < 768) {
-        const sidebar = document.getElementById('sidebar');
-        const overlay = document.getElementById('sidebar-overlay');
-        if (sidebar) sidebar.classList.add('-translate-x-full');
-        if (overlay) overlay.classList.add('hidden');
-    }
-};
-    if (targetNav) {
-        targetNav.classList.remove('text-gray-600', 'dark:text-gray-300');
-        targetNav.classList.add('bg-indigo-50', 'text-indigo-600', 'dark:bg-gray-700', 'dark:text-white', 'font-semibold');
-        const parentDetails = targetNav.closest('details');
-        if (parentDetails) parentDetails.setAttribute('open', 'true');
-    }
-
     const pageId = `${pageName.toLowerCase()}-page`;
     let pageDiv = document.getElementById(pageId);
     
+    // Special handling for pages that might not exist in HTML yet
     if (pageName === 'LabelPrinter' && !pageDiv) {
         pageDiv = document.createElement('div'); 
         pageDiv.id = pageId; 
         pageDiv.className = 'page-content hidden';
-        document.getElementById('main-content').appendChild(pageDiv);
+        const mainContent = document.getElementById('main-content');
+        if(mainContent) mainContent.appendChild(pageDiv);
     }
 
     if (pageDiv) {
         pageDiv.classList.remove('hidden');
         pageDiv.classList.add('active');
         pageDiv.style.display = 'block';
+        window.currentPage = pageName;
 
+        // Trigger Page Specific Loads
         if (pageName === 'Dashboard') {
             window.updateDashboard(null); 
         }
@@ -1055,6 +1036,7 @@ window.loadPage = function(pageName, navElement) {
         }
     }
     
+    // 3. Auto-close mobile sidebar
     if (window.innerWidth < 768) {
         const sidebar = document.getElementById('sidebar');
         const overlay = document.getElementById('sidebar-overlay');
