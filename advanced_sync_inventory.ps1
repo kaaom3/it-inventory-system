@@ -1,6 +1,6 @@
 # ===================================================================
 # PowerShell Script to Collect and Send Computer Inventory Data
-# Version 24.7 - Cloud Sync + POS Printers + Split Mice/Keyboards
+# Version 24.9 - Cloud Sync + POS Printers (Strict Status Check) + Split
 # ===================================================================
 
 # --- CONFIGURATION (ตั้งค่าสำหรับ Cloud) ---
@@ -67,7 +67,7 @@ function Convert-PnpIdTo-ManufacturerName {
 # ===================================================================
 # PART 1: INVENTORY SYNC (รวบรวมข้อมูลสเปคคอมพิวเตอร์)
 # ===================================================================
-Write-Log "========== Script Run Started (v24.7) =========="
+Write-Log "========== Script Run Started (v24.9) =========="
 Write-Log "Target Server: $apiUrl"
 
 try {
@@ -171,7 +171,7 @@ try {
         Where-Object { $_.DisplayName -and !$_.SystemComponent } | 
         Select-Object @{N="name";E={Clean-Data $_.DisplayName}}, @{N="version";E={Clean-Data $_.DisplayVersion}}
 
-    # 7. Accessories (🌟 แยก Keyboards และ Mice ออกจากกันอย่างชัดเจน)
+    # 7. Accessories (🌟 แยก Keyboards และ Mice ออกจากกัน)
     $keyboardList = @()
     $mouseList = @()
     try {
@@ -189,10 +189,10 @@ try {
         }
     } catch { Write-Log "Accessory info warning: $_" }
     
-    # 8. Printers (ดึงเฉพาะพอร์ต USB และ ESDPRT ที่เครื่องพิมพ์สถานะออนไลน์)
+    # 8. Printers (🌟 เช็คสถานะการเชื่อมต่อ และ Not Available ตรงๆ)
     $printerList = @()
     try {
-        # กรองเอาเฉพาะ Printer ที่ใช้พอร์ต USB หรือ ESDPRT และต้องไม่ได้อยู่ในโหมด Offline
+        # กรองเอาเฉพาะ Printer ที่ใช้พอร์ต USB หรือ ESDPRT และเช็คสถานะการเชื่อมต่อ
         Get-CimInstance -ClassName Win32_Printer | ? { 
             ($_.PortName -like "USB*" -or $_.PortName -like "ESDPRT*") -and
             $_.Name -notlike "*Microsoft*" -and 
@@ -202,12 +202,19 @@ try {
             $_.Name -notlike "*Webex*" -and
             $_.Name -notlike "*Fax*" -and
             $_.WorkOffline -eq $false -and     
-            $_.PrinterStatus -ne 7             
+            $_.PrinterStatus -ne 7 -and             # 🌟 ไม่เอา Offline (7)
+            $_.PrinterStatus -ne 2 -and             # 🌟 ไม่เอา Unknown / Not Available (2)
+            $_.Status -notmatch 'Unknown|Offline'   # 🌟 กรองสถานะ Not Available / Unknown ออก
         } | % {
             $p = $_
             $pnpDevice = $null
-            # พยายามหาข้อมูล PnP ของปริ้นเตอร์เพื่อดึง Serial Number แท้ๆ ออกมา
+            # พยายามหาข้อมูล PnP ระดับฮาร์ดแวร์ของปริ้นเตอร์
             try { $pnpDevice = Get-CimInstance -ClassName Win32_PnPEntity | ? { $_.Name -match $p.Name -or $p.Name -match $_.Name } | Select -First 1 } catch {}
+            
+            # ทริคเดิม (เผื่อหาชื่อ PnP เจอ): ถ้า PnP Error Code ไม่ใช่ 0 (เช่น Code 45 คือถอดสายไปแล้ว) ข้ามไปเลย
+            if ($pnpDevice -and $pnpDevice.ConfigManagerErrorCode -ne 0) {
+                return 
+            }
             
             # ถ้าหา S/N ของจริงไม่เจอ ให้ Generate ชื่อรหัสจำลองขึ้นมาโดยใช้ตัวย่อ PRN- ตามด้วยชื่อเครื่อง
             $sn = if($pnpDevice -and $pnpDevice.PNPDeviceID) { ($pnpDevice.PNPDeviceID -split '\\')[-1] } else { "N/A" }
@@ -246,8 +253,8 @@ try {
         ipAddress = $localIp
         monitors = $monitorList
         software = $softwareList
-        keyboards = $keyboardList  # 🌟 ส่ง List Keyboard
-        mice = $mouseList          # 🌟 ส่ง List Mouse
+        keyboards = $keyboardList
+        mice = $mouseList
         printers = $printerList
         warrantyStartDate = ""
         warrantyEndDate = ""
@@ -308,5 +315,5 @@ while ($true) {
     }
     
     # รอ 5 นาที (300 วินาที) ก่อนส่งรอบถัดไป
-    Start-Sleep -Seconds 300
+    Start-Sleep -Seconds 1000
 }

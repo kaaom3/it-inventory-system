@@ -30,83 +30,98 @@
         .modal.active .modal-content { transform: scale(1); }
     </style>
 </head>
-<body class="bg-gray-50 dark:bg-gray-900 text-gray-800 dark:text-gray-200 min-h-screen flex flex-col transition-colors duration-300">
+<body class="bg-slate-50 dark:bg-[#0f172a] text-slate-900 dark:text-slate-100 min-h-screen flex flex-col transition-colors duration-300 antialiased">
     
     <!-- Header -->
-    <header class="w-full bg-white dark:bg-gray-800 shadow-sm p-4 flex items-center justify-between sticky top-0 z-40 border-b dark:border-gray-700">
-        <div class="flex items-center space-x-3">
-            <div class="bg-indigo-100 dark:bg-indigo-900/50 p-2 rounded-lg">
-                <i class="fas fa-undo-alt text-xl text-indigo-600 dark:text-indigo-400"></i>
+    <header class="w-full bg-white/80 dark:bg-slate-900/80 backdrop-blur-md border-b dark:border-slate-800 p-4 sticky top-0 z-40">
+        <div class="max-w-7xl mx-auto flex items-center justify-between">
+            <div class="flex items-center space-x-4">
+                <div class="w-10 h-10 bg-indigo-600 rounded-xl flex items-center justify-center text-white shadow-xl shadow-indigo-200 dark:shadow-none">
+                    <i class="fas fa-undo-alt text-xl"></i>
+                </div>
+                <div>
+                    <h1 class="text-xl font-black text-slate-800 dark:text-white tracking-tight">Return Assets</h1>
+                    <p class="text-[10px] text-indigo-500 font-bold uppercase tracking-widest">Inventory Recovery</p>
+                </div>
             </div>
-            <div>
-                <h1 class="text-lg font-bold text-gray-800 dark:text-white leading-tight">ระบบคืนอุปกรณ์</h1>
-                <p class="text-xs text-gray-500 font-medium uppercase tracking-wider">IT Inventory System</p>
-            </div>
+            <button id="theme-toggle" class="w-10 h-10 flex items-center justify-center rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 transition-all hover:bg-slate-200 dark:hover:bg-slate-700">
+                <i id="theme-toggle-dark-icon" class="fas fa-moon"></i>
+                <i id="theme-toggle-light-icon" class="fas fa-sun text-yellow-400 hidden"></i>
+            </button>
         </div>
-        <button id="theme-toggle" class="p-2.5 rounded-full hover:bg-gray-100 dark:hover:bg-gray-700 focus:outline-none transition-colors border border-transparent hover:border-gray-200 dark:hover:border-gray-600">
-            <i id="theme-toggle-dark-icon" class="fas fa-moon text-gray-600 dark:text-gray-400 text-lg"></i>
-            <i id="theme-toggle-light-icon" class="fas fa-sun text-yellow-400 hidden text-lg"></i>
-        </button>
     </header>
 
     <!-- Main Content -->
-    <main class="flex-1 p-4 md:p-8 w-full max-w-3xl mx-auto flex flex-col justify-center">
-        <div class="bg-white dark:bg-gray-800 p-6 md:p-8 rounded-2xl shadow-lg border border-gray-100 dark:border-gray-700 relative overflow-hidden">
+    <main class="flex-1 p-6 md:p-10 w-full max-w-4xl mx-auto flex flex-col justify-center relative">
+        <!-- Background Elements -->
+        <div class="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-full h-full bg-indigo-500/5 rounded-full blur-[120px] -z-10"></div>
+
+        <div class="bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl p-8 md:p-12 rounded-[2.5rem] shadow-2xl border border-white/20 dark:border-slate-800/50 relative overflow-hidden">
             
             <!-- Loading State -->
-            <div id="loading" class="flex flex-col items-center justify-center py-16 text-gray-500 dark:text-gray-400">
-                <i class="fas fa-circle-notch fa-spin text-5xl text-indigo-600 mb-4"></i>
-                <p class="font-medium text-lg">กำลังตรวจสอบข้อมูลการยืม...</p>
+            <div id="loading" class="flex flex-col items-center justify-center py-24 text-slate-500">
+                <div class="relative w-12 h-12 mb-6">
+                    <div class="absolute inset-0 border-4 border-indigo-100 dark:border-indigo-900/30 rounded-full"></div>
+                    <div class="absolute inset-0 border-4 border-indigo-600 rounded-full border-t-transparent animate-spin"></div>
+                </div>
+                <p class="text-[10px] font-black uppercase tracking-widest">Verifying Transaction...</p>
             </div>
             
             <!-- Content State -->
             <div id="content" class="hidden">
-                <div class="flex items-center mb-6 border-l-4 border-indigo-600 pl-3">
-                    <h2 class="text-2xl font-bold text-gray-900 dark:text-white">รายการคืนอุปกรณ์</h2>
+                <div class="mb-10">
+                    <h2 class="text-3xl font-black text-slate-800 dark:text-white tracking-tight">Return Manifest</h2>
+                    <p class="text-slate-500 dark:text-slate-400 mt-1">Review and process item returns</p>
                 </div>
                 
                 <!-- Borrower Details -->
-                <div id="returnDetails" class="mb-8 p-5 bg-indigo-50 dark:bg-gray-700/50 rounded-xl border border-indigo-100 dark:border-gray-600 shadow-sm">
+                <div id="returnDetails" class="mb-10 p-8 bg-indigo-50 dark:bg-indigo-900/20 rounded-3xl border border-indigo-100 dark:border-indigo-800/50 shadow-sm relative overflow-hidden">
+                    <div class="absolute top-0 right-0 p-4 opacity-5">
+                        <i class="fas fa-receipt text-6xl"></i>
+                    </div>
                     <!-- Injected by JS -->
                 </div>
                 
-                <h3 class="text-sm font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-4 border-b border-gray-200 dark:border-gray-700 pb-2">
-                    อุปกรณ์ในรายการนี้
+                <h3 class="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-[0.2em] mb-6 flex items-center">
+                    <span class="w-8 h-8 bg-indigo-50 dark:bg-indigo-900/30 rounded-lg flex items-center justify-center text-indigo-500 mr-3">
+                        <i class="fas fa-box-open text-[10px]"></i>
+                    </span>
+                    Items in this Session
                 </h3>
                 
                 <!-- Item List -->
-                <div id="return-items-list" class="space-y-3 mb-8">
+                <div id="return-items-list" class="space-y-4 mb-10">
                     <!-- Injected by JS -->
                 </div>
                 
                 <!-- Action Buttons -->
-                <div id="return-actions" class="mt-6 flex flex-col sm:flex-row justify-end gap-3 pt-6 border-t border-gray-100 dark:border-gray-700">
+                <div id="return-actions" class="mt-10 flex flex-col sm:flex-row justify-end gap-4 pt-10 border-t dark:border-slate-800">
                     <!-- Injected by JS -->
                 </div>
             </div>
             
             <!-- Not Found State -->
-            <div id="not-found" class="hidden flex flex-col items-center justify-center py-12 text-center">
-                 <div class="w-20 h-20 bg-red-100 dark:bg-red-900/30 rounded-full flex items-center justify-center mb-6">
-                     <i class="fas fa-exclamation-triangle text-4xl text-red-500 dark:text-red-400"></i>
+            <div id="not-found" class="hidden flex flex-col items-center justify-center py-20 text-center">
+                 <div class="w-24 h-24 bg-rose-50 dark:bg-rose-900/20 rounded-full flex items-center justify-center mb-8">
+                     <i class="fas fa-exclamation-triangle text-4xl text-rose-500"></i>
                  </div>
-                 <h2 class="text-2xl font-bold text-gray-900 dark:text-white mb-2">ไม่พบข้อมูลการยืม</h2>
-                 <p class="text-gray-500 dark:text-gray-400 mb-8 max-w-md">ไม่พบหมายเลขการยืม (Loan ID) ที่คุณระบุ กรุณาตรวจสอบ QR Code หรือลิงก์ที่ใช้สแกนอีกครั้ง</p>
-                 <button onclick="window.location.href='loan.html'" class="px-6 py-3 bg-indigo-600 text-white font-bold rounded-xl hover:bg-indigo-700 transition-colors shadow-md">
-                     กลับไปหน้าระบบยืม
+                 <h2 class="text-3xl font-black text-slate-800 dark:text-white mb-3 tracking-tight">Invalid Transaction</h2>
+                 <p class="text-slate-500 dark:text-slate-400 mb-10 max-w-sm mx-auto font-medium">We couldn't locate this loan ID. Please verify your receipt or contact IT support for manual return.</p>
+                 <button onclick="window.location.href='loan.html'" class="btn-primary px-10 py-4">
+                     Back to Portal
                  </button>
             </div>
         </div>
     </main>
 
-    <!-- Notification Modal -->
-    <div id="notificationModal" class="modal opacity-0 pointer-events-none fixed inset-0 z-[60] flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm">
-        <div class="modal-content bg-white dark:bg-gray-800 rounded-2xl p-8 text-center max-w-sm w-full shadow-2xl border border-gray-100 dark:border-gray-700">
-            <div id="modalIcon" class="mb-4 flex justify-center"></div>
-            <h3 id="modalTitle" class="text-xl font-bold text-gray-900 dark:text-white mb-2">แจ้งเตือน</h3>
-            <p id="modalMessage" class="text-gray-600 dark:text-gray-300 text-sm mb-8"></p>
-            <button onclick="closeNotificationAndReload()" class="w-full px-4 py-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-bold transition-colors shadow-md">
-                ตกลง
+    <!-- Notification Modal Update -->
+    <div id="notificationModal" class="modal opacity-0 pointer-events-none fixed inset-0 z-[60] flex items-center justify-center bg-slate-900/60 p-6 backdrop-blur-md transition-all duration-300">
+        <div class="modal-content bg-white dark:bg-slate-900 rounded-[2.5rem] p-10 text-center max-w-sm w-full shadow-2xl border dark:border-slate-800 transform scale-90 transition-all duration-300">
+            <div id="modalIcon" class="mb-6 flex justify-center"></div>
+            <h3 id="modalTitle" class="text-2xl font-black text-slate-800 dark:text-white mb-2 tracking-tight">Alert</h3>
+            <p id="modalMessage" class="text-slate-500 dark:text-slate-400 text-sm font-medium mb-10"></p>
+            <button onclick="closeNotificationAndReload()" class="btn-primary w-full py-4 shadow-xl">
+                Acknowledge
             </button>
         </div>
     </div>

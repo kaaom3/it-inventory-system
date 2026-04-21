@@ -836,7 +836,6 @@ function renderSidebarDynamic() {
 
     const rootNodes = [dashboardNode];
     rootNodes.push({ type: 'header', label: t('assets') });
-    
     rootNodes.push(...assetChildren, ...customNodes.filter(n => !n.parentId));
     rootNodes.push({ type: 'header', label: t('management') });
     rootNodes.push(...managementChildren);
@@ -854,18 +853,44 @@ function renderSidebarDynamic() {
     });
 
     function createMenuHTML(node) {
-        if (node.type === 'header') return `<li class="pt-4"><div class="px-4 text-xs font-semibold uppercase text-gray-400 mb-1">${node.label}</div></li>`;
+        if (node.type === 'header') return `<li class="pt-6 mb-2 px-4 text-[10px] font-black uppercase tracking-widest text-slate-400/80 dark:text-slate-500">${node.label}</li>`;
         
         const hasChildren = node.children && node.children.length > 0;
-        const editBtn = node.allowEdit ? `<button onclick="window.openEditMenuModal('${node.id}', event)" class="ml-2 text-xs text-gray-400 hover:text-blue-500 opacity-0 group-hover:opacity-100 transition-opacity"><i class="fas fa-edit"></i></button>` : '';
-        const deleteBtn = node.allowDelete ? `<button onclick="window.deleteCustomMenu('${node.id}', event)" class="ml-2 text-xs text-gray-400 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity"><i class="fas fa-trash"></i></button>` : '';
-
-        let textColor = node.id === 'DisposedAssets' ? 'text-red-500 dark:text-red-400' : 'text-gray-600 dark:text-gray-300';
+        const activeClass = (window.currentPage === node.id) ? 'active' : '';
+        const editBtn = node.allowEdit ? `<button onclick="window.openEditMenuModal('${node.id}', event)" class="ml-2 text-[10px] text-indigo-400 hover:text-indigo-600 opacity-0 group-hover:opacity-100 transition-opacity"><i class="fas fa-edit"></i></button>` : '';
+        const deleteBtn = node.allowDelete ? `<button onclick="window.deleteCustomMenu('${node.id}', event)" class="ml-2 text-[10px] text-rose-400 hover:text-rose-600 opacity-0 group-hover:opacity-100 transition-opacity"><i class="fas fa-trash"></i></button>` : '';
 
         if (hasChildren) {
-            return `<li><details class="group nav-group"><summary class="nav-link flex items-center justify-between px-4 py-2.5 rounded-lg text-gray-600 dark:text-gray-300 cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700"><div class="flex items-center space-x-3"><i class="fas ${node.icon} w-5 text-center"></i><span>${node.name}</span></div><div class="flex items-center">${editBtn}${deleteBtn}<i class="fas fa-chevron-right text-xs transform group-open:rotate-90 transition-transform ml-2"></i></div></summary><ul class="pl-4 pt-1 space-y-1 border-l-2 border-gray-100 dark:border-gray-700 ml-6">${node.children.map(createMenuHTML).join('')}</ul></details></li>`;
+            return `
+                <li>
+                    <details class="group">
+                        <summary class="nav-link cursor-pointer list-none flex items-center justify-between group">
+                            <div class="flex items-center space-x-3">
+                                <i class="fas ${node.icon || 'fa-folder'} w-5 text-center text-indigo-500/80"></i>
+                                <span class="text-sm font-semibold tracking-wide">${node.name}</span>
+                            </div>
+                            <div class="flex items-center">
+                                ${editBtn}${deleteBtn}
+                                <i class="fas fa-chevron-right text-[10px] transition-transform group-open:rotate-90 opacity-40 ml-2"></i>
+                            </div>
+                        </summary>
+                        <ul class="mt-1 space-y-1 ml-4 border-l dark:border-slate-800 pl-2">
+                            ${node.children.map(createMenuHTML).join('')}
+                        </ul>
+                    </details>
+                </li>`;
         }
-        return `<li><a href="#" id="nav-${node.id}" onclick="${node.clickAction}; return false;" class="nav-link flex items-center space-x-3 px-4 py-2.5 rounded-lg ${textColor} group hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"><i class="fas ${node.icon} w-5 text-center"></i><span class="flex-1">${node.name}</span>${editBtn}${deleteBtn}</a></li>`;
+        
+        const iconColor = activeClass ? 'text-white' : 'text-indigo-500/60';
+        return `
+            <li>
+                <a href="#" id="nav-${node.id}" onclick="${node.clickAction}; return false;" 
+                   class="nav-link group ${activeClass}">
+                    <i class="fas ${node.icon || 'fa-circle'} w-5 text-center ${iconColor}"></i>
+                    <span class="flex-1 text-sm">${node.name}</span>
+                    ${editBtn}${deleteBtn}
+                </a>
+            </li>`;
     }
 
     rootNodes.forEach(node => { if (node.type === 'header' || !node.parentId) container.insertAdjacentHTML('beforeend', createMenuHTML(node)); });
@@ -884,20 +909,28 @@ function generateDynamicPages() {
         if (!config) return;
         const pageId = `${colName.toLowerCase()}-page`;
         const displayName = config.isCustom ? config.displayName : t(colName.toLowerCase()) || config.displayName || colName;
-        const statusOptions = config.dropdowns.Status ? config.dropdowns.Status.map(s => `<option value="${s}">${t(s.toLowerCase().replace(' ', '_')) || s}</option>`).join('') : '';
         
         container.innerHTML += `
         <div id="${pageId}" class="page-content hidden">
-            <div class="flex flex-wrap justify-between items-center gap-2 mb-6">
-                <h2 class="text-2xl md:text-3xl font-bold text-gray-900 dark:text-white">${displayName}</h2>
-                <div class="flex gap-2">
-                    <button onclick="window.openRapidEntryModal('${colName}')" class="bg-blue-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-blue-700 shadow-sm flex items-center transition-colors"><i class="fas fa-barcode mr-2"></i>${t('rapid_scan')}</button>
-                    <button onclick="window.openImportModal('${colName}')" class="bg-green-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-green-700 shadow-sm"><i class="fas fa-file-import mr-2"></i>${t('import_csv')}</button>
-                    <button onclick="window.openModal('add', '${colName}')" class="bg-indigo-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-indigo-700 shadow-sm"><i class="fas fa-plus mr-2"></i>${t('add_new')}</button>
+            <header class="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-10">
+                <div>
+                    <h2 class="text-3xl font-black text-slate-800 dark:text-white tracking-tight">${displayName}</h2>
+                    <p class="text-slate-500 dark:text-slate-400 mt-1">Manage and track your ${displayName.toLowerCase()} assets</p>
                 </div>
-            </div>
+                <div class="flex flex-wrap gap-3">
+                    <button onclick="window.openRapidEntryModal('${colName}')" class="px-5 py-2.5 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 rounded-xl font-bold shadow-sm hover:bg-slate-50 dark:hover:bg-slate-700 transition-all flex items-center">
+                        <i class="fas fa-barcode mr-2 text-indigo-500"></i>${t('rapid_scan')}
+                    </button>
+                    <button onclick="window.openImportModal('${colName}')" class="px-5 py-2.5 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 rounded-xl font-bold shadow-sm hover:bg-slate-50 dark:hover:bg-slate-700 transition-all flex items-center">
+                        <i class="fas fa-file-import mr-2 text-emerald-500"></i>${t('import_csv')}
+                    </button>
+                    <button onclick="window.openModal('add', '${colName}')" class="btn-primary flex items-center">
+                        <i class="fas fa-plus mr-2"></i>${t('add_new')}
+                    </button>
+                </div>
+            </header>
             
-            <div class="grid grid-cols-2 md:grid-cols-5 gap-4 mb-6" id="${colName}SummaryCards"></div>
+            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-6 mb-10" id="${colName}SummaryCards"></div>
             
             <div class="mb-4 flex flex-col md:flex-row gap-2">
                 <div class="w-full md:w-1/4">
@@ -1478,25 +1511,30 @@ window.buildTable = function(collectionName) {
         });
 
         summaryContainer.innerHTML = `
-            <div class="bg-white dark:bg-gray-800 p-4 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700 flex items-center space-x-3">
-                <div class="bg-indigo-100 dark:bg-indigo-900/50 p-2 rounded-lg text-indigo-600 dark:text-indigo-400"><i class="fas fa-cubes text-xl w-6 text-center"></i></div>
-                <div><p class="text-xs text-gray-500 dark:text-gray-400 font-semibold uppercase">${t('total_assets')}</p><p class="text-xl font-bold text-gray-800 dark:text-white leading-none">${total}</p></div>
+            <div class="stat-card-vibrant group">
+                <div class="w-10 h-10 bg-indigo-50 dark:bg-indigo-900/30 rounded-xl flex items-center justify-center text-indigo-600 mb-3"><i class="fas fa-cubes text-lg"></i></div>
+                <p class="text-[10px] text-slate-500 dark:text-slate-400 font-black uppercase tracking-widest mb-1">${t('total_assets')}</p>
+                <p class="text-2xl font-black text-slate-800 dark:text-white">${total}</p>
             </div>
-            <div class="bg-white dark:bg-gray-800 p-4 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700 flex items-center space-x-3">
-                <div class="bg-green-100 dark:bg-green-900/50 p-2 rounded-lg text-green-600 dark:text-green-400"><i class="fas fa-signal text-xl w-6 text-center"></i></div>
-                <div><p class="text-xs text-gray-500 dark:text-gray-400 font-semibold uppercase">${t('online')}</p><p class="text-xl font-bold text-gray-800 dark:text-white leading-none">${onlineCount}</p></div>
+            <div class="stat-card-vibrant group">
+                <div class="w-10 h-10 bg-emerald-50 dark:bg-emerald-900/30 rounded-xl flex items-center justify-center text-emerald-600 mb-3"><i class="fas fa-signal text-lg"></i></div>
+                <p class="text-[10px] text-slate-500 dark:text-slate-400 font-black uppercase tracking-widest mb-1">${t('online')}</p>
+                <p class="text-2xl font-black text-slate-800 dark:text-white">${onlineCount}</p>
             </div>
-            <div class="bg-white dark:bg-gray-800 p-4 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700 flex items-center space-x-3">
-                <div class="bg-gray-100 dark:bg-gray-700 p-2 rounded-lg text-gray-600 dark:text-gray-400"><i class="fas fa-power-off text-xl w-6 text-center"></i></div>
-                <div><p class="text-xs text-gray-500 dark:text-gray-400 font-semibold uppercase">${t('offline')}</p><p class="text-xl font-bold text-gray-800 dark:text-white leading-none">${offlineCount}</p></div>
+            <div class="stat-card-vibrant group">
+                <div class="w-10 h-10 bg-slate-50 dark:bg-slate-800 rounded-xl flex items-center justify-center text-slate-400 mb-3"><i class="fas fa-power-off text-lg"></i></div>
+                <p class="text-[10px] text-slate-500 dark:text-slate-400 font-black uppercase tracking-widest mb-1">${t('offline')}</p>
+                <p class="text-2xl font-black text-slate-800 dark:text-white">${offlineCount}</p>
             </div>
-            <div class="bg-white dark:bg-gray-800 p-4 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700 flex items-center space-x-3">
-                <div class="bg-blue-100 dark:bg-blue-900/50 p-2 rounded-lg text-blue-600 dark:text-blue-400"><i class="fas fa-box text-xl w-6 text-center"></i></div>
-                <div><p class="text-xs text-gray-500 dark:text-gray-400 font-semibold uppercase">${t('storage')}</p><p class="text-xl font-bold text-gray-800 dark:text-white leading-none">${storageCount}</p></div>
+            <div class="stat-card-vibrant group">
+                <div class="w-10 h-10 bg-blue-50 dark:bg-blue-900/30 rounded-xl flex items-center justify-center text-blue-600 mb-3"><i class="fas fa-box text-lg"></i></div>
+                <p class="text-[10px] text-slate-500 dark:text-slate-400 font-black uppercase tracking-widest mb-1">${t('storage')}</p>
+                <p class="text-2xl font-black text-slate-800 dark:text-white">${storageCount}</p>
             </div>
-            <div class="bg-white dark:bg-gray-800 p-4 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700 flex items-center space-x-3">
-                <div class="bg-red-100 dark:bg-red-900/50 p-2 rounded-lg text-red-600 dark:text-red-400"><i class="fas fa-tools text-xl w-6 text-center"></i></div>
-                <div><p class="text-xs text-gray-500 dark:text-gray-400 font-semibold uppercase">${t('repair_issue')}</p><p class="text-xl font-bold text-gray-800 dark:text-white leading-none">${issueCount}</p></div>
+            <div class="stat-card-vibrant group">
+                <div class="w-10 h-10 bg-amber-50 dark:bg-amber-900/30 rounded-xl flex items-center justify-center text-amber-600 mb-3"><i class="fas fa-tools text-lg"></i></div>
+                <p class="text-[10px] text-slate-500 dark:text-slate-400 font-black uppercase tracking-widest mb-1">${t('repair_issue')}</p>
+                <p class="text-2xl font-black text-slate-800 dark:text-white">${issueCount}</p>
             </div>
         `;
     }
@@ -1509,15 +1547,15 @@ window.buildTable = function(collectionName) {
     const startIndex = (state.currentPage - 1) * state.rowsPerPage;
     const paginatedData = filteredData.slice(startIndex, startIndex + state.rowsPerPage);
     
-    let html = `<thead class="bg-gray-50 dark:bg-gray-700"><tr><th class="px-4 py-3 w-12 text-center"><input type="checkbox" id="selectAll_${collectionName}" onclick="window.toggleSelectAll('${collectionName}', this)" class="rounded text-indigo-600 focus:ring-indigo-500 cursor-pointer"></th>`;
+    let html = `<thead><tr><th class="px-4 py-3 w-12 text-center bg-slate-50/80 dark:bg-slate-800/50"><input type="checkbox" id="selectAll_${collectionName}" onclick="window.toggleSelectAll('${collectionName}', this)" class="rounded text-indigo-600 focus:ring-indigo-500 cursor-pointer"></th>`;
 
     config.headers.forEach(h => {
         const fieldDef = AVAILABLE_FIELDS.find(f => f.id === h);
-        html += `<th class="px-6 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-300 uppercase tracking-wider">${fieldDef ? fieldDef.label : h}</th>`
+        html += `<th class="px-6 py-4 text-left text-[10px] font-black uppercase tracking-widest text-slate-500 dark:text-slate-400 bg-slate-50/80 dark:bg-slate-800/50 border-b dark:border-slate-800">${fieldDef ? fieldDef.label : h}</th>`
     });
-    html += `<th class="px-6 py-3 text-center text-xs font-semibold text-gray-500 dark:text-gray-300 uppercase tracking-wider">${t('actions')}</th></tr></thead><tbody class="divide-y divide-gray-200 dark:divide-gray-700">`;
+    html += `<th class="px-6 py-4 text-center text-[10px] font-black uppercase tracking-widest text-slate-500 dark:text-slate-400 bg-slate-50/80 dark:bg-slate-800/50 border-b dark:border-slate-800">${t('actions')}</th></tr></thead><tbody class="divide-y divide-slate-200 dark:divide-slate-800">`;
     
-    if (paginatedData.length === 0) html += `<tr><td colspan="${config.headers.length + 2}" class="px-6 py-4 text-center text-gray-500">${t('no_data')}</td></tr>`;
+    if (paginatedData.length === 0) html += `<tr><td colspan="${config.headers.length + 2}" class="px-6 py-10 text-center text-slate-400 italic">${t('no_data')}</td></tr>`;
     else {
         let allCurrentPageSelected = true;
         paginatedData.forEach(item => {
@@ -1525,38 +1563,54 @@ window.buildTable = function(collectionName) {
             const isChecked = (selectedItems[collectionName] || []).includes(id);
             if (!isChecked) allCurrentPageSelected = false;
 
-            html += `<tr class="hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"><td class="px-4 py-3 text-center"><input type="checkbox" value="${id}" onclick="window.toggleSelectItem('${collectionName}', this)" class="${collectionName}-row-cb rounded text-indigo-600 focus:ring-indigo-500 cursor-pointer" ${isChecked ? 'checked' : ''}></td>`;
+            html += `<tr class="hover:bg-indigo-50/30 dark:hover:bg-indigo-900/10 transition-colors group"><td class="px-4 py-4 text-center"><input type="checkbox" value="${id}" onclick="window.toggleSelectItem('${collectionName}', this)" class="${collectionName}-row-cb rounded text-indigo-600 focus:ring-indigo-500 cursor-pointer" ${isChecked ? 'checked' : ''}></td>`;
 
             config.headers.forEach(header => {
                 let val = item[header] || '';
                 if (header === 'Status') {
-                   let color = 'gray'; let tStatus = t(val.toLowerCase().replace(' ', '_')) || val;
-                   if (val === 'Active') color = 'green'; else if (val === 'On Loan') color = 'yellow'; else if (val === 'Repair') color = 'orange'; else if (val === 'Storage') color = 'blue'; else if (val === 'Damaged') color = 'red';
-                   val = `<span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-${color}-100 text-${color}-800 dark:bg-${color}-900/50 dark:text-${color}-300">${tStatus}</span>`; 
+                   let tStatus = t(val.toLowerCase().replace(' ', '_')) || val;
+                   let badgeClass = 'status-badge ';
+                   if (val === 'Active') badgeClass += 'status-active'; 
+                   else if (val === 'On Loan') badgeClass += 'bg-amber-50 text-amber-700 dark:bg-amber-900/20 dark:text-amber-400'; 
+                   else if (val === 'Repair') badgeClass += 'status-repair'; 
+                   else if (val === 'Storage') badgeClass += 'status-storage'; 
+                   else if (val === 'Damaged') badgeClass += 'status-damaged';
+                   else badgeClass += 'bg-slate-100 text-slate-600';
+                   val = `<span class="${badgeClass}">${tStatus}</span>`; 
                 } else if (header === 'Last Seen') {
                      let lastSeen = item.lastSeenOnline;
                      if (lastSeen) {
                         const diffMins = (new Date() - new Date(lastSeen)) / 60000;
-                        if (diffMins <= 15) val = `<div class="flex items-center space-x-2"><div class="h-2.5 w-2.5 rounded-full bg-green-500 shadow-[0_0_5px_#22c55e] animate-pulse"></div><span class="font-medium text-green-600 dark:text-green-400">${t('online')}</span></div>`;
-                        else val = `<div class="flex flex-col"><div class="flex items-center space-x-2"><div class="h-2.5 w-2.5 rounded-full bg-gray-400"></div><span class="text-gray-500">${t('offline')}</span></div><span class="text-[10px] text-gray-400 mt-0.5" title="${new Date(lastSeen).toLocaleString('th-TH')}">${window.formatTimeAgo(lastSeen)}</span></div>`;
+                        if (diffMins <= 15) val = `<div class="flex items-center space-x-2"><div class="h-2 w-2 rounded-full bg-emerald-500 shadow-[0_0_8px_#10b981] animate-pulse"></div><span class="text-xs font-bold text-emerald-600 dark:text-emerald-400 uppercase tracking-tighter">${t('online')}</span></div>`;
+                        else val = `<div class="flex flex-col"><div class="flex items-center space-x-2"><div class="h-2 w-2 rounded-full bg-slate-300 dark:bg-slate-600"></div><span class="text-xs font-bold text-slate-400 uppercase tracking-tighter">${t('offline')}</span></div><span class="text-[9px] font-medium text-slate-400 mt-1 uppercase" title="${new Date(lastSeen).toLocaleString('th-TH')}">${window.formatTimeAgo(lastSeen)}</span></div>`;
                      } else {
-                        val = `<div class="flex items-center space-x-2"><div class="h-2.5 w-2.5 rounded-full bg-yellow-400"></div><span class="text-gray-500">${t('unknown')}</span></div>`;
+                        val = `<div class="flex items-center space-x-2"><div class="h-2 w-2 rounded-full bg-amber-400 opacity-50"></div><span class="text-xs font-bold text-slate-400 uppercase tracking-tighter">${t('unknown')}</span></div>`;
                      }
                 }
-                html += `<td class="px-6 py-4 text-sm text-gray-700 dark:text-gray-200 whitespace-nowrap max-w-xs truncate" title="${String(val).replace(/<[^>]*>?/gm, '')}">${val}</td>`;
+                
+                const isPrimary = header === config.nameField || header === config.serialField;
+                const textClass = isPrimary ? 'font-bold text-slate-800 dark:text-slate-100' : 'text-slate-500 dark:text-slate-400';
+
+                html += `<td class="px-6 py-4 text-sm ${textClass} whitespace-nowrap max-w-xs truncate" title="${String(val).replace(/<[^>]*>?/gm, '')}">${val}</td>`;
             });
             
             html += `<td class="px-6 py-4 text-sm font-medium space-x-3 whitespace-nowrap text-center">
-                <button onclick="window.openModal('edit', '${collectionName}', '${id}')" class="text-indigo-600 hover:text-indigo-900 dark:text-indigo-400 dark:hover:text-indigo-300" title="Edit"><i class="fas fa-edit"></i></button>
-                <button onclick="window.openCloneModal('${collectionName}', '${id}')" class="text-blue-600 hover:text-blue-900 dark:text-blue-400 dark:hover:text-blue-300" title="Clone"><i class="fas fa-copy"></i></button>
-                <button onclick="window.openMoveModal('${collectionName}', '${id}')" class="text-purple-600 hover:text-purple-900 dark:text-purple-400 dark:hover:text-purple-300" title="Move Category"><i class="fas fa-exchange-alt"></i></button>
-                <button onclick="window.deleteItem('${collectionName}', '${id}')" class="text-red-600 hover:text-red-900 dark:text-red-400 dark:hover:text-red-300" title="Delete"><i class="fas fa-trash"></i></button>
-                <button onclick="window.showQrModal('${item[config.serialField] || id}', '${item[config.nameField] || 'Asset'}')" class="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200" title="QR Code"><i class="fas fa-qrcode"></i></button>
+                <div class="flex items-center justify-center space-x-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                    <button onclick="window.openModal('edit', '${collectionName}', '${id}')" class="w-8 h-8 rounded-lg flex items-center justify-center bg-indigo-50 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400 hover:bg-indigo-600 hover:text-white transition-all" title="Edit"><i class="fas fa-edit text-xs"></i></button>
+                    <button onclick="window.openCloneModal('${collectionName}', '${id}')" class="w-8 h-8 rounded-lg flex items-center justify-center bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 hover:bg-blue-600 hover:text-white transition-all" title="Clone"><i class="fas fa-copy text-xs"></i></button>
+                    <button onclick="window.openMoveModal('${collectionName}', '${id}')" class="w-8 h-8 rounded-lg flex items-center justify-center bg-purple-50 dark:bg-purple-900/30 text-purple-600 dark:text-purple-400 hover:bg-purple-600 hover:text-white transition-all" title="Move"><i class="fas fa-exchange-alt text-xs"></i></button>
+                    <button onclick="window.deleteItem('${collectionName}', '${id}')" class="w-8 h-8 rounded-lg flex items-center justify-center bg-rose-50 dark:bg-rose-900/30 text-rose-600 dark:text-rose-400 hover:bg-rose-600 hover:text-white transition-all" title="Delete"><i class="fas fa-trash text-xs"></i></button>
+                    <button onclick="window.showQrModal('${item[config.serialField] || id}', '${item[config.nameField] || 'Asset'}')" class="w-8 h-8 rounded-lg flex items-center justify-center bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 hover:bg-slate-800 hover:text-white transition-all" title="QR Code"><i class="fas fa-qrcode text-xs"></i></button>
+                </div>
             </td></tr>`;
         });
         setTimeout(() => { const selectAllCb = document.getElementById(`selectAll_${collectionName}`); if (selectAllCb) selectAllCb.checked = paginatedData.length > 0 && allCurrentPageSelected; }, 10);
     }
+    table.className = 'modern-table';
     table.innerHTML = html + `</tbody>`;
+    window.renderPaginationControls(collectionName, totalRows);
+    window.updateBulkActionBar(collectionName);
+};
     window.renderPaginationControls(collectionName, totalRows);
     window.updateBulkActionBar(collectionName);
 };
@@ -1984,46 +2038,39 @@ window.updateDashboard = function(folderId) {
                 let mDef = (allData.CustomMenus || []).find(m => m.name === currentDashboardFolder);
                 const goBackId = mDef && mDef.parentId ? `'${mDef.parentId}'` : `null`;
                 return `
-                <div class="bg-gray-100 dark:bg-gray-700 p-4 rounded-xl shadow-sm border border-gray-200 dark:border-gray-600 flex items-center space-x-3 cursor-pointer hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors transform hover:-translate-y-1" onclick="window.updateDashboard(${goBackId})">
-                    <div class="bg-gray-200 dark:bg-gray-600 w-10 h-10 rounded-full flex items-center justify-center shrink-0">
-                        <i class="fas fa-arrow-left text-gray-600 dark:text-gray-300"></i>
+                <div class="card-modern p-5 flex items-center space-x-4 cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-800 transition-all border-dashed" onclick="window.updateDashboard(${goBackId})">
+                    <div class="bg-slate-100 dark:bg-slate-800 w-12 h-12 rounded-2xl flex items-center justify-center shrink-0">
+                        <i class="fas fa-arrow-left text-slate-500"></i>
                     </div>
-                    <div class="overflow-hidden">
-                        <p class="text-xs text-gray-500 dark:text-gray-400 truncate">${t('go_back')}</p>
-                        <p class="text-sm font-bold text-gray-800 dark:text-white truncate">${t('back')}</p>
+                    <div>
+                        <p class="text-[10px] font-black text-slate-400 uppercase tracking-widest">${t('go_back')}</p>
+                        <p class="text-sm font-bold text-slate-700 dark:text-white">${t('back')}</p>
                     </div>
                 </div>`;
             }
 
             const action = children.length > 0 ? `window.updateDashboard('${colName}')` : `window.loadPage('${colName}')`;
-            const iconMarker = children.length > 0 ? `<div class="absolute top-2 right-2 text-xs text-indigo-400"><i class="fas fa-folder"></i></div>` : '';
             const stats = getFolderStats(colName);
-            
             const finalDisplayName = config.isCustom ? displayName : t(colName.toLowerCase()) || displayName;
 
             return `
-            <div class="relative bg-white dark:bg-gray-800 p-4 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700 flex flex-col justify-center cursor-pointer hover:bg-indigo-50 dark:hover:bg-gray-700 transition-colors transform hover:-translate-y-1" onclick="${action}">
-                ${iconMarker}
-                <div class="flex items-center space-x-3 w-full">
-                    <div class="bg-indigo-100 dark:bg-indigo-900/50 w-10 h-10 rounded-full flex items-center justify-center shrink-0">
-                        <i class="fas ${config.icon || 'fa-box'} text-indigo-600 dark:text-indigo-400"></i>
+            <div class="card-modern p-6 flex flex-col cursor-pointer group" onclick="${action}">
+                <div class="flex items-start justify-between mb-4">
+                    <div class="w-12 h-12 bg-indigo-50 dark:bg-indigo-900/30 rounded-2xl flex items-center justify-center text-indigo-600 group-hover:scale-110 transition-transform">
+                        <i class="fas ${config.icon || 'fa-box'} text-xl"></i>
                     </div>
-                    <div class="flex-1 min-w-0">
-                        <p class="text-sm font-bold text-gray-800 dark:text-white truncate">${finalDisplayName}</p>
-                        <p class="text-xs text-gray-500 dark:text-gray-400">${stats.total} ${t('items_count')}</p>
-                    </div>
+                    ${children.length > 0 ? '<span class="px-2 py-1 bg-indigo-100 dark:bg-indigo-900/50 text-indigo-600 dark:text-indigo-400 text-[9px] font-black rounded-lg uppercase tracking-tighter">Folder</span>' : ''}
                 </div>
+                <h4 class="font-bold text-slate-800 dark:text-white text-base truncate mb-1">${finalDisplayName}</h4>
+                <p class="text-xs text-slate-500 dark:text-slate-400 mb-4">${stats.total} ${t('items_count')}</p>
                 
-                <div class="mt-3 flex items-center gap-1.5 flex-wrap">
-                    <span class="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold bg-green-100 text-green-800 dark:bg-green-900/40 dark:text-green-400" title="Active / On Loan">
-                        <i class="fas fa-check-circle mr-1"></i>${stats.active}
-                    </span>
-                    <span class="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold bg-blue-100 text-blue-800 dark:bg-blue-900/40 dark:text-blue-400" title="Storage">
-                        <i class="fas fa-box mr-1"></i>${stats.storage}
-                    </span>
-                    <span class="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold bg-orange-100 text-orange-800 dark:bg-orange-900/40 dark:text-orange-400" title="Issues / Repair">
-                        <i class="fas fa-tools mr-1"></i>${stats.issues}
-                    </span>
+                <div class="mt-auto flex items-center space-x-2">
+                    <div class="flex -space-x-1">
+                        <div class="w-6 h-6 rounded-full bg-emerald-500 border-2 border-white dark:border-slate-800 flex items-center justify-center text-[8px] text-white font-bold" title="Active">${stats.active}</div>
+                        <div class="w-6 h-6 rounded-full bg-blue-500 border-2 border-white dark:border-slate-800 flex items-center justify-center text-[8px] text-white font-bold" title="Storage">${stats.storage}</div>
+                        <div class="w-6 h-6 rounded-full bg-amber-500 border-2 border-white dark:border-slate-800 flex items-center justify-center text-[8px] text-white font-bold" title="Issues">${stats.issues}</div>
+                    </div>
+                    <span class="text-[10px] font-bold text-slate-400 uppercase tracking-widest ml-2">Breakdown</span>
                 </div>
             </div>`;
         };
@@ -2045,35 +2092,16 @@ window.updateDashboard = function(folderId) {
                 const config = collectionConfigs[colName];
                 const displayName = config.displayName || colName;
                 const children = getChildren(colName);
-                
                 overviewGrid.innerHTML += generateFolderCardHTML(colName, config, displayName, children, false);
             });
         } else {
-            const parentConfig = collectionConfigs[currentDashboardFolder];
-            const parentDisplayName = parentConfig.isCustom ? parentConfig.displayName : t(currentDashboardFolder.toLowerCase()) || currentDashboardFolder;
-            const stats = getFolderStats(currentDashboardFolder);
-
             overviewGrid.innerHTML += generateFolderCardHTML(null, null, null, null, true);
-
-            overviewGrid.innerHTML += `
-                <div class="bg-indigo-50 dark:bg-indigo-900/30 p-4 rounded-xl shadow-sm border border-indigo-200 dark:border-indigo-700 flex flex-col justify-center cursor-pointer hover:bg-indigo-100 dark:hover:bg-indigo-800/50 transition-colors transform hover:-translate-y-1" onclick="window.loadPage('${currentDashboardFolder}')">
-                    <div class="flex items-center space-x-3 w-full">
-                        <div class="bg-indigo-200 dark:bg-indigo-800 w-10 h-10 rounded-full flex items-center justify-center shrink-0">
-                            <i class="fas fa-list text-indigo-700 dark:text-indigo-300"></i>
-                        </div>
-                        <div class="flex-1 min-w-0">
-                            <p class="text-xs text-indigo-500 dark:text-indigo-400 truncate">${t('view_items')}</p>
-                            <p class="text-sm font-bold text-indigo-900 dark:text-indigo-100 truncate">${parentDisplayName}</p>
-                        </div>
-                    </div>
-                </div>`;
-
+            
             const children = getChildren(currentDashboardFolder);
             children.forEach(colName => {
                 const config = collectionConfigs[colName];
                 const displayName = config.displayName || colName;
                 const subChildren = getChildren(colName);
-                
                 overviewGrid.innerHTML += generateFolderCardHTML(colName, config, displayName, subChildren, false);
             });
         }
@@ -2097,7 +2125,6 @@ window.updateDashboard = function(folderId) {
         }
     }
     window.renderCategoryChart(categoryCounts);
-
     window.renderLocationChart(locationCounts);
 
     // 4. Render Recent Transactions
@@ -2105,20 +2132,30 @@ window.updateDashboard = function(folderId) {
     if (activityContainer) {
         const transactions = allData['TransactionHistory'] || [];
         if (transactions.length === 0) {
-            activityContainer.innerHTML = `<p class="text-gray-500 text-sm">${t('no_data')}</p>`;
+            activityContainer.innerHTML = `<div class="p-10 text-center text-slate-400 italic">${t('no_data')}</div>`;
         } else {
-            const sorted = transactions.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp)).slice(0, 5);
+            const sorted = transactions.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp)).slice(0, 6);
             let html = '';
             sorted.forEach(tx => {
-                const date = new Date(tx.timestamp).toLocaleString('th-TH');
-                const color = tx.type === 'Handover' ? 'text-blue-500' : 'text-green-500';
-                const icon = tx.type === 'Handover' ? 'fa-arrow-right' : 'fa-arrow-left';
+                const date = new Date(tx.timestamp);
+                const isHandover = tx.type === 'Handover';
+                const colorClass = isHandover ? 'bg-indigo-50 text-indigo-600 dark:bg-indigo-900/30 dark:text-indigo-400' : 'bg-emerald-50 text-emerald-600 dark:bg-emerald-900/30 dark:text-emerald-400';
+                const icon = isHandover ? 'fa-arrow-right' : 'fa-arrow-left';
+                
                 html += `
-                    <div class="flex items-start space-x-3 p-3 bg-gray-50 dark:bg-gray-700/50 rounded-lg">
-                        <div class="mt-1 ${color}"><i class="fas ${icon}"></i></div>
-                        <div>
-                            <p class="text-sm font-semibold text-gray-800 dark:text-gray-200">${t(tx.type.toLowerCase()) || tx.type}: <span class="font-normal text-gray-600 dark:text-gray-400">${tx.staffUserName || 'Unknown'}</span></p>
-                            <p class="text-xs text-gray-500">${tx.devices ? tx.devices.length : 0} ${t('items')} • ${date}</p>
+                    <div class="px-8 py-4 hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors flex items-center justify-between group">
+                        <div class="flex items-center space-x-4">
+                            <div class="w-10 h-10 rounded-xl ${colorClass} flex items-center justify-center transition-transform group-hover:scale-110">
+                                <i class="fas ${icon}"></i>
+                            </div>
+                            <div>
+                                <p class="text-sm font-bold text-slate-800 dark:text-white">${t(tx.type.toLowerCase()) || tx.type}: <span class="text-indigo-600 dark:text-indigo-400">${tx.staffUserName || 'System'}</span></p>
+                                <p class="text-[10px] text-slate-400 font-bold uppercase tracking-widest mt-0.5">${tx.devices ? tx.devices.length : 0} ${t('items')} • ${window.formatTimeAgo(tx.timestamp)}</p>
+                            </div>
+                        </div>
+                        <div class="text-right hidden sm:block">
+                            <p class="text-[10px] text-slate-400 font-medium">${date.toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' })}</p>
+                            <p class="text-[10px] text-slate-400 font-medium">${date.toLocaleDateString('th-TH')}</p>
                         </div>
                     </div>
                 `;
