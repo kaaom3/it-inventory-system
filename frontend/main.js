@@ -1422,14 +1422,111 @@ window.buildMaintenancePage = function() {
 
 window.filterLoanHistory = function(val) { const term=val.toUpperCase(); document.querySelectorAll('#LoanHistoryContainer > div').forEach(el => el.style.display = el.textContent.toUpperCase().includes(term)?'':'none'); };
 window.filterMaintenanceHistory = function(val) { const term=val.toUpperCase(); document.querySelectorAll('#MaintenanceContainer > div').forEach(el => el.style.display = el.textContent.toUpperCase().includes(term)?'':'none'); };
-window.filterAssetsByUser = function(val) { const term=val.toUpperCase(); document.querySelectorAll('#AssetsByUserContainer > details').forEach(el => el.style.display = el.textContent.toUpperCase().includes(term)?'':'none'); };
+window.filterAssetsByUser = function(val) {
+    const term = val.toUpperCase();
+    document.querySelectorAll('.user-asset-card').forEach(el => {
+        const text = el.textContent.toUpperCase();
+        el.style.display = text.includes(term) ? '' : 'none';
+    });
+};
 
 window.buildAssetsByUserPage = function() {
-    const container = document.getElementById('AssetsByUserContainer'); if(!container) return; container.innerHTML = ''; const byUser = {}; const skipKeys = ['Staff', 'CustomMenus', 'TransactionHistory', 'LoanHistory', 'Maintenance Log', 'admins', 'Software'];
-    Object.keys(allData).forEach(key => { if (skipKeys.includes(key)) return; (allData[key] || []).forEach(item => { const u = item.UserName || 'Unassigned'; if(!byUser[u]) byUser[u] = []; byUser[u].push({...item, type: key}); }); });
-    Object.keys(byUser).sort().forEach(user => {
-        if(user === 'Unassigned') return; const assets = byUser[user];
-        container.innerHTML += `<details class="group bg-white dark:bg-gray-800 rounded-lg shadow mb-3"><summary class="p-4 flex justify-between items-center cursor-pointer list-none"><span class="font-bold text-gray-800 dark:text-white"><i class="fas fa-user mr-2"></i>${user}</span><span class="bg-indigo-100 text-indigo-800 text-xs px-2 py-1 rounded-full">${assets.length} items</span></summary><div class="p-4 border-t dark:border-gray-700"><ul class="text-sm space-y-2">${assets.map(a => `<li class="flex justify-between items-center"><span>${a.ComputerName || a.DeviceName || a.ItemName || a.Model} <span class="text-xs text-gray-500">(${t(a.type.toLowerCase()) || a.type})</span></span><span class="text-xs font-mono">${a.SerialNumber || a.MonitorSerial || '-'}</span></li>`).join('')}</ul></div></details>`;
+    const container = document.getElementById('AssetsByUserContainer');
+    if (!container) return;
+    container.innerHTML = '';
+    const byUser = {};
+    const skipKeys = ['Staff', 'CustomMenus', 'TransactionHistory', 'LoanHistory', 'Maintenance Log', 'admins', 'Software'];
+    
+    // Group assets by user
+    Object.keys(allData).forEach(key => {
+        if (skipKeys.includes(key)) return;
+        (allData[key] || []).forEach(item => {
+            const u = item.UserName || 'Unassigned';
+            if (!byUser[u]) byUser[u] = [];
+            byUser[u].push({ ...item, type: key });
+        });
+    });
+
+    // Render cards
+    Object.keys(byUser).sort().forEach(username => {
+        if (username === 'Unassigned') return; 
+        
+        const assets = byUser[username];
+        const staff = (allData.Staff || []).find(s => (s.UserName || '').toLowerCase() === username.toLowerCase()) || {};
+        const firstName = staff.FirstName === 'Auto' ? '' : (staff.FirstName || '');
+        const lastName = staff.LastName === 'Detected' ? '' : (staff.LastName || '');
+        const fullName = (firstName || lastName) ? `${firstName} ${lastName}`.trim() : username;
+        const department = staff.Department && staff.Department !== 'N/A' ? staff.Department : t('unknown');
+        
+        // Count assets by category for summary
+        const typeCounts = {};
+        assets.forEach(a => { typeCounts[a.type] = (typeCounts[a.type] || 0) + 1; });
+        const summaryHtml = Object.entries(typeCounts).map(([type, count]) => {
+            const config = collectionConfigs[type] || { icon: 'fa-box' };
+            const dispType = config.isCustom ? config.displayName : t(type.toLowerCase()) || type;
+            return `<span class="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold bg-indigo-50 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-400 border border-indigo-100 dark:border-indigo-800 mr-1 mb-1" title="${dispType}"><i class="fas ${config.icon} mr-1"></i>${count}</span>`;
+        }).join('');
+
+        const userCard = `
+            <div class="user-asset-card bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 overflow-hidden hover:shadow-md transition-shadow mb-4">
+                <details class="group">
+                    <summary class="p-5 flex flex-wrap justify-between items-center cursor-pointer list-none">
+                        <div class="flex items-center space-x-4">
+                            <div class="w-12 h-12 rounded-full bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center text-white shadow-lg shrink-0">
+                                <i class="fas fa-user text-xl"></i>
+                            </div>
+                            <div class="min-w-0">
+                                <h3 class="font-bold text-gray-900 dark:text-white leading-tight truncate">${fullName}</h3>
+                                <div class="flex items-center mt-1 flex-wrap gap-y-1">
+                                    <span class="text-xs text-gray-500 dark:text-gray-400 font-medium mr-3 flex items-center"><i class="fas fa-id-badge mr-1"></i>${username}</span>
+                                    <span class="text-xs text-indigo-500 dark:text-indigo-400 font-bold bg-indigo-50 dark:bg-indigo-900/30 px-2 py-0.5 rounded-full border border-indigo-100 dark:border-indigo-800/50">${department}</span>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="flex flex-col items-end mt-3 md:mt-0 w-full md:w-auto">
+                            <div class="flex flex-wrap justify-end mb-1">${summaryHtml}</div>
+                            <div class="flex items-center text-xs text-gray-400 font-bold uppercase tracking-wider">
+                                <span>${assets.length} ${t('items_count')}</span>
+                                <i class="fas fa-chevron-right ml-3 transform group-open:rotate-90 transition-transform"></i>
+                            </div>
+                        </div>
+                    </summary>
+                    <div class="px-5 pb-5 pt-2 border-t border-gray-50 dark:border-gray-700 bg-gray-50/50 dark:bg-gray-900/20">
+                        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                            ${assets.map(a => {
+                                const config = collectionConfigs[a.type] || { icon: 'fa-box', nameField: 'SerialNumber' };
+                                const deviceName = a[config.nameField] || a.ComputerName || a.ItemName || a.Model || 'Unknown';
+                                const serial = a.SerialNumber || a.MonitorSerial || '-';
+                                const lastSeen = a.lastSeenOnline;
+                                let statusDot = '';
+                                if (lastSeen) {
+                                    const isOnline = (new Date() - new Date(lastSeen)) / 60000 <= 15;
+                                    statusDot = `<div class="h-2 w-2 rounded-full ${isOnline ? 'bg-green-500 shadow-[0_0_5px_#22c55e] animate-pulse' : 'bg-gray-400'} mr-2 shrink-0"></div>`;
+                                }
+                                
+                                return `
+                                    <div class="p-3 bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 flex items-center shadow-sm hover:border-indigo-300 dark:hover:border-indigo-500 transition-colors cursor-pointer group/item" onclick='window.openViewModal("${a.type}", ${JSON.stringify(a).replace(/'/g, "&#39;")})'>
+                                        <div class="w-10 h-10 rounded-lg bg-gray-50 dark:bg-gray-700 flex items-center justify-center mr-3 text-gray-400 group-hover/item:text-indigo-500 transition-colors shrink-0">
+                                            <i class="fas ${config.icon}"></i>
+                                        </div>
+                                        <div class="flex-1 min-w-0">
+                                            <div class="flex items-center">
+                                                ${statusDot}
+                                                <p class="font-bold text-sm text-gray-800 dark:text-gray-200 truncate">${deviceName}</p>
+                                            </div>
+                                            <p class="text-[10px] text-gray-500 dark:text-gray-400 font-mono truncate uppercase tracking-tighter mt-0.5">
+                                                ${config.isCustom ? config.displayName : t(a.type.toLowerCase()) || a.type} • ${serial}
+                                            </p>
+                                        </div>
+                                    </div>
+                                `;
+                            }).join('')}
+                        </div>
+                    </div>
+                </details>
+            </div>
+        `;
+        container.insertAdjacentHTML('beforeend', userCard);
     });
 };
 
