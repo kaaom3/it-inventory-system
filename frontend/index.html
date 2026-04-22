@@ -45,7 +45,6 @@
         @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
         .page-content { animation: fadeIn 0.4s cubic-bezier(0.4, 0, 0.2, 1); }
         
-        /* Custom UI fixes for dynamic components */
         .custom-scrollbar::-webkit-scrollbar { width: 4px; }
         .custom-scrollbar::-webkit-scrollbar-thumb { background: #e2e8f0; border-radius: 10px; }
         .dark .custom-scrollbar::-webkit-scrollbar-thumb { background: #334155; }
@@ -87,7 +86,6 @@
         <!-- Sidebar -->
         <nav id="sidebar" class="w-72 bg-white dark:bg-slate-900 border-r dark:border-slate-800 flex flex-col fixed inset-y-0 left-0 transform -translate-x-full md:relative md:translate-x-0 z-50 transition-transform duration-300 h-screen shadow-2xl md:shadow-none">
             <div class="p-6 flex flex-col h-full">
-                <!-- Brand -->
                 <div class="flex items-center space-x-4 mb-10 px-2">
                     <div class="w-10 h-10 bg-indigo-600 rounded-xl flex items-center justify-center text-white shadow-xl shadow-indigo-200 dark:shadow-none">
                         <i class="fas fa-cubes text-xl"></i>
@@ -98,7 +96,6 @@
                     </div>
                 </div>
 
-                <!-- User Info -->
                 <div class="mb-8 px-4 py-3 bg-slate-50 dark:bg-slate-800/50 rounded-2xl border border-slate-100 dark:border-slate-700/50">
                     <p class="text-[10px] text-slate-500 uppercase font-bold tracking-wider mb-1" data-i18n="logged_in_as">Logged in as</p>
                     <div class="flex items-center space-x-2">
@@ -107,12 +104,9 @@
                     </div>
                 </div>
                 
-                <!-- Menu -->
                 <ul id="sidebar-menu-container" class="space-y-1 overflow-y-auto flex-1 pb-4 custom-scrollbar -mx-2 px-2">
-                    <!-- Menus injected by main.js -->
                 </ul>
 
-                <!-- Footer Menu -->
                 <div class="mt-auto pt-6 border-t dark:border-slate-800 space-y-2">
                     <button id="lang-toggle" onclick="window.toggleLanguage()" class="nav-link w-full">
                         <i class="fas fa-globe w-5 text-indigo-500"></i>
@@ -142,19 +136,16 @@
                     <p class="text-slate-500 dark:text-slate-400 mt-1">Real-time assets and infrastructure status</p>
                 </header>
                 
-                <!-- Main Stats -->
                 <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-6 mb-10">
                     <div class="stat-card-vibrant group cursor-default">
                         <div class="flex justify-between items-start mb-4">
                             <div class="w-12 h-12 bg-indigo-50 dark:bg-indigo-900/30 rounded-2xl flex items-center justify-center text-indigo-600 group-hover:scale-110 transition-transform">
                                 <i class="fas fa-cubes text-xl"></i>
                             </div>
-                            <span class="text-[10px] font-bold text-indigo-500 uppercase tracking-widest bg-indigo-50 dark:bg-indigo-900/30 px-2 py-1 rounded">Growth +5%</span>
                         </div>
                         <h3 class="text-slate-500 dark:text-slate-400 text-xs font-bold uppercase tracking-wider" data-i18n="total_assets">Total Assets</h3>
                         <p class="text-4xl font-black text-slate-800 dark:text-white mt-1" id="stat-total">0</p>
                     </div>
-
                     <div class="stat-card-vibrant group cursor-default">
                         <div class="flex justify-between items-start mb-4">
                             <div class="w-12 h-12 bg-emerald-50 dark:bg-emerald-900/30 rounded-2xl flex items-center justify-center text-emerald-600 group-hover:scale-110 transition-transform">
@@ -164,7 +155,6 @@
                         <h3 class="text-slate-500 dark:text-slate-400 text-xs font-bold uppercase tracking-wider" data-i18n="active_loan">Active / Loan</h3>
                         <p class="text-4xl font-black text-emerald-600 mt-1" id="stat-active">0</p>
                     </div>
-
                     <div class="stat-card-vibrant group cursor-default">
                         <div class="flex justify-between items-start mb-4">
                             <div class="w-12 h-12 bg-blue-50 dark:bg-blue-900/30 rounded-2xl flex items-center justify-center text-blue-600 group-hover:scale-110 transition-transform">
@@ -174,7 +164,6 @@
                         <h3 class="text-slate-500 dark:text-slate-400 text-xs font-bold uppercase tracking-wider" data-i18n="in_storage">In Storage</h3>
                         <p class="text-4xl font-black text-blue-600 mt-1" id="stat-storage">0</p>
                     </div>
-
                     <div class="stat-card-vibrant group cursor-default">
                         <div class="flex justify-between items-start mb-4">
                             <div class="w-12 h-12 bg-amber-50 dark:bg-amber-900/30 rounded-2xl flex items-center justify-center text-amber-600 group-hover:scale-110 transition-transform">
@@ -184,7 +173,6 @@
                         <h3 class="text-slate-500 dark:text-slate-400 text-xs font-bold uppercase tracking-wider" data-i18n="repair_issue">Repair / Issue</h3>
                         <p class="text-4xl font-black text-amber-600 mt-1" id="stat-issues">0</p>
                     </div>
-
                     <div class="stat-card-vibrant group cursor-default">
                         <div class="flex justify-between items-start mb-4">
                             <div class="w-12 h-12 bg-rose-50 dark:bg-rose-900/30 rounded-2xl flex items-center justify-center text-rose-600 group-hover:scale-110 transition-transform">
@@ -196,120 +184,171 @@
                     </div>
                 </div>
 
-                <!-- Secondary Stats -->
                 <div class="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-10">
-                    <div class="card-modern p-8 bg-gradient-to-br from-white to-slate-50 dark:from-slate-800 dark:to-slate-900">
-                        <div class="flex items-center justify-between mb-8">
-                            <div class="flex items-center space-x-4">
-                                <div class="w-14 h-14 bg-indigo-600 rounded-2xl flex items-center justify-center text-white shadow-xl shadow-indigo-200 dark:shadow-none">
-                                    <i class="fas fa-network-wired text-2xl"></i>
-                                </div>
-                                <div>
-                                    <h3 class="text-xl font-bold text-slate-800 dark:text-white" data-i18n="network_health">Network & Devices Health</h3>
-                                    <p class="text-sm text-slate-500" data-i18n="network_health_desc">Status of IP-enabled infrastructure</p>
-                                </div>
+                    <div class="card-modern p-8">
+                        <h3 class="text-xl font-bold mb-6 flex items-center"><i class="fas fa-network-wired mr-3 text-indigo-600"></i><span data-i18n="network_health">Network Health</span></h3>
+                        <div class="grid grid-cols-2 gap-4">
+                            <div class="bg-emerald-50 dark:bg-emerald-900/20 p-4 rounded-xl text-center">
+                                <p class="text-xs font-bold uppercase tracking-widest text-emerald-600" data-i18n="online">Online</p>
+                                <p class="text-3xl font-black" id="stat-online">0</p>
                             </div>
-                        </div>
-                        <div class="grid grid-cols-2 gap-8">
-                            <div class="bg-white dark:bg-slate-800/50 p-6 rounded-2xl border border-slate-100 dark:border-slate-700/50 text-center">
-                                <p class="text-[10px] font-black text-emerald-500 uppercase tracking-widest mb-1" data-i18n="online">ONLINE</p>
-                                <p class="text-4xl font-black text-slate-800 dark:text-white" id="stat-online">0</p>
-                            </div>
-                            <div class="bg-white dark:bg-slate-800/50 p-6 rounded-2xl border border-slate-100 dark:border-slate-700/50 text-center">
-                                <p class="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1" data-i18n="offline">OFFLINE</p>
-                                <p class="text-4xl font-black text-slate-800 dark:text-white" id="stat-offline">0</p>
+                            <div class="bg-slate-100 dark:bg-slate-800 p-4 rounded-xl text-center">
+                                <p class="text-xs font-bold uppercase tracking-widest text-slate-500" data-i18n="offline">Offline</p>
+                                <p class="text-3xl font-black" id="stat-offline">0</p>
                             </div>
                         </div>
                     </div>
-
-                    <div class="card-modern p-8 bg-gradient-to-br from-white to-slate-50 dark:from-slate-800 dark:to-slate-900">
-                        <div class="flex items-center justify-between mb-8">
-                            <div class="flex items-center space-x-4">
-                                <div class="w-14 h-14 bg-amber-500 rounded-2xl flex items-center justify-center text-white shadow-xl shadow-amber-200 dark:shadow-none">
-                                    <i class="fas fa-shield-alt text-2xl"></i>
-                                </div>
-                                <div>
-                                    <h3 class="text-xl font-bold text-slate-800 dark:text-white" data-i18n="warranty_alerts">Warranty Alerts</h3>
-                                    <p class="text-sm text-slate-500" data-i18n="warranty_alerts_desc">Upcoming coverage expirations</p>
-                                </div>
+                    <div class="card-modern p-8">
+                        <h3 class="text-xl font-bold mb-6 flex items-center"><i class="fas fa-shield-alt mr-3 text-amber-600"></i><span data-i18n="warranty_alerts">Warranty Alerts</span></h3>
+                        <div class="grid grid-cols-2 gap-4">
+                            <div class="bg-amber-50 dark:bg-amber-900/20 p-4 rounded-xl text-center">
+                                <p class="text-xs font-bold uppercase tracking-widest text-amber-600" data-i18n="expires_soon">< 30D</p>
+                                <p class="text-3xl font-black" id="stat-warranty-soon">0</p>
                             </div>
-                        </div>
-                        <div class="grid grid-cols-2 gap-8">
-                            <div class="bg-white dark:bg-slate-800/50 p-6 rounded-2xl border border-slate-100 dark:border-slate-700/50 text-center">
-                                <p class="text-[10px] font-black text-amber-500 uppercase tracking-widest mb-1" data-i18n="expires_soon">EXPIRES <30D</p>
-                                <p class="text-4xl font-black text-slate-800 dark:text-white" id="stat-warranty-soon">0</p>
-                            </div>
-                            <div class="bg-white dark:bg-slate-800/50 p-6 rounded-2xl border border-slate-100 dark:border-slate-700/50 text-center">
-                                <p class="text-[10px] font-black text-rose-500 uppercase tracking-widest mb-1" data-i18n="expired">EXPIRED</p>
-                                <p class="text-4xl font-black text-slate-800 dark:text-white" id="stat-warranty-expired">0</p>
+                            <div class="bg-rose-50 dark:bg-rose-900/20 p-4 rounded-xl text-center">
+                                <p class="text-xs font-bold uppercase tracking-widest text-rose-600" data-i18n="expired">Expired</p>
+                                <p class="text-3xl font-black" id="stat-warranty-expired">0</p>
                             </div>
                         </div>
                     </div>
                 </div>
 
-                <!-- Category Overview -->
                 <div id="category-overview-grid" class="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-6 mb-10"></div>
 
-                <!-- Charts -->
                 <div class="grid grid-cols-1 lg:grid-cols-3 gap-8 mb-10">
-                    <div class="card-modern p-6">
-                        <h3 class="font-bold text-slate-800 dark:text-white mb-6 flex items-center">
-                            <span class="w-8 h-8 bg-indigo-50 dark:bg-indigo-900/30 rounded-lg flex items-center justify-center text-indigo-600 mr-3">
-                                <i class="fas fa-chart-pie text-sm"></i>
-                            </span>
-                            <span data-i18n="status_distribution">Status Distribution</span>
-                        </h3>
-                        <div class="h-64"><canvas id="statusChart"></canvas></div>
-                    </div>
-                    <div class="card-modern p-6">
-                        <h3 class="font-bold text-slate-800 dark:text-white mb-6 flex items-center">
-                            <span class="w-8 h-8 bg-emerald-50 dark:bg-emerald-900/30 rounded-lg flex items-center justify-center text-emerald-600 mr-3">
-                                <i class="fas fa-chart-bar text-sm"></i>
-                            </span>
-                            <span data-i18n="assets_by_category">Assets by Category</span>
-                        </h3>
-                        <div class="h-64"><canvas id="categoryChart"></canvas></div>
-                    </div>
-                    <div class="card-modern p-6">
-                        <h3 class="font-bold text-slate-800 dark:text-white mb-6 flex items-center">
-                            <span class="w-8 h-8 bg-amber-50 dark:bg-amber-900/30 rounded-lg flex items-center justify-center text-amber-600 mr-3">
-                                <i class="fas fa-map-marker-alt text-sm"></i>
-                            </span>
-                            <span data-i18n="top_locations">Top Locations</span>
-                        </h3>
-                        <div class="h-64"><canvas id="locationChart"></canvas></div>
-                    </div>
+                    <div class="card-modern p-6"><canvas id="statusChart"></canvas></div>
+                    <div class="card-modern p-6"><canvas id="categoryChart"></canvas></div>
+                    <div class="card-modern p-6"><canvas id="locationChart"></canvas></div>
                 </div>
 
-                <!-- Recent Activity -->
                 <div class="card-modern overflow-hidden">
                     <div class="px-8 py-6 border-b dark:border-slate-800 bg-white dark:bg-slate-800 flex justify-between items-center">
-                        <h3 class="font-bold text-slate-800 dark:text-white flex items-center">
-                            <span class="w-10 h-10 bg-indigo-600 rounded-xl flex items-center justify-center text-white shadow-lg mr-4">
-                                <i class="fas fa-history"></i>
-                            </span>
-                            <span data-i18n="recent_transactions">Recent Transactions</span>
-                        </h3>
-                        <button class="text-sm font-bold text-indigo-600 hover:text-indigo-700 transition-colors">View All History</button>
+                        <h3 class="font-bold flex items-center"><i class="fas fa-history mr-4 text-indigo-600"></i><span data-i18n="recent_transactions">Recent Activity</span></h3>
                     </div>
                     <div id="recent-activity-list" class="divide-y dark:divide-slate-800"></div>
                 </div>
             </div>
 
-            <!-- Page Container For Other Dynamic Pages (Placeholder) -->
-            <div id="page-content-container"></div>
+            <!-- Page Container For Other Dynamic Pages -->
+            <div id="page-content-container">
+                <div id="staffmanagement-page" class="page-content hidden"></div>
+                <div id="adminmanagement-page" class="page-content hidden"></div>
+                <div id="settings-page" class="page-content hidden">
+                    <div id="settings-content-area"></div>
+                </div>
+                <div id="loanhistory-page" class="page-content hidden">
+                    <div class="mb-6"><h2 class="text-3xl font-black tracking-tight" data-i18n="loan_history">Loan History</h2></div>
+                    <div id="LoanHistoryContainer" class="space-y-4"></div>
+                </div>
+                <div id="maintenance-page" class="page-content hidden">
+                    <div id="maintenanceLogContainer"></div>
+                </div>
+                <div id="assetsbyuser-page" class="page-content hidden">
+                    <div id="assetsByUserContainer"></div>
+                </div>
+                <div id="disposedassets-page" class="page-content hidden">
+                    <div id="disposedAssetsContainer"></div>
+                </div>
+                <!-- Handover / Return Page -->
+                <div id="handover-page" class="page-content hidden">
+                    <div class="flex justify-between items-center mb-10">
+                        <h2 class="text-3xl font-black tracking-tight" data-i18n="handover_return_title">Handover & Return</h2>
+                        <div class="bg-white dark:bg-slate-800 p-1 rounded-xl shadow-sm border dark:border-slate-800" id="handover-tabs">
+                            <button onclick="window.switchHandoverTab('handover', this)" class="px-6 py-2 rounded-lg text-sm font-bold border-b-2 border-indigo-600 text-indigo-600">Handover</button>
+                            <button onclick="window.switchHandoverTab('return', this)" class="px-6 py-2 rounded-lg text-sm font-bold border-b-2 border-transparent text-gray-500">Return</button>
+                        </div>
+                    </div>
+                    <div id="handover-tab-content"></div>
+                    <div id="return-tab-content" style="display:none"></div>
+                </div>
+            </div>
             
         </main>
     </div>
 
-    <!-- Modals (General Template) -->
+    <!-- ALL MODALS -->
+    <!-- General Purpose Modal -->
     <div id="generalModal" class="modal opacity-0 pointer-events-none fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-4 backdrop-blur-sm transition-all duration-300">
         <div class="modal-content bg-white dark:bg-slate-900 rounded-3xl shadow-2xl w-full max-w-4xl max-h-[90vh] overflow-hidden transform scale-90 border dark:border-slate-800">
             <div class="px-8 py-6 border-b dark:border-slate-800 bg-slate-50/50 dark:bg-slate-800/50 flex justify-between items-center">
-                <h3 id="modalTitle" class="text-xl font-black text-slate-800 dark:text-white tracking-tight flex items-center"></h3>
-                <button onclick="window.hideModalWindow('generalModal')" class="w-10 h-10 flex items-center justify-center rounded-xl bg-white dark:bg-slate-800 text-slate-400 hover:text-rose-500 transition-colors shadow-sm"><i class="fas fa-times text-xl"></i></button>
+                <h3 id="modalTitle" class="text-xl font-black text-slate-800 dark:text-white tracking-tight"></h3>
+                <button onclick="window.hideModalWindow('generalModal')" class="w-10 h-10 flex items-center justify-center rounded-xl bg-white dark:bg-slate-800 text-slate-400 hover:text-rose-500 transition-colors shadow-sm"><i class="fas fa-times"></i></button>
             </div>
             <div id="modalBody" class="p-8 overflow-y-auto max-h-[calc(90vh-140px)] custom-scrollbar"></div>
+        </div>
+    </div>
+
+    <!-- Staff Edit Modal -->
+    <div id="editStaffModal" class="modal opacity-0 pointer-events-none fixed inset-0 z-[60] flex items-center justify-center bg-slate-900/60 p-4 backdrop-blur-sm transition-all duration-300">
+        <div class="modal-content bg-white dark:bg-slate-900 rounded-3xl shadow-2xl w-full max-w-md p-8 border dark:border-slate-800">
+            <h3 id="editStaffModalTitle" class="text-xl font-bold mb-6">Staff Details</h3>
+            <form id="editStaffForm" onsubmit="window.saveStaffChanges(); return false;" class="space-y-4">
+                <div><label class="block text-xs font-bold text-gray-500 uppercase mb-1">Username</label><input type="text" id="editStaffUserName" class="input-modern w-full" required></div>
+                <div><label class="block text-xs font-bold text-gray-500 uppercase mb-1">First Name</label><input type="text" id="editStaffFirstName" class="input-modern w-full"></div>
+                <div><label class="block text-xs font-bold text-gray-500 uppercase mb-1">Last Name</label><input type="text" id="editStaffLastName" class="input-modern w-full"></div>
+                <div><label class="block text-xs font-bold text-gray-500 uppercase mb-1">Department</label><input type="text" id="editStaffDepartment" class="input-modern w-full"></div>
+                <div class="pt-4 flex space-x-3">
+                    <button type="button" onclick="window.hideModalWindow('editStaffModal')" class="flex-1 px-4 py-3 bg-slate-100 rounded-xl font-bold">Cancel</button>
+                    <button type="submit" class="flex-1 px-4 py-3 bg-indigo-600 text-white rounded-xl font-bold shadow-lg shadow-indigo-200">Save</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Admin Add Modal -->
+    <div id="addUserModal" class="modal opacity-0 pointer-events-none fixed inset-0 z-[60] flex items-center justify-center bg-slate-900/60 p-4 backdrop-blur-sm transition-all duration-300">
+        <div class="modal-content bg-white dark:bg-slate-900 rounded-3xl shadow-2xl w-full max-w-md p-8 border dark:border-slate-800">
+            <h3 class="text-xl font-bold mb-6">Create System Administrator</h3>
+            <form id="addUserForm" class="space-y-4">
+                <div><label class="block text-xs font-bold text-gray-500 uppercase mb-1">Email</label><input type="email" id="newUserEmail" class="input-modern w-full" required></div>
+                <div><label class="block text-xs font-bold text-gray-500 uppercase mb-1">Password</label><input type="password" id="newUserPassword" class="input-modern w-full" required></div>
+                <div id="addUserError" class="text-rose-500 text-xs font-bold h-4"></div>
+                <div class="pt-4 flex space-x-3">
+                    <button type="button" onclick="window.hideModalWindow('addUserModal')" class="flex-1 px-4 py-3 bg-slate-100 dark:bg-slate-800 rounded-xl font-bold">Cancel</button>
+                    <button type="submit" class="flex-1 px-4 py-3 bg-indigo-600 text-white rounded-xl font-bold shadow-lg">Create</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Add Category Modal (Large Configuration) -->
+    <div id="addMenuModal" class="modal opacity-0 pointer-events-none fixed inset-0 z-[60] flex items-center justify-center bg-slate-900/60 p-4 backdrop-blur-sm transition-all duration-300">
+        <div class="modal-content bg-white dark:bg-slate-900 rounded-3xl shadow-2xl w-full max-w-4xl max-h-[90vh] overflow-hidden border dark:border-slate-800">
+            <div class="px-8 py-6 border-b dark:border-slate-800 flex justify-between items-center">
+                <h3 id="addMenuModalTitle" class="text-xl font-bold">Category Configuration</h3>
+                <button onclick="window.hideModalWindow('addMenuModal')" class="text-gray-400 hover:text-rose-500"><i class="fas fa-times"></i></button>
+            </div>
+            <div class="p-8 overflow-y-auto max-h-[calc(90vh-120px)]">
+                <form id="addMenuForm" onsubmit="window.saveCustomMenu(event)" class="space-y-8">
+                    <input type="hidden" id="editMenuMode" value="create">
+                    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                        <div><label class="block text-xs font-bold text-gray-500 uppercase mb-1">Database ID</label><input type="text" id="newMenuId" class="input-modern w-full" required></div>
+                        <div><label class="block text-xs font-bold text-gray-500 uppercase mb-1">Display Name</label><input type="text" id="newMenuDisplay" class="input-modern w-full" required></div>
+                        <div><label class="block text-xs font-bold text-gray-500 uppercase mb-1">Icon (fa-xxx)</label><input type="text" id="newMenuIcon" class="input-modern w-full" placeholder="fa-box"></div>
+                        <div><label class="block text-xs font-bold text-gray-500 uppercase mb-1">Parent Category</label><select id="newMenuParent" class="input-modern w-full"></select></div>
+                        <div><label class="block text-xs font-bold text-gray-500 uppercase mb-1">Sort Order</label><input type="number" id="newMenuOrder" class="input-modern w-full" value="0"></div>
+                    </div>
+                    <hr class="dark:border-slate-800">
+                    <div>
+                        <h4 class="font-bold mb-4 text-indigo-600">Select Active Fields & Visibility</h4>
+                        <div id="column-selector-container" class="space-y-1">
+                        </div>
+                    </div>
+                    <div class="pt-6 border-t dark:border-slate-800 flex justify-end space-x-3">
+                        <button type="button" onclick="window.hideModalWindow('addMenuModal')" class="px-8 py-3 bg-slate-100 rounded-xl font-bold">Cancel</button>
+                        <button type="submit" class="px-10 py-3 bg-indigo-600 text-white rounded-xl font-bold shadow-lg">Save Configuration</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- QR Modal -->
+    <div id="qrModal" class="modal opacity-0 pointer-events-none fixed inset-0 z-[70] flex items-center justify-center bg-slate-900/60 p-4 backdrop-blur-sm transition-all duration-300">
+        <div class="modal-content bg-white dark:bg-slate-900 rounded-3xl p-8 max-w-sm w-full text-center border dark:border-slate-800 shadow-2xl">
+            <h3 id="qrModalTitle" class="text-xl font-bold mb-6">Asset Label</h3>
+            <div class="bg-white p-4 rounded-2xl shadow-inner mb-6 inline-block"><canvas id="qrCanvas"></canvas></div>
+            <button onclick="window.hideModalWindow('qrModal')" class="w-full py-3 bg-indigo-600 text-white rounded-xl font-bold shadow-lg">Close</button>
         </div>
     </div>
 
