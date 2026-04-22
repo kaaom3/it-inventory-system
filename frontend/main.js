@@ -353,78 +353,6 @@ window.toggleLanguage = function() {
     updateUI();
 };
 
-// ==========================================
-// --- 🌟 OCR IMAGE SCANNING LOGIC ---
-// ==========================================
-window.processOCR = async function(inputElement) {
-    if (!inputElement.files || inputElement.files.length === 0) return;
-    const file = inputElement.files[0];
-
-    document.getElementById('modalTitle').textContent = t('scanning') || 'Scanning Image...';
-    document.getElementById('modalMessage').textContent = 'AI is extracting data. Please wait a few seconds...';
-    document.getElementById('modalIcon').innerHTML = '<i class="fas fa-spinner fa-spin text-4xl text-indigo-500 mb-2"></i>';
-    window.openModalWindow('notificationModal');
-
-    try {
-        const worker = await Tesseract.createWorker('eng');
-        const ret = await worker.recognize(file);
-        const extractedText = ret.data.text;
-        await worker.terminate();
-
-        console.log("OCR Result:\n", extractedText);
-
-        let foundFields = 0;
-
-        const snMatch = extractedText.match(/(?:S\/?N|Serial\s*Number)\s*:?\s*([A-Z0-9]+)/i);
-        if (snMatch && snMatch[1]) {
-            const snVal = snMatch[1].trim();
-            const snInput = document.getElementById('edit-SerialNumber') || document.getElementById('edit-MonitorSerial');
-            if (snInput) {
-                snInput.value = snVal;
-                snInput.classList.add('ring-4', 'ring-green-300', 'bg-green-50');
-                setTimeout(() => snInput.classList.remove('ring-4', 'ring-green-300', 'bg-green-50'), 1500);
-                foundFields++;
-            }
-        }
-
-        const modelMatch = extractedText.match(/Model\s*[:|-]?\s*([A-Z0-9-]+)/i);
-        if (modelMatch && modelMatch[1]) {
-            const modelVal = modelMatch[1].trim();
-            const modelInput = document.getElementById('edit-Model');
-            if (modelInput) {
-                modelInput.value = modelVal;
-                modelInput.classList.add('ring-4', 'ring-green-300', 'bg-green-50');
-                setTimeout(() => modelInput.classList.remove('ring-4', 'ring-green-300', 'bg-green-50'), 1500);
-                foundFields++;
-            }
-        }
-
-        const pnMatch = extractedText.match(/P\/N\s*[:|-]?\s*([A-Z0-9-]+)/i);
-        if (pnMatch && pnMatch[1]) {
-            const pnVal = pnMatch[1].trim();
-            const descInput = document.getElementById('edit-Description');
-            if (descInput) {
-                const currentVal = descInput.value;
-                descInput.value = currentVal ? currentVal + '\nP/N: ' + pnVal : 'P/N: ' + pnVal;
-                descInput.classList.add('ring-4', 'ring-green-300', 'bg-green-50');
-                setTimeout(() => descInput.classList.remove('ring-4', 'ring-green-300', 'bg-green-50'), 1500);
-                foundFields++;
-            }
-        }
-
-        window.hideModal('notificationModal');
-
-        if (foundFields > 0) {
-            setTimeout(() => window.showNotificationModal('success', t('scan_success') || 'Success', `AI พบและกรอกข้อมูลให้คุณอัตโนมัติ ${foundFields} ช่อง โปรดตรวจสอบความถูกต้อง`), 400);
-        } else {
-            setTimeout(() => window.showNotificationModal('info', t('scan_failed') || 'No Match', `AI สกัดข้อความมาได้ แต่ไม่พบรูปแบบของ SN หรือ Model ที่ชัดเจนในรูปนี้\n\nข้อความที่เจอ:\n${extractedText.substring(0, 50)}...`), 400);
-        }
-
-    } catch (error) {
-        console.error("OCR Error:", error);
-        window.hideModal('notificationModal');
-        setTimeout(() => window.showNotificationModal('warning', t('scan_failed') || 'Error', 'เกิดข้อผิดพลาดในการประมวลผลรูปภาพ'), 400);
-    }
 // ===================================================================
 // 🌟 📸 INTEGRATED SCAN LOGIC (OCR)
 // ===================================================================
@@ -458,6 +386,66 @@ window.scanToSearch = async function(inputElement) {
         if (!snVal) {
             const lines = extractedText.split('\n');
             for (let line of lines) {
+                const words = line.split(/\s+/);
+                for (let word of words) {
+                    const clean = word.replace(/[^A-Z0-9-]/gi, '');
+                    // Typical SN length 6-20, must have letters and numbers
+                    if (clean.length >= 6 && clean.length <= 20 && /[A-Z]/.test(clean) && /[0-9]/.test(clean)) {
+                        snVal = clean;
+                        break;
+                    }
+                }
+                if (snVal) break;
+            }
+        }
+
+        // --- ACTION A: If we are in the Dashboard (Searching) ---
+        if (inputElement.id === 'scanSearchInput') {
+            if (snVal) {
+                await window.performSnSearch(snVal);
+            } else {
+                window.hideModal('notificationModal');
+                setTimeout(() => window.showNotificationModal('info', t('scan_failed'), `AI cannot find a clear Serial Number. Please try again with a closer shot.`), 400);
+            }
+        } 
+        // --- ACTION B: If we are in an Edit Modal (Auto-filling) ---
+        else {
+            let foundCount = 0;
+            if (snVal) {
+                const snInput = document.getElementById('edit-SerialNumber') || document.getElementById('edit-MonitorSerial');
+                if (snInput) { 
+                    snInput.value = snVal; 
+                    snInput.classList.add('ring-4', 'ring-green-300', 'bg-green-50'); 
+                    setTimeout(() => snInput.classList.remove('ring-4', 'ring-green-300', 'bg-green-50'), 2000);
+                    foundCount++; 
+                }
+            }
+            if (modelVal) {
+                const modelInput = document.getElementById('edit-Model');
+                if (modelInput) { 
+                    modelInput.value = modelVal; 
+                    modelInput.classList.add('ring-4', 'ring-green-300', 'bg-green-50'); 
+                    setTimeout(() => modelInput.classList.remove('ring-4', 'ring-green-300', 'bg-green-50'), 2000);
+                    foundCount++; 
+                }
+            }
+
+            window.hideModal('notificationModal');
+            if (foundCount > 0) {
+                setTimeout(() => window.showNotificationModal('success', t('scan_success') || 'Success', `AI detected and filled ${foundCount} fields.`), 400);
+            } else {
+                setTimeout(() => window.showNotificationModal('info', t('scan_failed') || 'No Match', 'AI could not identify Serial Number or Model from this photo.'), 400);
+            }
+        }
+
+    } catch (error) {
+        console.error("OCR Error:", error);
+        window.hideModal('notificationModal');
+        setTimeout(() => window.showNotificationModal('warning', 'Error', 'OCR Processing failed.'), 400);
+    }
+    inputElement.value = ''; 
+};
+
                 const words = line.split(/\s+/);
                 for (let word of words) {
                     const clean = word.replace(/[^A-Z0-9-]/gi, '');
