@@ -6,516 +6,625 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     
-    <!-- Tailwind CSS -->
+    <!-- Tailwind CSS & Config -->
     <script src="https://cdn.tailwindcss.com"></script>
     <script>
         tailwind.config = {
             darkMode: 'class',
             theme: {
                 extend: {
-                    fontFamily: {
-                        sans: ['Inter', 'sans-serif'],
-                    },
-                    colors: {
-                        indigo: {
-                            500: '#6366f1',
-                            600: '#4f46e5',
-                            700: '#4338ca',
-                        }
-                    }
+                    fontFamily: { sans: ['Inter', 'sans-serif'] },
+                    colors: { indigo: { 500: '#6366f1', 600: '#4f46e5', 700: '#4338ca' } }
                 }
             }
         }
     </script>
     
-    <!-- Google Fonts & Icons -->
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
+    <!-- Fonts, Icons, Charts, Excel Parse, QR Code, Tesseract.js (🌟 เพิ่มไลบรารี OCR) -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
-    
-    <!-- Chart.js -->
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-    
-    <!-- QR Code Library -->
-    <script src="https://cdn.jsdelivr.net/npm/qrcode@1.4.4/build/qrcode.min.js"></script>
-    
-    <!-- Tesseract OCR Library -->
-    <script src='https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js'></script>
-    
-    <!-- Local CSS -->
-    <link rel="stylesheet" href="style.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.3.2/papaparse.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/qrcode/build/qrcode.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
     
     <style>
+        body { font-family: 'Inter', sans-serif; }
+        .page-content { display: none; animation: fadeIn 0.3s ease-in-out; }
+        .page-content.active { display: block; }
         @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
-        .page-content { animation: fadeIn 0.4s cubic-bezier(0.4, 0, 0.2, 1); }
-        
-        .custom-scrollbar::-webkit-scrollbar { width: 4px; }
-        .custom-scrollbar::-webkit-scrollbar-thumb { background: #e2e8f0; border-radius: 10px; }
-        .dark .custom-scrollbar::-webkit-scrollbar-thumb { background: #334155; }
-        
-        .tab-button { transition: all 0.2s ease; border-bottom: 2px solid transparent; }
-        .tab-button.active { border-color: #4f46e5; color: #4f46e5; }
-        .dark .tab-button.active { border-color: #818cf8; color: #818cf8; }
+        .modal { transition: opacity 0.2s ease-in-out; }
+        .modal.active { opacity: 1; pointer-events: auto; }
+        ::-webkit-scrollbar { width: 8px; height: 8px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
+        .dark ::-webkit-scrollbar-thumb { background: #475569; }
+        ::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+        .tab-content { display: none; animation: fadeIn 0.2s; }
+        .tab-content.active { display: block; }
     </style>
 </head>
-<body class="bg-slate-50 dark:bg-[#0f172a] text-slate-900 dark:text-slate-100 transition-colors duration-300 antialiased">
+<body class="bg-gray-50 dark:bg-gray-900 text-gray-800 dark:text-gray-200 transition-colors duration-300">
 
     <!-- Loading State -->
-    <div id="loading-state" class="fixed inset-0 bg-white dark:bg-[#0f172a] z-[100] flex items-center justify-center backdrop-blur-xl">
+    <div id="loading-state" class="fixed inset-0 bg-white dark:bg-gray-900 z-[100] flex items-center justify-center">
         <div class="text-center">
-            <div class="relative w-20 h-20 mx-auto mb-6">
-                <div class="absolute inset-0 border-4 border-indigo-100 dark:border-indigo-900/30 rounded-full"></div>
-                <div class="absolute inset-0 border-4 border-indigo-600 rounded-full border-t-transparent animate-spin"></div>
-            </div>
-            <h2 class="text-xl font-bold text-slate-800 dark:text-white" data-i18n="loading_system">Loading System...</h2>
+            <i class="fas fa-circle-notch fa-spin text-5xl text-indigo-600 mb-4"></i>
+            <h2 class="text-xl font-bold text-gray-800 dark:text-white" data-i18n="loading_system">Loading System...</h2>
         </div>
     </div>
 
-    <!-- Mobile Header -->
-    <div class="md:hidden bg-white/80 dark:bg-slate-900/80 backdrop-blur-md border-b dark:border-slate-800 p-4 flex justify-between items-center sticky top-0 z-40">
-        <div class="flex items-center space-x-3">
-            <div class="w-8 h-8 bg-indigo-600 rounded-lg flex items-center justify-center text-white shadow-lg shadow-indigo-200 dark:shadow-none">
-                <i class="fas fa-cubes text-sm"></i>
-            </div>
-            <span class="font-bold text-lg tracking-tight" data-i18n="app_title">Inventory</span>
+    <!-- Mobile Header & Overlay -->
+    <div class="md:hidden bg-white dark:bg-gray-800 border-b dark:border-gray-700 p-4 flex justify-between items-center sticky top-0 z-40 shadow-sm">
+        <div class="flex items-center space-x-2">
+            <i class="fas fa-cubes text-xl text-indigo-600"></i>
+            <span class="font-bold text-lg" data-i18n="app_title">Inventory</span>
         </div>
-        <button onclick="document.getElementById('sidebar').classList.toggle('-translate-x-full'); document.getElementById('sidebar-overlay').classList.toggle('hidden');" class="w-10 h-10 flex items-center justify-center rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300">
-            <i class="fas fa-bars"></i>
+        <button onclick="document.getElementById('sidebar').classList.toggle('-translate-x-full'); document.getElementById('sidebar-overlay').classList.toggle('hidden');" class="text-gray-600 dark:text-gray-300">
+            <i class="fas fa-bars text-2xl"></i>
         </button>
     </div>
-    <div id="sidebar-overlay" class="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-40 hidden md:hidden" onclick="document.getElementById('sidebar').classList.add('-translate-x-full'); this.classList.add('hidden');"></div>
+    <div id="sidebar-overlay" class="fixed inset-0 bg-black bg-opacity-50 z-40 hidden md:hidden" onclick="document.getElementById('sidebar').classList.add('-translate-x-full'); this.classList.add('hidden');"></div>
 
     <div id="app-container" class="relative min-h-screen flex flex-col md:flex-row overflow-hidden hidden">
         
         <!-- Sidebar -->
-        <nav id="sidebar" class="w-72 bg-white dark:bg-slate-900 border-r dark:border-slate-800 flex flex-col fixed inset-y-0 left-0 transform -translate-x-full md:relative md:translate-x-0 z-50 transition-transform duration-300 h-screen shadow-2xl md:shadow-none">
-            <div class="p-6 flex flex-col h-full">
-                <div class="flex items-center space-x-4 mb-10 px-2">
-                    <div class="w-10 h-10 bg-indigo-600 rounded-xl flex items-center justify-center text-white shadow-xl shadow-indigo-200 dark:shadow-none">
-                        <i class="fas fa-cubes text-xl"></i>
-                    </div>
-                    <div>
-                        <h1 class="text-xl font-black text-slate-800 dark:text-white tracking-tight" data-i18n="app_title">Inventory</h1>
-                        <p class="text-[10px] text-indigo-500 font-bold uppercase tracking-widest">Enterprise Edition</p>
-                    </div>
+        <nav id="sidebar" class="w-64 bg-white dark:bg-gray-800 border-r dark:border-gray-700 flex flex-col fixed inset-y-0 left-0 transform -translate-x-full md:relative md:translate-x-0 z-50 transition-transform duration-300 h-screen">
+            <div class="p-5 flex flex-col h-full">
+                <div class="flex items-center space-x-3 mb-6 px-2">
+                    <i class="fas fa-cubes text-3xl text-indigo-600"></i>
+                    <h1 class="text-2xl font-bold text-gray-800 dark:text-white" data-i18n="app_title">Inventory</h1>
                 </div>
-
-                <div class="mb-8 px-4 py-3 bg-slate-50 dark:bg-slate-800/50 rounded-2xl border border-slate-100 dark:border-slate-700/50">
-                    <p class="text-[10px] text-slate-500 uppercase font-bold tracking-wider mb-1" data-i18n="logged_in_as">Logged in as</p>
-                    <div class="flex items-center space-x-2">
-                        <div class="w-2 h-2 bg-emerald-500 rounded-full animate-pulse"></div>
-                        <p id="user-email-display" class="text-sm font-semibold text-slate-700 dark:text-slate-200 truncate">admin</p>
-                    </div>
+                <div class="mb-4 px-2 pb-4 border-b dark:border-gray-700">
+                    <p class="text-[10px] text-gray-500 uppercase font-semibold mb-1" data-i18n="logged_in_as">Logged in as</p>
+                    <p id="user-email-display" class="text-sm font-medium truncate">admin</p>
                 </div>
                 
-                <ul id="sidebar-menu-container" class="space-y-1 overflow-y-auto flex-1 pb-4 custom-scrollbar -mx-2 px-2">
+                <ul id="sidebar-menu-container" class="space-y-1 overflow-y-auto flex-1 pb-4 custom-scrollbar pr-2">
+                    <!-- Menus injected by main.js -->
                 </ul>
 
-                <div class="mt-auto pt-6 border-t dark:border-slate-800 space-y-2">
-                    <button id="lang-toggle" onclick="window.toggleLanguage()" class="nav-link w-full">
-                        <i class="fas fa-globe w-5 text-indigo-500"></i>
-                        <span id="lang-text" class="text-sm">เปลี่ยนเป็นภาษาไทย</span>
+                <div class="mt-auto pt-4 border-t dark:border-gray-700 space-y-2">
+                    <button id="lang-toggle" onclick="window.toggleLanguage()" class="w-full flex items-center px-4 py-2 rounded-lg text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 transition">
+                        <i class="fas fa-globe w-6"></i>
+                        <span id="lang-text">เปลี่ยนเป็นภาษาไทย</span>
                     </button>
-                    <button id="theme-toggle" class="nav-link w-full">
-                        <i class="fas fa-moon w-5 text-indigo-500" id="theme-icon"></i>
-                        <span id="theme-text" class="text-sm" data-i18n="dark_mode">Dark Mode</span>
+                    <button id="theme-toggle" class="w-full flex items-center px-4 py-2 rounded-lg text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 transition">
+                        <i class="fas fa-moon w-6" id="theme-icon"></i>
+                        <span id="theme-text" data-i18n="dark_mode">Dark Mode</span>
                     </button>
-                    <button id="logout-btn" onclick="window.logout()" class="w-full flex items-center px-4 py-3 rounded-xl text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-900/20 transition-all font-semibold mt-4">
-                        <i class="fas fa-sign-out-alt w-5"></i>
-                        <span class="text-sm" data-i18n="logout">Logout</span>
+                    <button id="logout-btn" onclick="window.logout()" class="w-full flex items-center px-4 py-2 rounded-lg text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 transition">
+                        <i class="fas fa-sign-out-alt w-6"></i>
+                        <span data-i18n="logout">Logout</span>
                     </button>
                 </div>
             </div>
         </nav>
 
         <!-- Main Content -->
-        <main id="main-content" class="flex-1 p-4 md:p-10 overflow-y-auto max-h-screen bg-slate-50 dark:bg-[#0f172a] w-full relative">
+        <main id="main-content" class="flex-1 p-4 md:p-8 overflow-y-auto max-h-screen bg-gray-50 dark:bg-gray-900 w-full relative">
             
-            <div id="dynamic-pages-container"></div>
-
             <!-- Dashboard -->
             <div id="dashboard-page" class="page-content active">
-                <header class="mb-10">
-                    <h2 class="text-3xl font-black text-slate-800 dark:text-white tracking-tight" data-i18n="overview_dashboard">Overview Dashboard</h2>
-                    <p class="text-slate-500 dark:text-slate-400 mt-1">Real-time assets and infrastructure status</p>
-                </header>
+                <h2 class="text-2xl font-bold mb-6" data-i18n="overview_dashboard">Overview Dashboard</h2>
                 
-                <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-6 mb-10">
-                    <div class="stat-card-vibrant group cursor-default">
-                        <div class="flex justify-between items-start mb-4">
-                            <div class="w-12 h-12 bg-indigo-50 dark:bg-indigo-900/30 rounded-2xl flex items-center justify-center text-indigo-600 group-hover:scale-110 transition-transform">
-                                <i class="fas fa-cubes text-xl"></i>
-                            </div>
-                        </div>
-                        <h3 class="text-slate-500 dark:text-slate-400 text-xs font-bold uppercase tracking-wider" data-i18n="total_assets">Total Assets</h3>
-                        <p class="text-4xl font-black text-slate-800 dark:text-white mt-1" id="stat-total">0</p>
+                <!-- สถิติหลัก -->
+                <div class="grid grid-cols-2 md:grid-cols-5 gap-4 mb-6">
+                    <div class="bg-white dark:bg-gray-800 p-4 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700 text-center relative overflow-hidden">
+                        <div class="absolute -right-4 -top-4 opacity-10"><i class="fas fa-cubes text-6xl text-indigo-600"></i></div>
+                        <h3 class="text-gray-500 text-sm font-semibold uppercase" data-i18n="total_assets">Total Assets</h3>
+                        <p class="text-3xl font-bold text-indigo-600 mt-2" id="stat-total">0</p>
                     </div>
-                    <div class="stat-card-vibrant group cursor-default">
-                        <div class="flex justify-between items-start mb-4">
-                            <div class="w-12 h-12 bg-emerald-50 dark:bg-emerald-900/30 rounded-2xl flex items-center justify-center text-emerald-600 group-hover:scale-110 transition-transform">
-                                <i class="fas fa-check-circle text-xl"></i>
-                            </div>
-                        </div>
-                        <h3 class="text-slate-500 dark:text-slate-400 text-xs font-bold uppercase tracking-wider" data-i18n="active_loan">Active / Loan</h3>
-                        <p class="text-4xl font-black text-emerald-600 mt-1" id="stat-active">0</p>
+                    <div class="bg-white dark:bg-gray-800 p-4 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700 text-center relative overflow-hidden">
+                        <div class="absolute -right-4 -top-4 opacity-10"><i class="fas fa-check-circle text-6xl text-green-600"></i></div>
+                        <h3 class="text-gray-500 text-sm font-semibold uppercase" data-i18n="active_loan">Active / Loan</h3>
+                        <p class="text-3xl font-bold text-green-600 mt-2" id="stat-active">0</p>
                     </div>
-                    <div class="stat-card-vibrant group cursor-default">
-                        <div class="flex justify-between items-start mb-4">
-                            <div class="w-12 h-12 bg-blue-50 dark:bg-blue-900/30 rounded-2xl flex items-center justify-center text-blue-600 group-hover:scale-110 transition-transform">
-                                <i class="fas fa-box text-xl"></i>
-                            </div>
-                        </div>
-                        <h3 class="text-slate-500 dark:text-slate-400 text-xs font-bold uppercase tracking-wider" data-i18n="in_storage">In Storage</h3>
-                        <p class="text-4xl font-black text-blue-600 mt-1" id="stat-storage">0</p>
+                    <div class="bg-white dark:bg-gray-800 p-4 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700 text-center relative overflow-hidden">
+                        <div class="absolute -right-4 -top-4 opacity-10"><i class="fas fa-box text-6xl text-blue-600"></i></div>
+                        <h3 class="text-gray-500 text-sm font-semibold uppercase" data-i18n="in_storage">In Storage</h3>
+                        <p class="text-3xl font-bold text-blue-600 mt-2" id="stat-storage">0</p>
                     </div>
-                    <div class="stat-card-vibrant group cursor-default">
-                        <div class="flex justify-between items-start mb-4">
-                            <div class="w-12 h-12 bg-amber-50 dark:bg-amber-900/30 rounded-2xl flex items-center justify-center text-amber-600 group-hover:scale-110 transition-transform">
-                                <i class="fas fa-tools text-xl"></i>
-                            </div>
-                        </div>
-                        <h3 class="text-slate-500 dark:text-slate-400 text-xs font-bold uppercase tracking-wider" data-i18n="repair_issue">Repair / Issue</h3>
-                        <p class="text-4xl font-black text-amber-600 mt-1" id="stat-issues">0</p>
+                    <div class="bg-white dark:bg-gray-800 p-4 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700 text-center relative overflow-hidden">
+                        <div class="absolute -right-4 -top-4 opacity-10"><i class="fas fa-tools text-6xl text-orange-500"></i></div>
+                        <h3 class="text-gray-500 text-sm font-semibold uppercase" data-i18n="repair_issue">Repair / Issue</h3>
+                        <p class="text-3xl font-bold text-orange-500 mt-2" id="stat-issues">0</p>
                     </div>
-                    <div class="stat-card-vibrant group cursor-default">
-                        <div class="flex justify-between items-start mb-4">
-                            <div class="w-12 h-12 bg-rose-50 dark:bg-rose-900/30 rounded-2xl flex items-center justify-center text-rose-600 group-hover:scale-110 transition-transform">
-                                <i class="fas fa-trash-alt text-xl"></i>
-                            </div>
-                        </div>
-                        <h3 class="text-slate-500 dark:text-slate-400 text-xs font-bold uppercase tracking-wider" data-i18n="disposed">Disposed</h3>
-                        <p class="text-4xl font-black text-rose-600 mt-1" id="stat-disposed">0</p>
+                    <div class="bg-white dark:bg-gray-800 p-4 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700 text-center relative overflow-hidden">
+                        <div class="absolute -right-4 -top-4 opacity-10"><i class="fas fa-trash-alt text-6xl text-red-600"></i></div>
+                        <h3 class="text-gray-500 text-sm font-semibold uppercase" data-i18n="disposed">Disposed</h3>
+                        <p class="text-3xl font-bold text-red-600 mt-2" id="stat-disposed">0</p>
                     </div>
                 </div>
 
-                <div class="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-10">
-                    <div class="card-modern p-8">
-                        <h3 class="text-xl font-bold mb-6 flex items-center"><i class="fas fa-network-wired mr-3 text-indigo-600"></i><span data-i18n="network_health">Network Health</span></h3>
-                        <div class="grid grid-cols-2 gap-4">
-                            <div class="bg-emerald-50 dark:bg-emerald-900/20 p-4 rounded-xl text-center">
-                                <p class="text-xs font-bold uppercase tracking-widest text-emerald-600" data-i18n="online">Online</p>
-                                <p class="text-3xl font-black" id="stat-online">0</p>
-                            </div>
-                            <div class="bg-slate-100 dark:bg-slate-800 p-4 rounded-xl text-center">
-                                <p class="text-xs font-bold uppercase tracking-widest text-slate-500" data-i18n="offline">Offline</p>
-                                <p class="text-3xl font-black" id="stat-offline">0</p>
+                <!-- การเชื่อมต่อ (Network Health) & Warranty Alerts -->
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+                    <div class="bg-white dark:bg-gray-800 p-5 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700 flex items-center justify-between">
+                        <div class="flex items-center">
+                            <div class="bg-blue-100 dark:bg-blue-900/50 p-3 rounded-lg text-blue-600 dark:text-blue-400 mr-4"><i class="fas fa-network-wired text-2xl"></i></div>
+                            <div>
+                                <h3 class="font-bold text-gray-800 dark:text-white" data-i18n="network_health">Network & Devices Health</h3>
+                                <p class="text-xs text-gray-500" data-i18n="network_health_desc">สถานะ Online/Offline ของอุปกรณ์ที่มี IP</p>
                             </div>
                         </div>
+                        <div class="flex space-x-6 text-center">
+                            <div><p class="text-xs text-gray-500 font-semibold" data-i18n="online">ONLINE</p><p class="text-xl font-bold text-green-500" id="stat-online">0</p></div>
+                            <div><p class="text-xs text-gray-500 font-semibold" data-i18n="offline">OFFLINE</p><p class="text-xl font-bold text-gray-400" id="stat-offline">0</p></div>
+                        </div>
                     </div>
-                    <div class="card-modern p-8">
-                        <h3 class="text-xl font-bold mb-6 flex items-center"><i class="fas fa-shield-alt mr-3 text-amber-600"></i><span data-i18n="warranty_alerts">Warranty Alerts</span></h3>
-                        <div class="grid grid-cols-2 gap-4">
-                            <div class="bg-amber-50 dark:bg-amber-900/20 p-4 rounded-xl text-center">
-                                <p class="text-xs font-bold uppercase tracking-widest text-amber-600" data-i18n="expires_soon">< 30D</p>
-                                <p class="text-3xl font-black" id="stat-warranty-soon">0</p>
+                    <div class="bg-white dark:bg-gray-800 p-5 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700 flex items-center justify-between">
+                        <div class="flex items-center">
+                            <div class="bg-yellow-100 dark:bg-yellow-900/50 p-3 rounded-lg text-yellow-600 dark:text-yellow-400 mr-4"><i class="fas fa-shield-alt text-2xl"></i></div>
+                            <div>
+                                <h3 class="font-bold text-gray-800 dark:text-white" data-i18n="warranty_alerts">Warranty Alerts</h3>
+                                <p class="text-xs text-gray-500" data-i18n="warranty_alerts_desc">อัปเดตประกันอุปกรณ์ (ทั้งหมด)</p>
                             </div>
-                            <div class="bg-rose-50 dark:bg-rose-900/20 p-4 rounded-xl text-center">
-                                <p class="text-xs font-bold uppercase tracking-widest text-rose-600" data-i18n="expired">Expired</p>
-                                <p class="text-3xl font-black" id="stat-warranty-expired">0</p>
-                            </div>
+                        </div>
+                        <div class="flex space-x-6 text-center">
+                            <div><p class="text-xs text-gray-500 font-semibold text-yellow-600" data-i18n="expires_soon">EXPIRES <30D</p><p class="text-xl font-bold text-yellow-500" id="stat-warranty-soon">0</p></div>
+                            <div><p class="text-xs text-gray-500 font-semibold text-red-500" data-i18n="expired">EXPIRED</p><p class="text-xl font-bold text-red-500" id="stat-warranty-expired">0</p></div>
                         </div>
                     </div>
                 </div>
 
-                <div id="category-overview-grid" class="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-6 mb-10"></div>
+                <!-- Category Overview (Folder Drill-down) -->
+                <div id="category-overview-grid" class="grid grid-cols-2 md:grid-cols-4 xl:grid-cols-6 gap-4 mb-6"></div>
 
-                <div class="grid grid-cols-1 lg:grid-cols-3 gap-8 mb-10">
-                    <div class="card-modern p-6"><canvas id="statusChart"></canvas></div>
-                    <div class="card-modern p-6"><canvas id="categoryChart"></canvas></div>
-                    <div class="card-modern p-6"><canvas id="locationChart"></canvas></div>
+                <!-- กราฟต่างๆ -->
+                <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
+                    <div class="bg-white dark:bg-gray-800 p-4 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700">
+                        <h3 class="font-bold mb-4 flex items-center"><i class="fas fa-chart-pie mr-2 text-indigo-500"></i> <span data-i18n="status_distribution">Status Distribution</span></h3>
+                        <div class="h-64"><canvas id="statusChart"></canvas></div>
+                    </div>
+                    <div class="bg-white dark:bg-gray-800 p-4 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700">
+                        <h3 class="font-bold mb-4 flex items-center"><i class="fas fa-chart-bar mr-2 text-indigo-500"></i> <span data-i18n="assets_by_category">Assets by Category</span></h3>
+                        <div class="h-64"><canvas id="categoryChart"></canvas></div>
+                    </div>
+                    <div class="bg-white dark:bg-gray-800 p-4 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700">
+                        <h3 class="font-bold mb-4 flex items-center"><i class="fas fa-map-marker-alt mr-2 text-indigo-500"></i> <span data-i18n="top_locations">Top Locations</span></h3>
+                        <div class="h-64"><canvas id="locationChart"></canvas></div>
+                    </div>
                 </div>
 
-                <div class="card-modern overflow-hidden">
-                    <div class="px-8 py-6 border-b dark:border-slate-800 bg-white dark:bg-slate-800 flex justify-between items-center">
-                        <h3 class="font-bold flex items-center"><i class="fas fa-history mr-4 text-indigo-600"></i><span data-i18n="recent_transactions">Recent Activity</span></h3>
-                    </div>
-                    <div id="recent-activity-list" class="divide-y dark:divide-slate-800"></div>
+                <div class="bg-white dark:bg-gray-800 p-4 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700">
+                    <h3 class="font-bold mb-4 flex items-center"><i class="fas fa-history mr-2 text-indigo-500"></i> <span data-i18n="recent_transactions">Recent Transactions</span></h3>
+                    <div id="recent-activity-list" class="space-y-2"></div>
                 </div>
             </div>
 
-            <!-- Page Container For Other Dynamic Pages -->
-            <div id="page-content-container">
-                <div id="staffmanagement-page" class="page-content hidden"></div>
-                <div id="adminmanagement-page" class="page-content hidden"></div>
-                <div id="settings-page" class="page-content hidden">
+            <!-- Dynamic Tables will be injected here -->
+            <div id="dynamic-pages-container"></div>
+            
+            <!-- Settings Page -->
+            <div id="settings-page" class="page-content hidden">
+                <h2 class="text-2xl font-bold mb-6" data-i18n="settings">Settings</h2>
+                <div class="bg-white dark:bg-gray-800 rounded-xl p-6 shadow-sm border border-gray-100 dark:border-gray-700">
                     <div id="settings-content-area"></div>
                 </div>
-                <div id="loanhistory-page" class="page-content hidden">
-                    <div class="mb-6"><h2 class="text-3xl font-black tracking-tight" data-i18n="loan_history">Loan History</h2></div>
-                    <div id="LoanHistoryContainer" class="space-y-4"></div>
-                </div>
-                <div id="maintenance-page" class="page-content hidden">
-                    <div id="maintenanceLogContainer"></div>
-                </div>
-                <div id="assetsbyuser-page" class="page-content hidden">
-                    <div id="assetsByUserContainer"></div>
-                </div>
-                <div id="disposedassets-page" class="page-content hidden">
-                    <div id="disposedAssetsContainer"></div>
-                </div>
-                <!-- Handover / Return Page -->
-                <div id="handover-page" class="page-content hidden">
-                    <div class="flex justify-between items-center mb-10">
-                        <h2 class="text-3xl font-black tracking-tight" data-i18n="handover_return_title">Handover & Return</h2>
-                        <div class="bg-white dark:bg-slate-800 p-1 rounded-xl shadow-sm border dark:border-slate-800" id="handover-tabs">
-                            <button onclick="window.switchHandoverTab('handover', this)" class="px-6 py-2 rounded-lg text-sm font-bold border-b-2 border-indigo-600 text-indigo-600">Handover</button>
-                            <button onclick="window.switchHandoverTab('return', this)" class="px-6 py-2 rounded-lg text-sm font-bold border-b-2 border-transparent text-gray-500">Return</button>
-                        </div>
+            </div>
+
+            <!-- Disposed Assets Page -->
+            <div id="disposedassets-page" class="page-content hidden">
+                <div class="flex justify-between items-center mb-6">
+                    <div>
+                        <h2 class="text-2xl font-bold text-red-600"><i class="fas fa-trash-alt mr-2"></i><span data-i18n="disposed_assets">Disposed Assets</span></h2>
+                        <p class="text-sm text-gray-500 mt-1" data-i18n="disposed_assets_desc">รายการอุปกรณ์ที่ถูกแทงจำหน่าย (มีเอกสารแนบ)</p>
                     </div>
-                    <div id="handover-tab-content"></div>
-                    <div id="return-tab-content" style="display:none"></div>
+                </div>
+                <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm overflow-hidden border border-gray-100 dark:border-gray-700">
+                    <table class="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+                        <thead class="bg-gray-50 dark:bg-gray-700/50">
+                            <tr>
+                                <th class="px-6 py-3 text-left text-xs font-semibold text-gray-500 uppercase" data-i18n="device">Device</th>
+                                <th class="px-6 py-3 text-left text-xs font-semibold text-gray-500 uppercase" data-i18n="sn">SN</th>
+                                <th class="px-6 py-3 text-left text-xs font-semibold text-gray-500 uppercase" data-i18n="date">Date</th>
+                                <th class="px-6 py-3 text-center text-xs font-semibold text-gray-500 uppercase" data-i18n="evidence">Evidence</th>
+                            </tr>
+                        </thead>
+                        <tbody id="disposedTableBody" class="divide-y divide-gray-200 dark:divide-gray-700"></tbody>
+                    </table>
                 </div>
             </div>
-            
+
+            <!-- Handover Page -->
+            <div id="handover-page" class="page-content hidden">
+                <h2 class="text-2xl font-bold mb-6" data-i18n="handover_return_title">Handover & Return</h2>
+                <div class="bg-white dark:bg-gray-800 p-6 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700">
+                    <div class="flex space-x-4 border-b dark:border-gray-700 mb-6" id="handover-tabs">
+                        <button onclick="window.switchHandoverTab('handover', this)" class="pb-2 border-b-2 border-indigo-600 text-indigo-600 active" data-i18n="handover">Handover</button>
+                        <button onclick="window.switchHandoverTab('return', this)" class="pb-2 border-b-2 border-transparent text-gray-500" data-i18n="return">Return</button>
+                    </div>
+                    <div id="handover-tab-content"></div>
+                    <div id="return-tab-content" style="display:none;"></div>
+                </div>
+            </div>
+
+            <!-- Loan History Page -->
+            <div id="loanhistory-page" class="page-content hidden">
+                <h2 class="text-2xl font-bold mb-6" data-i18n="loan_history">Loan History</h2>
+                <input type="text" onkeyup="window.filterLoanHistory(this.value)" placeholder="Search..." class="w-full mb-6 p-3 border rounded-lg dark:bg-gray-700 dark:border-gray-600 dark:text-white focus:ring-indigo-500">
+                <div id="LoanHistoryContainer" class="space-y-4"></div>
+            </div>
+
+            <!-- Maintenance Page -->
+            <div id="maintenance-page" class="page-content hidden">
+                <h2 class="text-2xl font-bold mb-6" data-i18n="maintenance_history">Maintenance Logs</h2>
+                <input type="text" onkeyup="window.filterMaintenanceHistory(this.value)" placeholder="Search..." class="w-full mb-6 p-3 border rounded-lg dark:bg-gray-700 dark:border-gray-600 dark:text-white focus:ring-indigo-500">
+                <div id="MaintenanceContainer" class="space-y-4"></div>
+            </div>
+
+            <!-- Assets By User Page -->
+            <div id="assetsbyuser-page" class="page-content hidden">
+                <h2 class="text-2xl font-bold mb-6" data-i18n="assets_by_user">Assets by User</h2>
+                <input type="text" onkeyup="window.filterAssetsByUser(this.value)" placeholder="Search user..." class="w-full mb-6 p-3 border rounded-lg dark:bg-gray-700 dark:border-gray-600 dark:text-white focus:ring-indigo-500">
+                <div id="AssetsByUserContainer" class="space-y-4"></div>
+            </div>
+
+            <!-- Management Pages injected by JS -->
+            <div id="staffmanagement-page" class="page-content hidden"></div>
+            <div id="adminmanagement-page" class="page-content hidden"></div>
+            <div id="labelprinter-page" class="page-content hidden"></div>
         </main>
     </div>
 
-    <!-- ALL MODALS -->
-    <!-- General Purpose Modal -->
-    <div id="generalModal" class="modal opacity-0 pointer-events-none fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-4 backdrop-blur-sm transition-all duration-300">
-        <div class="modal-content bg-white dark:bg-slate-900 rounded-3xl shadow-2xl w-full max-w-4xl max-h-[90vh] overflow-hidden transform scale-90 border dark:border-slate-800">
-            <div class="px-8 py-6 border-b dark:border-slate-800 bg-slate-50/50 dark:bg-slate-800/50 flex justify-between items-center">
-                <h3 id="modalTitle" class="text-xl font-black text-slate-800 dark:text-white tracking-tight"></h3>
-                <button onclick="window.hideModalWindow('generalModal')" class="w-10 h-10 flex items-center justify-center rounded-xl bg-white dark:bg-slate-800 text-slate-400 hover:text-rose-500 transition-colors shadow-sm"><i class="fas fa-times"></i></button>
-            </div>
-            <div id="modalBody" class="p-8 overflow-y-auto max-h-[calc(90vh-140px)] custom-scrollbar"></div>
-        </div>
-    </div>
-
-    <!-- Staff Edit Modal -->
-    <div id="editStaffModal" class="modal opacity-0 pointer-events-none fixed inset-0 z-[60] flex items-center justify-center bg-slate-900/60 p-4 backdrop-blur-sm transition-all duration-300">
-        <div class="modal-content bg-white dark:bg-slate-900 rounded-3xl shadow-2xl w-full max-w-md p-8 border dark:border-slate-800">
-            <h3 id="editStaffModalTitle" class="text-xl font-bold mb-6">Staff Details</h3>
-            <form id="editStaffForm" onsubmit="window.saveStaffChanges(); return false;" class="space-y-4">
-                <div><label class="block text-xs font-bold text-gray-500 uppercase mb-1">Username</label><input type="text" id="editStaffUserName" class="input-modern w-full" required></div>
-                <div><label class="block text-xs font-bold text-gray-500 uppercase mb-1">First Name</label><input type="text" id="editStaffFirstName" class="input-modern w-full"></div>
-                <div><label class="block text-xs font-bold text-gray-500 uppercase mb-1">Last Name</label><input type="text" id="editStaffLastName" class="input-modern w-full"></div>
-                <div><label class="block text-xs font-bold text-gray-500 uppercase mb-1">Department</label><input type="text" id="editStaffDepartment" class="input-modern w-full"></div>
-                <div class="pt-4 flex space-x-3">
-                    <button type="button" onclick="window.hideModalWindow('editStaffModal')" class="flex-1 px-4 py-3 bg-slate-100 rounded-xl font-bold">Cancel</button>
-                    <button type="submit" class="flex-1 px-4 py-3 bg-indigo-600 text-white rounded-xl font-bold shadow-lg shadow-indigo-200">Save</button>
+    <!-- ======================================================= -->
+    <!-- REDESIGNED ADD/EDIT MODAL                               -->
+    <!-- ======================================================= -->
+    <div id="editModal" class="modal opacity-0 pointer-events-none fixed inset-0 z-50 flex items-center justify-center p-4 backdrop-blur-md bg-gray-900/60 transition-opacity duration-300">
+        <div class="modal-content bg-gray-100 dark:bg-gray-900 rounded-2xl shadow-2xl w-full max-w-4xl overflow-hidden flex flex-col max-h-[95vh] border border-gray-200 dark:border-gray-700 transition-all transform scale-95">
+            
+            <!-- Header (Injected by JS) -->
+            <div class="px-6 py-5 bg-white dark:bg-gray-800 flex justify-between items-start border-b border-gray-200 dark:border-gray-700 relative z-10 shadow-sm">
+                <div id="editModalTitle" class="w-full">
+                    <!-- Title injected here -->
                 </div>
-            </form>
-        </div>
-    </div>
-
-    <!-- Admin Add Modal -->
-    <div id="addUserModal" class="modal opacity-0 pointer-events-none fixed inset-0 z-[60] flex items-center justify-center bg-slate-900/60 p-4 backdrop-blur-sm transition-all duration-300">
-        <div class="modal-content bg-white dark:bg-slate-900 rounded-3xl shadow-2xl w-full max-w-md p-8 border dark:border-slate-800">
-            <h3 class="text-xl font-bold mb-6">Create System Administrator</h3>
-            <form id="addUserForm" class="space-y-4">
-                <div><label class="block text-xs font-bold text-gray-500 uppercase mb-1">Email</label><input type="email" id="newUserEmail" class="input-modern w-full" required></div>
-                <div><label class="block text-xs font-bold text-gray-500 uppercase mb-1">Password</label><input type="password" id="newUserPassword" class="input-modern w-full" required></div>
-                <div id="addUserError" class="text-rose-500 text-xs font-bold h-4"></div>
-                <div class="pt-4 flex space-x-3">
-                    <button type="button" onclick="window.hideModalWindow('addUserModal')" class="flex-1 px-4 py-3 bg-slate-100 dark:bg-slate-800 rounded-xl font-bold">Cancel</button>
-                    <button type="submit" class="flex-1 px-4 py-3 bg-indigo-600 text-white rounded-xl font-bold shadow-lg">Create</button>
-                </div>
-            </form>
-        </div>
-    </div>
-
-    <!-- Add Category Modal (Large Configuration) -->
-    <div id="addMenuModal" class="modal opacity-0 pointer-events-none fixed inset-0 z-[60] flex items-center justify-center bg-slate-900/60 p-4 backdrop-blur-sm transition-all duration-300">
-        <div class="modal-content bg-white dark:bg-slate-900 rounded-3xl shadow-2xl w-full max-w-4xl max-h-[90vh] overflow-hidden border dark:border-slate-800">
-            <div class="px-8 py-6 border-b dark:border-slate-800 flex justify-between items-center">
-                <h3 id="addMenuModalTitle" class="text-xl font-bold">Category Configuration</h3>
-                <button onclick="window.hideModalWindow('addMenuModal')" class="text-gray-400 hover:text-rose-500"><i class="fas fa-times"></i></button>
+                <button onclick="window.hideModal('editModal')" class="absolute top-5 right-6 w-8 h-8 flex items-center justify-center rounded-full bg-gray-100 dark:bg-gray-700 text-gray-500 hover:bg-red-100 hover:text-red-500 transition-colors">
+                    <i class="fas fa-times text-lg"></i>
+                </button>
             </div>
-            <div class="p-8 overflow-y-auto max-h-[calc(90vh-120px)]">
-                <form id="addMenuForm" onsubmit="window.saveCustomMenu(event)" class="space-y-8">
-                    <input type="hidden" id="editMenuMode" value="create">
-                    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-                        <div><label class="block text-xs font-bold text-gray-500 uppercase mb-1">Database ID</label><input type="text" id="newMenuId" class="input-modern w-full" required></div>
-                        <div><label class="block text-xs font-bold text-gray-500 uppercase mb-1">Display Name</label><input type="text" id="newMenuDisplay" class="input-modern w-full" required></div>
-                        <div><label class="block text-xs font-bold text-gray-500 uppercase mb-1">Icon (fa-xxx)</label><input type="text" id="newMenuIcon" class="input-modern w-full" placeholder="fa-box"></div>
-                        <div><label class="block text-xs font-bold text-gray-500 uppercase mb-1">Parent Category</label><select id="newMenuParent" class="input-modern w-full"></select></div>
-                        <div><label class="block text-xs font-bold text-gray-500 uppercase mb-1">Sort Order</label><input type="number" id="newMenuOrder" class="input-modern w-full" value="0"></div>
+            
+            <!-- Modern Segmented Tabs -->
+            <div class="px-6 py-3 bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 flex justify-center z-0">
+                <div class="flex space-x-1 bg-gray-100/80 dark:bg-gray-900/80 p-1.5 rounded-xl border border-gray-200/50 dark:border-gray-700/50" id="modal-tabs">
+                    <!-- Injected by JS -->
+                </div>
+            </div>
+
+            <!-- Body Content -->
+            <div class="flex-1 overflow-y-auto p-4 md:p-6 custom-scrollbar relative">
+                
+                <!-- Tab 1: Details -->
+                <div id="details-tab" class="tab-content active">
+                    
+                    <!-- 🌟 📸 เพิ่มปุ่มแสกนภาพ OCR ไว้ก่อนฟอร์มกรอกข้อมูล -->
+                    <div class="mb-5 flex justify-end">
+                        <button type="button" onclick="document.getElementById('ocrFileInput').click()" class="bg-indigo-100 text-indigo-700 hover:bg-indigo-200 dark:bg-indigo-900/40 dark:text-indigo-400 px-4 py-2.5 rounded-xl font-bold text-sm flex items-center transition shadow-sm border border-indigo-200 dark:border-indigo-800">
+                            <i class="fas fa-camera mr-2 text-lg"></i> <span data-i18n="scan_image">สแกนภาพ (กรอกอัตโนมัติ)</span>
+                        </button>
+                        <!-- input ไฟล์ ที่รองรับการถ่ายรูปบนมือถือ (capture="environment") -->
+                        <input type="file" id="ocrFileInput" accept="image/*" capture="environment" class="hidden" onchange="window.processOCR(this)">
                     </div>
-                    <hr class="dark:border-slate-800">
-                    <div>
-                        <h4 class="font-bold mb-4 text-indigo-600">Select Active Fields & Visibility</h4>
-                        <div id="column-selector-container" class="space-y-1">
+
+                    <!-- ฟอร์มที่จะถูก JavaScript Inject โค้ดใส่ -->
+                    <form id="editForm" class="space-y-6"></form>
+                    
+                    <!-- 🌟 Disposal Evidence Card -->
+                    <div id="disposal-evidence-section" class="hidden mt-6 bg-white dark:bg-gray-800 rounded-xl border border-red-200 dark:border-red-900/50 shadow-sm overflow-hidden">
+                        <div class="bg-red-50 dark:bg-red-900/20 px-5 py-3 border-b border-red-200 dark:border-red-900/50 flex items-center">
+                            <i class="fas fa-exclamation-triangle text-red-500 mr-2"></i>
+                            <h4 class="text-sm font-bold text-red-800 dark:text-red-400 uppercase tracking-wider" data-i18n="disposal_evidence">Disposal Evidence</h4>
+                        </div>
+                        <div class="p-5">
+                            <p class="text-sm text-gray-600 dark:text-gray-400 mb-4" data-i18n="disposal_desc">เนื่องจากมีการเปลี่ยนสถานะเป็น "Disposed" กรุณาแนบเอกสารอ้างอิง (PDF, JPG ขนาดไม่เกิน 2MB)</p>
+                            <input type="file" id="disposalFileInput" accept=".pdf, image/jpeg, image/png" class="block w-full text-sm text-gray-600 dark:text-gray-400 file:mr-4 file:py-2.5 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-bold file:bg-red-100 file:text-red-700 hover:file:bg-red-200 dark:file:bg-red-900/40 dark:file:text-red-300 cursor-pointer border border-gray-200 dark:border-gray-700 rounded-lg bg-gray-50 dark:bg-gray-900/30">
+                            
+                            <div id="existingEvidenceBox" class="hidden mt-4 p-3.5 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800/50 rounded-lg text-sm flex items-center justify-between">
+                                <span class="text-green-700 dark:text-green-400 font-semibold flex items-center"><i class="fas fa-check-circle mr-2 text-lg"></i> <span data-i18n="evidence_attached">มีเอกสารแนบไว้แล้ว</span></span>
+                                <button type="button" onclick="window.viewDisposalEvidence(document.getElementById('hiddenEvidenceBase64').value)" class="text-indigo-600 dark:text-indigo-400 hover:text-indigo-800 font-bold bg-white dark:bg-gray-800 px-3 py-1.5 rounded shadow-sm border border-gray-200 dark:border-gray-700" data-i18n="view_evidence">เปิดดูเอกสาร</button>
+                                <input type="hidden" id="hiddenEvidenceBase64">
+                            </div>
                         </div>
                     </div>
-                    <div class="pt-6 border-t dark:border-slate-800 flex justify-end space-x-3">
-                        <button type="button" onclick="window.hideModalWindow('addMenuModal')" class="px-8 py-3 bg-slate-100 rounded-xl font-bold">Cancel</button>
-                        <button type="submit" class="px-10 py-3 bg-indigo-600 text-white rounded-xl font-bold shadow-lg">Save Configuration</button>
+                </div>
+
+                <!-- Tab 2: Maintenance -->
+                <div id="maintenance-tab" class="tab-content">
+                    <div class="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm overflow-hidden mb-6">
+                        <div class="bg-gray-50 dark:bg-gray-900/50 px-5 py-3 border-b border-gray-200 dark:border-gray-700"><h4 class="text-sm font-bold text-gray-700 dark:text-gray-200 uppercase tracking-wider" data-i18n="add_new_log">Add New Log</h4></div>
+                        <form id="maintenanceLogForm" class="p-5 grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div class="md:col-span-2">
+                                <label class="block text-xs font-semibold text-gray-600 dark:text-gray-400 mb-1" data-i18n="description">Description*</label>
+                                <textarea id="newLogDescription" class="w-full px-4 py-2 bg-gray-50 border border-gray-300 rounded-lg focus:ring-indigo-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white" rows="2" required></textarea>
+                            </div>
+                            <div>
+                                <label class="block text-xs font-semibold text-gray-600 dark:text-gray-400 mb-1" data-i18n="date_log">Date*</label>
+                                <input type="date" id="newLogDate" class="w-full px-4 py-2 bg-gray-50 border border-gray-300 rounded-lg focus:ring-indigo-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white" required>
+                            </div>
+                            <div>
+                                <label class="block text-xs font-semibold text-gray-600 dark:text-gray-400 mb-1" data-i18n="cost">Cost</label>
+                                <input type="number" id="newLogCost" class="w-full px-4 py-2 bg-gray-50 border border-gray-300 rounded-lg focus:ring-indigo-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white">
+                            </div>
+                            <div>
+                                <label class="block text-xs font-semibold text-gray-600 dark:text-gray-400 mb-1" data-i18n="technician">Technician</label>
+                                <input type="text" id="newLogTechnician" class="w-full px-4 py-2 bg-gray-50 border border-gray-300 rounded-lg focus:ring-indigo-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white">
+                            </div>
+                            <div class="flex items-end">
+                                <button type="button" onclick="window.addMaintenanceLog()" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 rounded-lg shadow-sm" data-i18n="save_log">Save Log</button>
+                            </div>
+                        </form>
+                    </div>
+                    <div class="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm overflow-hidden">
+                        <div class="bg-gray-50 dark:bg-gray-900/50 px-5 py-3 border-b border-gray-200 dark:border-gray-700"><h4 class="text-sm font-bold text-gray-700 dark:text-gray-200 uppercase tracking-wider" data-i18n="past_records">Past Records</h4></div>
+                        <div id="maintenanceLogList" class="p-5 space-y-3"></div>
+                    </div>
+                </div>
+                
+                <!-- Tab 3: History (Injected dynamically) -->
+                <div id="history-tab" class="tab-content">
+                    <div class="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm overflow-hidden">
+                        <div class="bg-gray-50 dark:bg-gray-900/50 px-5 py-3 border-b border-gray-200 dark:border-gray-700">
+                            <h4 class="text-sm font-bold text-gray-700 dark:text-gray-200 uppercase tracking-wider" data-i18n="device_history">Device Ownership & Usage History</h4>
+                        </div>
+                        <div id="deviceHistoryList" class="p-6"></div>
+                    </div>
+                </div>
+
+            </div>
+
+            <!-- Footer -->
+            <div class="px-6 py-4 bg-white dark:bg-gray-800 border-t border-gray-200 dark:border-gray-700 flex justify-end gap-3 rounded-b-2xl">
+                <button type="button" onclick="window.hideModal('editModal')" class="px-6 py-2.5 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-600 font-bold transition shadow-sm" data-i18n="cancel">Cancel</button>
+                <button type="button" onclick="window.saveData()" class="px-6 py-2.5 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 font-bold transition shadow-md transform hover:-translate-y-0.5 flex items-center">
+                    <i class="fas fa-save mr-2"></i> <span data-i18n="save_changes">Save Changes</span>
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ======================================================= -->
+    <!-- OTHER ESSENTIAL MODALS                                  -->
+    <!-- ======================================================= -->
+
+    <!-- Clone Device Modal -->
+    <div id="cloneModal" class="modal opacity-0 pointer-events-none fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
+        <div class="modal-content bg-white dark:bg-gray-800 rounded-xl shadow-xl w-full max-w-md">
+            <div class="p-5 border-b dark:border-gray-700 flex justify-between items-center bg-gray-50 dark:bg-gray-900/50 rounded-t-xl">
+                <h3 class="font-bold text-lg dark:text-white"><i class="fas fa-copy text-blue-500 mr-2"></i><span data-i18n="clone_device">โคลนข้อมูลอุปกรณ์</span></h3>
+                <button onclick="window.hideModal('cloneModal')" class="text-gray-400 hover:text-red-500"><i class="fas fa-times"></i></button>
+            </div>
+            <div class="p-5 space-y-4">
+                <div class="bg-blue-50 dark:bg-blue-900/30 p-3 rounded-lg border border-blue-100 dark:border-blue-800 text-sm text-gray-700 dark:text-gray-300">
+                    <span data-i18n="cloning_from">กำลังคัดลอกสเปคจาก:</span> <strong id="cloneSourceInfo" class="text-blue-600 dark:text-blue-400 block mt-1"></strong>
+                </div>
+                <input type="hidden" id="cloneCollection">
+                <input type="hidden" id="cloneSourceId">
+                <div>
+                    <label class="block text-sm font-bold mb-2 dark:text-gray-300"><span data-i18n="enter_new_sns">ระบุ Serial Number ใหม่</span> <span class="text-xs font-normal text-gray-500" data-i18n="one_per_line">(1 บรรทัดต่อ 1 เครื่อง)</span></label>
+                    <textarea id="cloneSerialNumbers" rows="6" class="w-full border p-3 rounded-lg dark:bg-gray-700 dark:border-gray-600 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500 custom-scrollbar font-mono text-sm" placeholder="SN001&#10;SN002&#10;SN003"></textarea>
+                </div>
+                <p class="text-xs text-gray-500 bg-gray-50 dark:bg-gray-700 p-2 rounded"><i class="fas fa-info-circle mr-1"></i> <span data-i18n="clone_info">อุปกรณ์ที่โคลนใหม่จะถูกบันทึกเข้าคลัง (Storage) อัตโนมัติ</span></p>
+            </div>
+            <div class="p-4 border-t dark:border-gray-700 flex justify-end gap-2 bg-gray-50 dark:bg-gray-800 rounded-b-xl">
+                <button onclick="window.hideModal('cloneModal')" class="px-4 py-2 border rounded-lg dark:border-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 font-medium transition-colors" data-i18n="cancel">ยกเลิก</button>
+                <button onclick="window.processClone()" class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-bold flex items-center shadow-md transition-colors"><i class="fas fa-magic mr-2"></i> <span data-i18n="create_items">สร้างรายการใหม่</span></button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Move Device Modal -->
+    <div id="moveModal" class="modal opacity-0 pointer-events-none fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
+        <div class="modal-content bg-white dark:bg-gray-800 rounded-xl shadow-xl w-full max-w-md">
+            <div class="p-5 border-b dark:border-gray-700 flex justify-between items-center bg-gray-50 dark:bg-gray-900/50 rounded-t-xl">
+                <h3 class="font-bold text-lg dark:text-white"><i class="fas fa-exchange-alt text-purple-500 mr-2"></i><span data-i18n="move_category">ย้ายหมวดหมู่อุปกรณ์</span></h3>
+                <button onclick="window.hideModal('moveModal')" class="text-gray-400 hover:text-red-500"><i class="fas fa-times"></i></button>
+            </div>
+            <div class="p-5 space-y-4">
+                <div class="bg-purple-50 dark:bg-purple-900/30 p-3 rounded-lg border border-purple-100 dark:border-purple-800 text-sm text-gray-700 dark:text-gray-300">
+                    <span data-i18n="moving_device">กำลังย้ายอุปกรณ์:</span> <strong id="moveSourceInfo" class="text-purple-600 dark:text-purple-400 block mt-1"></strong>
+                </div>
+                <input type="hidden" id="moveSourceCollection">
+                <input type="hidden" id="moveSourceId">
+                <div>
+                    <label class="block text-sm font-bold mb-2 dark:text-gray-300" data-i18n="select_target_category">เลือกหมวดหมู่ปลายทาง</label>
+                    <select id="moveTargetCollection" class="w-full border p-3 rounded-lg dark:bg-gray-700 dark:border-gray-600 dark:text-white focus:ring-2 focus:ring-purple-500 focus:border-purple-500">
+                    </select>
+                </div>
+                <p class="text-xs text-gray-500 bg-gray-50 dark:bg-gray-700 p-2 rounded"><i class="fas fa-info-circle mr-1 text-purple-500"></i> <span data-i18n="move_info">ข้อมูลประวัติการยืมและซ่อมบำรุงจะถูกย้ายตามไปด้วยอัตโนมัติ</span></p>
+            </div>
+            <div class="p-4 border-t dark:border-gray-700 flex justify-end gap-2 bg-gray-50 dark:bg-gray-800 rounded-b-xl">
+                <button onclick="window.hideModal('moveModal')" class="px-4 py-2 border rounded-lg dark:border-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 font-medium transition-colors" data-i18n="cancel">ยกเลิก</button>
+                <button onclick="window.processMove()" class="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 font-bold flex items-center shadow-md transition-colors"><i class="fas fa-check mr-2"></i> <span data-i18n="confirm_move">ยืนยันการย้าย</span></button>
+            </div>
+        </div>
+    </div>
+
+     <!-- Bulk Edit Modal -->
+    <div id="bulkEditModal" class="modal opacity-0 pointer-events-none fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm">
+        <div class="modal-content bg-white dark:bg-gray-800 rounded-2xl shadow-2xl w-full max-w-3xl max-h-[90vh] flex flex-col transform transition-transform scale-95 border border-gray-100 dark:border-gray-700">
+            <div class="p-5 border-b border-gray-200 dark:border-gray-700 flex justify-between items-center bg-gray-50 dark:bg-gray-900/50">
+                <h3 class="font-bold text-xl dark:text-white flex items-center">
+                    <i class="fas fa-edit text-indigo-500 mr-3 text-2xl"></i>
+                    <span data-i18n="bulk_edit_title">แก้ไขข้อมูลทีละหลายรายการ</span> (<span id="bulkEditCount" class="text-indigo-600 dark:text-indigo-400 mx-1"></span> <span data-i18n="items">อุปกรณ์</span>)
+                </h3>
+                <button onclick="window.hideModal('bulkEditModal')" class="text-gray-400 hover:text-red-500 transition-colors"><i class="fas fa-times text-xl"></i></button>
+            </div>
+            <div class="p-6 flex-1 overflow-y-auto custom-scrollbar">
+                <input type="hidden" id="bulkEditCollection">
+                <form id="bulkEditDynamicForm" class="space-y-4">
+                    <!-- Dynamic fields will be injected here by JS -->
+                </form>
+            </div>
+            <div class="p-4 border-t border-gray-200 dark:border-gray-700 flex justify-end gap-3 bg-gray-50 dark:bg-gray-800 rounded-b-2xl">
+                <button onclick="window.hideModal('bulkEditModal')" class="px-5 py-2.5 border border-gray-300 rounded-xl dark:border-gray-600 font-semibold dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors" data-i18n="cancel">ยกเลิก</button>
+                <button onclick="window.saveBulkEdit()" class="px-5 py-2.5 bg-indigo-600 text-white rounded-xl hover:bg-indigo-700 font-bold shadow-md flex items-center transition-colors">
+                    <i class="fas fa-save mr-2"></i> <span data-i18n="save_all_changes">บันทึกการแก้ไขทั้งหมด</span>
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Menu Builder Modal -->
+    <div id="addMenuModal" class="modal opacity-0 pointer-events-none fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
+        <div class="modal-content bg-white dark:bg-gray-800 rounded-xl shadow-xl w-full max-w-2xl max-h-[90vh] flex flex-col">
+            <div class="p-5 border-b dark:border-gray-700 flex justify-between items-center bg-gray-50 dark:bg-gray-900/50">
+                <h3 id="addMenuModalTitle" class="font-bold text-lg dark:text-white">Custom Category</h3>
+                <button onclick="window.hideModal('addMenuModal')" class="text-gray-400 hover:text-red-500"><i class="fas fa-times"></i></button>
+            </div>
+            <div class="p-5 overflow-y-auto custom-scrollbar flex-1">
+                <form id="addMenuForm" class="space-y-4">
+                    <input type="hidden" id="editMenuMode" value="create">
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                            <label class="text-xs font-bold text-gray-500 uppercase" data-i18n="system_id">System ID (No spaces)*</label>
+                            <input type="text" id="newMenuId" class="w-full border p-2 rounded dark:bg-gray-700 dark:border-gray-600 dark:text-white focus:ring-indigo-500" required>
+                        </div>
+                        <div>
+                            <label class="text-xs font-bold text-gray-500 uppercase" data-i18n="display_name">Display Name*</label>
+                            <input type="text" id="newMenuDisplay" class="w-full border p-2 rounded dark:bg-gray-700 dark:border-gray-600 dark:text-white focus:ring-indigo-500" required>
+                        </div>
+                        <div>
+                            <label class="text-xs font-bold text-gray-500 uppercase" data-i18n="icon_class">Icon (FontAwesome Class)</label>
+                            <input type="text" id="newMenuIcon" value="fa-box" class="w-full border p-2 rounded dark:bg-gray-700 dark:border-gray-600 dark:text-white focus:ring-indigo-500">
+                        </div>
+                        <div>
+                            <label class="text-xs font-bold text-gray-500 uppercase" data-i18n="parent_menu">Parent Menu</label>
+                            <select id="newMenuParent" class="w-full border p-2 rounded dark:bg-gray-700 dark:border-gray-600 dark:text-white focus:ring-indigo-500"></select>
+                        </div>
+                        <div>
+                            <label class="text-xs font-bold text-gray-500 uppercase" data-i18n="order_num">Order (Number)</label>
+                            <input type="number" id="newMenuOrder" value="0" class="w-full border p-2 rounded dark:bg-gray-700 dark:border-gray-600 dark:text-white focus:ring-indigo-500">
+                        </div>
+                    </div>
+                    <div class="border-t pt-4 mt-4 dark:border-gray-700">
+                        <h4 class="font-bold text-sm mb-3 dark:text-white" data-i18n="select_fields_cat">Select Fields for this Category</h4>
+                        <div id="column-selector-container" class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2">
+                            <!-- Fields injected by JS -->
+                        </div>
                     </div>
                 </form>
             </div>
-        </div>
-    </div>
-
-    <!-- QR Modal -->
-    <div id="qrModal" class="modal opacity-0 pointer-events-none fixed inset-0 z-[70] flex items-center justify-center bg-slate-900/60 p-4 backdrop-blur-sm transition-all duration-300">
-        <div class="modal-content bg-white dark:bg-slate-900 rounded-3xl p-8 max-w-sm w-full text-center border dark:border-slate-800 shadow-2xl">
-            <h3 id="qrModalTitle" class="text-xl font-bold mb-6">Asset Label</h3>
-            <div class="bg-white p-4 rounded-2xl shadow-inner mb-6 inline-block"><canvas id="qrCanvas"></canvas></div>
-            <button onclick="window.hideModalWindow('qrModal')" class="w-full py-3 bg-indigo-600 text-white rounded-xl font-bold shadow-lg">Close</button>
-        </div>
-    </div>
-
-    <!-- Edit/Add Asset Modal -->
-    <div id="editModal" class="modal opacity-0 pointer-events-none fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-4 backdrop-blur-sm transition-all duration-300">
-        <div class="modal-content bg-white dark:bg-slate-900 rounded-3xl shadow-2xl w-full max-w-5xl max-h-[95vh] overflow-hidden transform scale-90 border dark:border-slate-800 flex flex-col">
-            <div class="px-8 py-6 border-b dark:border-slate-800 bg-slate-50/50 dark:bg-slate-800/50 flex justify-between items-center">
-                <div id="editModalTitle"></div>
-                <button onclick="window.hideModalWindow('editModal')" class="w-10 h-10 flex items-center justify-center rounded-xl bg-white dark:bg-slate-800 text-slate-400 hover:text-rose-500 transition-colors shadow-sm"><i class="fas fa-times"></i></button>
-            </div>
-            
-            <div class="bg-white dark:bg-slate-900 border-b dark:border-slate-800 flex justify-center z-0 p-2">
-                <!-- Tabs will be injected here -->
-            </div>
-
-            <div id="editModalBody" class="flex-1 overflow-y-auto p-8 custom-scrollbar">
-                <div id="details-tab" class="tab-content active">
-                    <form id="editForm" class="space-y-6"></form>
-                    
-                    <!-- Disposal Evidence Section -->
-                    <div id="disposal-evidence-section" class="hidden mt-8 p-6 bg-rose-50 dark:bg-rose-900/20 border-2 border-dashed border-rose-200 dark:border-rose-800 rounded-2xl">
-                        <h4 class="text-rose-800 dark:text-rose-300 font-bold mb-2 flex items-center"><i class="fas fa-exclamation-circle mr-2"></i> ${t('disposal_evidence')}</h4>
-                        <p class="text-xs text-rose-600 dark:text-rose-400 mb-4">${t('disposal_desc')}</p>
-                        <input type="file" id="disposalFileInput" accept="image/*,application/pdf" class="block w-full text-sm text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-xs file:font-bold file:bg-rose-100 file:text-rose-700 hover:file:bg-rose-200">
-                        <div id="existingEvidenceBox" class="hidden mt-4 p-3 bg-white dark:bg-slate-800 rounded-lg border border-rose-100 flex items-center justify-between">
-                            <span class="text-xs font-bold text-rose-500"><i class="fas fa-paperclip mr-1"></i> ${t('evidence_attached')}</span>
-                            <input type="hidden" id="hiddenEvidenceBase64">
-                        </div>
-                    </div>
-                </div>
-
-                <div id="maintenance-tab" class="tab-content hidden">
-                    <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
-                        <div>
-                            <h4 class="font-bold mb-4 text-gray-700 dark:text-gray-200">${t('add_new_log')}</h4>
-                            <form id="maintenanceLogForm" class="space-y-4">
-                                <div><label class="block text-xs font-bold text-gray-500 uppercase mb-1">${t('description')}</label><textarea id="newLogDescription" rows="3" class="input-modern w-full" required></textarea></div>
-                                <div class="grid grid-cols-2 gap-4">
-                                    <div><label class="block text-xs font-bold text-gray-500 uppercase mb-1">${t('date_log')}</label><input type="date" id="newLogDate" class="input-modern w-full" required></div>
-                                    <div><label class="block text-xs font-bold text-gray-500 uppercase mb-1">${t('cost')}</label><input type="number" id="newLogCost" class="input-modern w-full"></div>
-                                </div>
-                                <div><label class="block text-xs font-bold text-gray-500 uppercase mb-1">${t('technician')}</label><input type="text" id="newLogTechnician" class="input-modern w-full"></div>
-                                <button type="button" onclick="window.addMaintenanceLog()" class="w-full py-3 bg-indigo-600 text-white rounded-xl font-bold shadow-lg">${t('save_log')}</button>
-                            </form>
-                        </div>
-                        <div class="border-l dark:border-slate-800 pl-8">
-                            <h4 class="font-bold mb-4 text-gray-700 dark:text-gray-200">${t('past_records')}</h4>
-                            <div id="maintenanceLogList" class="space-y-4"></div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            <div class="px-8 py-6 border-t dark:border-slate-800 flex justify-end space-x-4 bg-slate-50/50 dark:bg-slate-800/50">
-                <button onclick="window.hideModalWindow('editModal')" class="px-8 py-3 bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-200 rounded-xl font-bold hover:bg-slate-300 transition-colors">${t('cancel')}</button>
-                <button onclick="window.saveData()" class="px-10 py-3 bg-indigo-600 text-white rounded-xl font-bold shadow-lg shadow-indigo-200 hover:bg-indigo-700 transition-all">${t('save_changes')}</button>
+            <div class="p-4 border-t dark:border-gray-700 flex justify-end gap-2 bg-gray-50 dark:bg-gray-800 rounded-b-xl">
+                <button onclick="window.hideModal('addMenuModal')" class="px-4 py-2 border rounded dark:border-gray-600 dark:text-gray-300" data-i18n="cancel">Cancel</button>
+                <button onclick="window.saveCustomMenu()" class="px-4 py-2 bg-indigo-600 text-white rounded hover:bg-indigo-700" data-i18n="save_menu">Save Menu</button>
             </div>
         </div>
     </div>
 
-    <!-- Clone Modal -->
-    <div id="cloneModal" class="modal opacity-0 pointer-events-none fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-4 backdrop-blur-sm transition-all duration-300">
-        <div class="modal-content bg-white dark:bg-slate-900 rounded-3xl shadow-2xl w-full max-w-lg border dark:border-slate-800 overflow-hidden">
-            <div class="p-8">
-                <h3 class="text-2xl font-bold mb-2">${t('clone_device')}</h3>
-                <p class="text-sm text-gray-500 mb-6">${t('cloning_from')} <span id="cloneSourceInfo" class="font-bold text-indigo-600"></span></p>
-                <input type="hidden" id="cloneCollection">
-                <input type="hidden" id="cloneSourceId">
-                <label class="block text-xs font-bold text-gray-500 uppercase mb-2">${t('enter_new_sns')} ${t('one_per_line')}</label>
-                <textarea id="cloneSerialNumbers" rows="6" class="input-modern w-full font-mono text-sm mb-4" placeholder="SN123456\nSN789012..."></textarea>
-                <p class="text-xs text-indigo-500 mb-6 font-medium"><i class="fas fa-info-circle mr-1"></i> ${t('clone_info')}</p>
-                <div class="flex space-x-3">
-                    <button onclick="window.hideModalWindow('cloneModal')" class="flex-1 py-3 bg-slate-100 dark:bg-slate-800 rounded-xl font-bold">${t('cancel')}</button>
-                    <button onclick="window.processClone()" class="flex-1 py-3 bg-indigo-600 text-white rounded-xl font-bold shadow-lg">${t('create_items')}</button>
-                </div>
+    <!-- Import CSV Modal -->
+    <div id="importModal" class="modal opacity-0 pointer-events-none fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
+        <div class="modal-content bg-white dark:bg-gray-800 rounded-xl w-full max-w-md shadow-xl">
+            <div class="p-5 border-b dark:border-gray-700 flex justify-between items-center bg-gray-50 dark:bg-gray-900/50">
+                <h3 id="importModalTitle" class="font-bold text-lg dark:text-white">Import CSV</h3>
+                <button onclick="window.hideModal('importModal')" class="text-gray-400 hover:text-red-500"><i class="fas fa-times"></i></button>
             </div>
-        </div>
-    </div>
-
-    <!-- Move Modal -->
-    <div id="moveModal" class="modal opacity-0 pointer-events-none fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-4 backdrop-blur-sm transition-all duration-300">
-        <div class="modal-content bg-white dark:bg-slate-900 rounded-3xl shadow-2xl w-full max-w-lg border dark:border-slate-800 overflow-hidden">
-            <div class="p-8">
-                <h3 class="text-2xl font-bold mb-2">${t('move_category')}</h3>
-                <p class="text-sm text-gray-500 mb-6">${t('moving_device')} <span id="moveSourceInfo" class="font-bold text-indigo-600"></span></p>
-                <input type="hidden" id="moveSourceCollection">
-                <input type="hidden" id="moveSourceId">
-                <label class="block text-xs font-bold text-gray-500 uppercase mb-2">${t('select_target_category')}</label>
-                <select id="moveTargetCollection" class="input-modern w-full mb-6"></select>
-                <p class="text-xs text-amber-500 mb-6 font-medium"><i class="fas fa-exclamation-triangle mr-1"></i> ${t('move_info')}</p>
-                <div class="flex space-x-3">
-                    <button onclick="window.hideModalWindow('moveModal')" class="flex-1 py-3 bg-slate-100 dark:bg-slate-800 rounded-xl font-bold">${t('cancel')}</button>
-                    <button onclick="window.processMove()" class="flex-1 py-3 bg-indigo-600 text-white rounded-xl font-bold shadow-lg">${t('confirm_move')}</button>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <!-- Bulk Edit Modal -->
-    <div id="bulkEditModal" class="modal opacity-0 pointer-events-none fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-4 backdrop-blur-sm transition-all duration-300">
-        <div class="modal-content bg-white dark:bg-slate-900 rounded-3xl shadow-2xl w-full max-w-4xl max-h-[90vh] overflow-hidden flex flex-col border dark:border-slate-800">
-            <div class="px-8 py-6 border-b dark:border-slate-800 bg-indigo-600 text-white flex justify-between items-center">
-                <div>
-                    <h3 class="text-xl font-bold">${t('bulk_edit_title')}</h3>
-                    <p class="text-xs text-indigo-100 opacity-80 uppercase tracking-widest mt-1">Editing <span id="bulkEditCount" class="font-black">0</span> ${t('items')}</p>
-                </div>
-                <button onclick="window.hideModalWindow('bulkEditModal')" class="text-white opacity-60 hover:opacity-100"><i class="fas fa-times text-xl"></i></button>
-            </div>
-            <div class="flex-1 overflow-y-auto p-8 custom-scrollbar">
-                <input type="hidden" id="bulkEditCollection">
-                <div id="bulkEditDynamicForm"></div>
-            </div>
-            <div class="px-8 py-6 border-t dark:border-slate-800 flex justify-end space-x-3 bg-slate-50/50 dark:bg-slate-800/50">
-                <button onclick="window.hideModalWindow('bulkEditModal')" class="px-8 py-3 bg-slate-200 dark:bg-slate-700 rounded-xl font-bold">${t('cancel')}</button>
-                <button onclick="window.saveBulkEdit()" class="px-10 py-3 bg-indigo-600 text-white rounded-xl font-bold shadow-lg">${t('save_all_changes')}</button>
-            </div>
-        </div>
-    </div>
-
-    <!-- Import Modal -->
-    <div id="importModal" class="modal opacity-0 pointer-events-none fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-4 backdrop-blur-sm transition-all duration-300">
-        <div class="modal-content bg-white dark:bg-slate-900 rounded-3xl shadow-2xl w-full max-w-lg border dark:border-slate-800 overflow-hidden">
-            <div class="px-8 py-6 border-b dark:border-slate-800 bg-gray-50 dark:bg-gray-800/50 flex justify-between items-center">
-                <h3 id="importModalTitle" class="text-xl font-bold text-gray-800 dark:text-white"></h3>
-                <button onclick="window.hideModalWindow('importModal')" class="text-gray-400 hover:text-rose-500"><i class="fas fa-times text-xl"></i></button>
-            </div>
-            <div class="p-8">
-                <button onclick="window.downloadCsvTemplate()" class="w-full mb-6 py-3 bg-emerald-50 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400 rounded-xl font-bold border-2 border-dashed border-emerald-200 dark:border-emerald-800 hover:bg-emerald-100 transition-all">
-                    <i class="fas fa-download mr-2"></i> ${t('dl_csv_template')}
+            <div class="p-5 space-y-4">
+                <button onclick="window.downloadCsvTemplate()" class="w-full bg-indigo-50 hover:bg-indigo-100 dark:bg-indigo-900/30 dark:hover:bg-indigo-900/50 p-2.5 rounded-lg text-sm text-indigo-700 dark:text-indigo-400 font-bold transition-colors">
+                    <i class="fas fa-download mr-2"></i> <span data-i18n="dl_csv_template">Download CSV Template</span>
                 </button>
-                <div class="mb-6 p-4 bg-gray-50 dark:bg-gray-800 rounded-xl border border-gray-100 dark:border-gray-700">
-                    <p class="text-xs font-bold text-gray-500 uppercase mb-2">${t('req_headers')}</p>
-                    <p id="importHeadersExample" class="text-[10px] font-mono text-indigo-500 break-all"></p>
+                <div class="text-xs text-gray-500 dark:text-gray-400 bg-gray-50 dark:bg-gray-700 p-3 rounded-lg border border-gray-200 dark:border-gray-600">
+                    <strong data-i18n="req_headers">Required Headers:</strong><br>
+                    <span id="importHeadersExample" class="font-mono text-indigo-500 dark:text-indigo-400 block mt-1 break-words"></span>
                 </div>
-                <div class="space-y-4">
-                    <div>
-                        <label class="block text-xs font-bold text-gray-500 uppercase mb-1">${t('csv_file')}</label>
-                        <input type="file" id="csvFileInput" accept=".csv" class="block w-full text-sm text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-xs file:font-bold file:bg-indigo-50 file:text-indigo-700 hover:file:bg-indigo-100">
-                    </div>
-                    <div>
-                        <label class="block text-xs font-bold text-gray-500 uppercase mb-1">${t('encoding')}</label>
-                        <select id="csvEncoding" class="input-modern w-full">
-                            <option value="UTF-8">UTF-8 (Standard)</option>
-                            <option value="windows-874">Windows-874 (Thai)</option>
-                            <option value="TIS-620">TIS-620 (Thai Legacy)</option>
-                        </select>
-                    </div>
-                    <button onclick="window.processCsvImport()" class="w-full mt-4 py-4 bg-indigo-600 text-white rounded-xl font-bold shadow-lg shadow-indigo-200 hover:bg-indigo-700 transition-all">${t('import_data')}</button>
+                <div>
+                    <label class="block text-sm font-medium mb-1 dark:text-gray-300" data-i18n="csv_file">CSV File</label>
+                    <input type="file" id="csvFileInput" accept=".csv" class="w-full border p-2 rounded dark:border-gray-600 dark:bg-gray-700 dark:text-white focus:ring-indigo-500">
                 </div>
+                <div>
+                    <label class="block text-sm font-medium mb-1 dark:text-gray-300" data-i18n="encoding">Encoding (Language Format)</label>
+                    <select id="csvEncoding" class="w-full border p-2 rounded dark:bg-gray-700 dark:border-gray-600 dark:text-white focus:ring-indigo-500">
+                        <option value="UTF-8">UTF-8 (Standard / Google Sheets)</option>
+                        <option value="TIS-620">TIS-620 (Thai Microsoft Excel)</option>
+                        <option value="windows-874">Windows-874 (Thai Legacy)</option>
+                    </select>
+                </div>
+            </div>
+            <div class="p-4 border-t dark:border-gray-700 flex justify-end bg-gray-50 dark:bg-gray-800 rounded-b-xl">
+                <button onclick="window.processCsvImport()" class="px-6 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg font-bold shadow-sm transition-colors" data-i18n="import_data">Import Data</button>
             </div>
         </div>
     </div>
 
-    <!-- Notification Modal -->
-    <div id="notificationModal" class="modal opacity-0 pointer-events-none fixed inset-0 z-[100] flex items-center justify-center bg-slate-900/60 p-6 backdrop-blur-md transition-all duration-300">
-        <div class="modal-content bg-white dark:bg-slate-900 rounded-[2.5rem] p-10 text-center max-w-sm w-full shadow-2xl border dark:border-slate-800 transform scale-90 transition-all duration-300">
-            <div id="notifIcon" class="mb-6 flex justify-center"></div>
-            <h3 id="notifTitle" class="text-2xl font-black text-slate-800 dark:text-white mb-2 tracking-tight"></h3>
-            <p id="notifMessage" class="text-slate-500 dark:text-slate-400 text-sm font-medium mb-10"></p>
-            <button onclick="window.hideModalWindow('notificationModal')" class="w-full py-4 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-bold transition-colors shadow-md" data-i18n="got_it">Got it</button>
+    <!-- QR Code Modal -->
+    <div id="qrModal" class="modal opacity-0 pointer-events-none fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
+        <div class="modal-content bg-white dark:bg-gray-800 rounded-2xl p-8 text-center max-w-sm shadow-2xl transform transition-transform">
+            <h3 id="qrModalTitle" class="font-bold text-xl mb-6 dark:text-white">Asset QR Code</h3>
+            <div class="flex justify-center mb-6 bg-white p-4 rounded-xl inline-block border border-gray-200 shadow-sm">
+                <canvas id="qrCanvas"></canvas>
+            </div>
+            <p class="text-sm text-gray-500 dark:text-gray-400 mb-6" data-i18n="qr_desc">Scan this QR code with your mobile device to view complete details of this asset.</p>
+            <button onclick="window.hideModal('qrModal')" class="px-6 py-2.5 bg-gray-200 hover:bg-gray-300 dark:bg-gray-700 dark:hover:bg-gray-600 dark:text-white text-gray-800 rounded-lg w-full font-bold transition-colors" data-i18n="close">Close</button>
+        </div>
+    </div>
+
+    <!-- Staff Management Modal -->
+    <div id="editStaffModal" class="modal opacity-0 pointer-events-none fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
+        <div class="modal-content bg-white dark:bg-gray-800 rounded-xl w-full max-w-md shadow-xl">
+            <div class="p-5 border-b dark:border-gray-700 flex justify-between items-center bg-gray-50 dark:bg-gray-900/50">
+                <h3 id="editStaffModalTitle" class="font-bold text-lg dark:text-white">Edit Staff</h3>
+                <button onclick="window.hideModal('editStaffModal')" class="text-gray-400 hover:text-red-500"><i class="fas fa-times"></i></button>
+            </div>
+            <form id="editStaffForm" class="p-5 space-y-4">
+                <div>
+                    <label class="block text-sm font-medium mb-1 dark:text-gray-300" data-i18n="username_req">Username (Required)</label>
+                    <input type="text" id="editStaffUserName" placeholder="e.g. somchai.p" class="w-full border p-2 rounded dark:bg-gray-700 dark:border-gray-600 dark:text-white focus:ring-indigo-500" required>
+                </div>
+                <div>
+                    <label class="block text-sm font-medium mb-1 dark:text-gray-300" data-i18n="first_name">First Name</label>
+                    <input type="text" id="editStaffFirstName" placeholder="Somchai" class="w-full border p-2 rounded dark:bg-gray-700 dark:border-gray-600 dark:text-white focus:ring-indigo-500">
+                </div>
+                <div>
+                    <label class="block text-sm font-medium mb-1 dark:text-gray-300" data-i18n="last_name">Last Name</label>
+                    <input type="text" id="editStaffLastName" placeholder="P." class="w-full border p-2 rounded dark:bg-gray-700 dark:border-gray-600 dark:text-white focus:ring-indigo-500">
+                </div>
+                <div>
+                    <label class="block text-sm font-medium mb-1 dark:text-gray-300" data-i18n="department">Department</label>
+                    <input type="text" id="editStaffDepartment" placeholder="IT, HR, Marketing..." class="w-full border p-2 rounded dark:bg-gray-700 dark:border-gray-600 dark:text-white focus:ring-indigo-500">
+                </div>
+            </form>
+            <div class="p-4 border-t dark:border-gray-700 flex justify-end gap-2 bg-gray-50 dark:bg-gray-800 rounded-b-xl">
+                <button type="button" onclick="window.hideModal('editStaffModal')" class="px-4 py-2 border rounded dark:border-gray-600 dark:text-gray-300" data-i18n="cancel">Cancel</button>
+                <button type="button" onclick="window.saveStaffChanges()" class="px-4 py-2 bg-indigo-600 text-white rounded hover:bg-indigo-700" data-i18n="save_data">Save Data</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Admin Management Modal -->
+    <div id="addUserModal" class="modal opacity-0 pointer-events-none fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
+        <div class="modal-content bg-white dark:bg-gray-800 rounded-xl w-full max-w-md shadow-xl">
+            <div class="p-5 border-b dark:border-gray-700 flex justify-between items-center bg-gray-50 dark:bg-gray-900/50">
+                <h3 class="font-bold text-lg dark:text-white" data-i18n="add_admin">Add System Admin</h3>
+                <button onclick="window.hideModal('addUserModal')" class="text-gray-400 hover:text-red-500"><i class="fas fa-times"></i></button>
+            </div>
+            <form id="addUserForm" class="p-5 space-y-4">
+                <p class="text-sm text-gray-500 dark:text-gray-400 mb-2" data-i18n="admin_desc">This user will be able to login and manage all inventory data.</p>
+                <div>
+                    <label class="block text-sm font-medium mb-1 dark:text-gray-300" data-i18n="email_addr">Email Address</label>
+                    <input type="email" id="newUserEmail" placeholder="admin@domain.com" class="w-full border p-2 rounded dark:bg-gray-700 dark:border-gray-600 dark:text-white focus:ring-indigo-500" required>
+                </div>
+                <div>
+                    <label class="block text-sm font-medium mb-1 dark:text-gray-300" data-i18n="password">Password</label>
+                    <input type="password" id="newUserPassword" placeholder="Minimum 6 characters" class="w-full border p-2 rounded dark:bg-gray-700 dark:border-gray-600 dark:text-white focus:ring-indigo-500" required>
+                </div>
+                <p id="addUserError" class="text-red-500 text-sm font-medium"></p>
+                <div class="flex justify-end gap-2 mt-6">
+                    <button type="button" onclick="window.hideModal('addUserModal')" class="px-4 py-2 border rounded dark:border-gray-600 dark:text-gray-300" data-i18n="cancel">Cancel</button>
+                    <button type="submit" class="px-4 py-2 bg-indigo-600 text-white rounded hover:bg-indigo-700" data-i18n="create_admin">Create Admin</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Universal Notification Modal -->
+    <div id="notificationModal" class="modal opacity-0 pointer-events-none fixed inset-0 z-[60] flex items-center justify-center bg-black/40 p-4">
+        <div class="bg-white dark:bg-gray-800 rounded-2xl p-8 text-center max-w-sm w-full shadow-2xl transform transition-transform">
+            <div id="modalIcon" class="mb-4"></div>
+            <h3 id="modalTitle" class="text-xl font-bold text-gray-900 dark:text-white mb-2">Notification</h3>
+            <p id="modalMessage" class="text-gray-600 dark:text-gray-300 text-sm mb-8"></p>
+            <button onclick="window.hideModal('notificationModal')" class="w-full px-4 py-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-bold transition-colors shadow-md" data-i18n="got_it">Got it</button>
         </div>
     </div>
 
     <!-- Main Logic -->
-    <script type="module" src="main.js?v=1.0.4"></script>
+    <script type="module" src="main.js"></script>
 </body>
 </html>
