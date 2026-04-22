@@ -355,6 +355,156 @@
         </div>
     </div>
 
+    <!-- Edit/Add Asset Modal -->
+    <div id="editModal" class="modal opacity-0 pointer-events-none fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-4 backdrop-blur-sm transition-all duration-300">
+        <div class="modal-content bg-white dark:bg-slate-900 rounded-3xl shadow-2xl w-full max-w-5xl max-h-[95vh] overflow-hidden transform scale-90 border dark:border-slate-800 flex flex-col">
+            <div class="px-8 py-6 border-b dark:border-slate-800 bg-slate-50/50 dark:bg-slate-800/50 flex justify-between items-center">
+                <div id="editModalTitle"></div>
+                <button onclick="window.hideModalWindow('editModal')" class="w-10 h-10 flex items-center justify-center rounded-xl bg-white dark:bg-slate-800 text-slate-400 hover:text-rose-500 transition-colors shadow-sm"><i class="fas fa-times"></i></button>
+            </div>
+            
+            <div class="bg-white dark:bg-slate-900 border-b dark:border-slate-800 flex justify-center z-0 p-2">
+                <!-- Tabs will be injected here -->
+            </div>
+
+            <div class="flex-1 overflow-y-auto p-8 custom-scrollbar">
+                <div id="details-tab" class="tab-content active">
+                    <form id="editForm" class="space-y-6"></form>
+                    
+                    <!-- Disposal Evidence Section -->
+                    <div id="disposal-evidence-section" class="hidden mt-8 p-6 bg-rose-50 dark:bg-rose-900/20 border-2 border-dashed border-rose-200 dark:border-rose-800 rounded-2xl">
+                        <h4 class="text-rose-800 dark:text-rose-300 font-bold mb-2 flex items-center"><i class="fas fa-exclamation-circle mr-2"></i> ${t('disposal_evidence')}</h4>
+                        <p class="text-xs text-rose-600 dark:text-rose-400 mb-4">${t('disposal_desc')}</p>
+                        <input type="file" id="disposalFileInput" accept="image/*,application/pdf" class="block w-full text-sm text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-xs file:font-bold file:bg-rose-100 file:text-rose-700 hover:file:bg-rose-200">
+                        <div id="existingEvidenceBox" class="hidden mt-4 p-3 bg-white dark:bg-slate-800 rounded-lg border border-rose-100 flex items-center justify-between">
+                            <span class="text-xs font-bold text-rose-500"><i class="fas fa-paperclip mr-1"></i> ${t('evidence_attached')}</span>
+                            <input type="hidden" id="hiddenEvidenceBase64">
+                        </div>
+                    </div>
+                </div>
+
+                <div id="maintenance-tab" class="tab-content hidden">
+                    <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                        <div>
+                            <h4 class="font-bold mb-4 text-gray-700 dark:text-gray-200">${t('add_new_log')}</h4>
+                            <form id="maintenanceLogForm" class="space-y-4">
+                                <div><label class="block text-xs font-bold text-gray-500 uppercase mb-1">${t('description')}</label><textarea id="newLogDescription" rows="3" class="input-modern w-full" required></textarea></div>
+                                <div class="grid grid-cols-2 gap-4">
+                                    <div><label class="block text-xs font-bold text-gray-500 uppercase mb-1">${t('date_log')}</label><input type="date" id="newLogDate" class="input-modern w-full" required></div>
+                                    <div><label class="block text-xs font-bold text-gray-500 uppercase mb-1">${t('cost')}</label><input type="number" id="newLogCost" class="input-modern w-full"></div>
+                                </div>
+                                <div><label class="block text-xs font-bold text-gray-500 uppercase mb-1">${t('technician')}</label><input type="text" id="newLogTechnician" class="input-modern w-full"></div>
+                                <button type="button" onclick="window.addMaintenanceLog()" class="w-full py-3 bg-indigo-600 text-white rounded-xl font-bold shadow-lg">${t('save_log')}</button>
+                            </form>
+                        </div>
+                        <div class="border-l dark:border-slate-800 pl-8">
+                            <h4 class="font-bold mb-4 text-gray-700 dark:text-gray-200">${t('past_records')}</h4>
+                            <div id="maintenanceLogList" class="space-y-4"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="px-8 py-6 border-t dark:border-slate-800 flex justify-end space-x-4 bg-slate-50/50 dark:bg-slate-800/50">
+                <button onclick="window.hideModalWindow('editModal')" class="px-8 py-3 bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-200 rounded-xl font-bold hover:bg-slate-300 transition-colors">${t('cancel')}</button>
+                <button onclick="window.saveData()" class="px-10 py-3 bg-indigo-600 text-white rounded-xl font-bold shadow-lg shadow-indigo-200 hover:bg-indigo-700 transition-all">${t('save_changes')}</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Clone Modal -->
+    <div id="cloneModal" class="modal opacity-0 pointer-events-none fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-4 backdrop-blur-sm transition-all duration-300">
+        <div class="modal-content bg-white dark:bg-slate-900 rounded-3xl shadow-2xl w-full max-w-lg border dark:border-slate-800 overflow-hidden">
+            <div class="p-8">
+                <h3 class="text-2xl font-bold mb-2">${t('clone_device')}</h3>
+                <p class="text-sm text-gray-500 mb-6">${t('cloning_from')} <span id="cloneSourceInfo" class="font-bold text-indigo-600"></span></p>
+                <input type="hidden" id="cloneCollection">
+                <input type="hidden" id="cloneSourceId">
+                <label class="block text-xs font-bold text-gray-500 uppercase mb-2">${t('enter_new_sns')} ${t('one_per_line')}</label>
+                <textarea id="cloneSerialNumbers" rows="6" class="input-modern w-full font-mono text-sm mb-4" placeholder="SN123456\nSN789012..."></textarea>
+                <p class="text-xs text-indigo-500 mb-6 font-medium"><i class="fas fa-info-circle mr-1"></i> ${t('clone_info')}</p>
+                <div class="flex space-x-3">
+                    <button onclick="window.hideModalWindow('cloneModal')" class="flex-1 py-3 bg-slate-100 dark:bg-slate-800 rounded-xl font-bold">${t('cancel')}</button>
+                    <button onclick="window.processClone()" class="flex-1 py-3 bg-indigo-600 text-white rounded-xl font-bold shadow-lg">${t('create_items')}</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Move Modal -->
+    <div id="moveModal" class="modal opacity-0 pointer-events-none fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-4 backdrop-blur-sm transition-all duration-300">
+        <div class="modal-content bg-white dark:bg-slate-900 rounded-3xl shadow-2xl w-full max-w-lg border dark:border-slate-800 overflow-hidden">
+            <div class="p-8">
+                <h3 class="text-2xl font-bold mb-2">${t('move_category')}</h3>
+                <p class="text-sm text-gray-500 mb-6">${t('moving_device')} <span id="moveSourceInfo" class="font-bold text-indigo-600"></span></p>
+                <input type="hidden" id="moveSourceCollection">
+                <input type="hidden" id="moveSourceId">
+                <label class="block text-xs font-bold text-gray-500 uppercase mb-2">${t('select_target_category')}</label>
+                <select id="moveTargetCollection" class="input-modern w-full mb-6"></select>
+                <p class="text-xs text-amber-500 mb-6 font-medium"><i class="fas fa-exclamation-triangle mr-1"></i> ${t('move_info')}</p>
+                <div class="flex space-x-3">
+                    <button onclick="window.hideModalWindow('moveModal')" class="flex-1 py-3 bg-slate-100 dark:bg-slate-800 rounded-xl font-bold">${t('cancel')}</button>
+                    <button onclick="window.processMove()" class="flex-1 py-3 bg-indigo-600 text-white rounded-xl font-bold shadow-lg">${t('confirm_move')}</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Bulk Edit Modal -->
+    <div id="bulkEditModal" class="modal opacity-0 pointer-events-none fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-4 backdrop-blur-sm transition-all duration-300">
+        <div class="modal-content bg-white dark:bg-slate-900 rounded-3xl shadow-2xl w-full max-w-4xl max-h-[90vh] overflow-hidden flex flex-col border dark:border-slate-800">
+            <div class="px-8 py-6 border-b dark:border-slate-800 bg-indigo-600 text-white flex justify-between items-center">
+                <div>
+                    <h3 class="text-xl font-bold">${t('bulk_edit_title')}</h3>
+                    <p class="text-xs text-indigo-100 opacity-80 uppercase tracking-widest mt-1">Editing <span id="bulkEditCount" class="font-black">0</span> ${t('items')}</p>
+                </div>
+                <button onclick="window.hideModalWindow('bulkEditModal')" class="text-white opacity-60 hover:opacity-100"><i class="fas fa-times text-xl"></i></button>
+            </div>
+            <div class="flex-1 overflow-y-auto p-8 custom-scrollbar">
+                <input type="hidden" id="bulkEditCollection">
+                <div id="bulkEditDynamicForm"></div>
+            </div>
+            <div class="px-8 py-6 border-t dark:border-slate-800 flex justify-end space-x-3 bg-slate-50/50 dark:bg-slate-800/50">
+                <button onclick="window.hideModalWindow('bulkEditModal')" class="px-8 py-3 bg-slate-200 dark:bg-slate-700 rounded-xl font-bold">${t('cancel')}</button>
+                <button onclick="window.saveBulkEdit()" class="px-10 py-3 bg-indigo-600 text-white rounded-xl font-bold shadow-lg">${t('save_all_changes')}</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Import Modal -->
+    <div id="importModal" class="modal opacity-0 pointer-events-none fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-4 backdrop-blur-sm transition-all duration-300">
+        <div class="modal-content bg-white dark:bg-slate-900 rounded-3xl shadow-2xl w-full max-w-lg border dark:border-slate-800 overflow-hidden">
+            <div class="px-8 py-6 border-b dark:border-slate-800 bg-gray-50 dark:bg-gray-800/50 flex justify-between items-center">
+                <h3 id="importModalTitle" class="text-xl font-bold text-gray-800 dark:text-white"></h3>
+                <button onclick="window.hideModalWindow('importModal')" class="text-gray-400 hover:text-rose-500"><i class="fas fa-times text-xl"></i></button>
+            </div>
+            <div class="p-8">
+                <button onclick="window.downloadCsvTemplate()" class="w-full mb-6 py-3 bg-emerald-50 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400 rounded-xl font-bold border-2 border-dashed border-emerald-200 dark:border-emerald-800 hover:bg-emerald-100 transition-all">
+                    <i class="fas fa-download mr-2"></i> ${t('dl_csv_template')}
+                </button>
+                <div class="mb-6 p-4 bg-gray-50 dark:bg-gray-800 rounded-xl border border-gray-100 dark:border-gray-700">
+                    <p class="text-xs font-bold text-gray-500 uppercase mb-2">${t('req_headers')}</p>
+                    <p id="importHeadersExample" class="text-[10px] font-mono text-indigo-500 break-all"></p>
+                </div>
+                <div class="space-y-4">
+                    <div>
+                        <label class="block text-xs font-bold text-gray-500 uppercase mb-1">${t('csv_file')}</label>
+                        <input type="file" id="csvFileInput" accept=".csv" class="block w-full text-sm text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-xs file:font-bold file:bg-indigo-50 file:text-indigo-700 hover:file:bg-indigo-100">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-bold text-gray-500 uppercase mb-1">${t('encoding')}</label>
+                        <select id="csvEncoding" class="input-modern w-full">
+                            <option value="UTF-8">UTF-8 (Standard)</option>
+                            <option value="windows-874">Windows-874 (Thai)</option>
+                            <option value="TIS-620">TIS-620 (Thai Legacy)</option>
+                        </select>
+                    </div>
+                    <button onclick="window.processCsvImport()" class="w-full mt-4 py-4 bg-indigo-600 text-white rounded-xl font-bold shadow-lg shadow-indigo-200 hover:bg-indigo-700 transition-all">${t('import_data')}</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <!-- Notification Modal -->
     <div id="notificationModal" class="modal opacity-0 pointer-events-none fixed inset-0 z-[100] flex items-center justify-center bg-slate-900/60 p-6 backdrop-blur-md transition-all duration-300">
         <div class="modal-content bg-white dark:bg-slate-900 rounded-[2.5rem] p-10 text-center max-w-sm w-full shadow-2xl border dark:border-slate-800 transform scale-90 transition-all duration-300">
