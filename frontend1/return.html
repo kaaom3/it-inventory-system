@@ -1,0 +1,147 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Device Return System | IT Inventory</title>
+    
+    <!-- Tailwind CSS & Config -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    fontFamily: { sans: ['Inter', 'sans-serif'] },
+                    colors: { indigo: { 500: '#6366f1', 600: '#4f46e5', 700: '#4338ca' } }
+                }
+            }
+        }
+    </script>
+    
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+    
+    <style>
+        body { font-family: 'Inter', sans-serif; }
+        .modal { transition: opacity 0.3s ease; }
+        .modal-content { transition: all 0.3s ease; transform: scale(0.95); }
+        .modal.active { opacity: 1; pointer-events: auto; }
+        .modal.active .modal-content { transform: scale(1); }
+    </style>
+</head>
+<body class="bg-slate-50 dark:bg-[#0f172a] text-slate-900 dark:text-slate-100 min-h-screen flex flex-col transition-colors duration-300 antialiased">
+    
+    <!-- Header -->
+    <header class="w-full bg-white/80 dark:bg-slate-900/80 backdrop-blur-md border-b dark:border-slate-800 p-4 sticky top-0 z-40">
+        <div class="max-w-7xl mx-auto flex items-center justify-between">
+            <div class="flex items-center space-x-4">
+                <div class="w-10 h-10 bg-indigo-600 rounded-xl flex items-center justify-center text-white shadow-xl shadow-indigo-200 dark:shadow-none">
+                    <i class="fas fa-undo-alt text-xl"></i>
+                </div>
+                <div>
+                    <h1 class="text-xl font-black text-slate-800 dark:text-white tracking-tight">Return Assets</h1>
+                    <p class="text-[10px] text-indigo-500 font-bold uppercase tracking-widest">Inventory Recovery</p>
+                </div>
+            </div>
+            <button id="theme-toggle" class="w-10 h-10 flex items-center justify-center rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 transition-all hover:bg-slate-200 dark:hover:bg-slate-700">
+                <i id="theme-toggle-dark-icon" class="fas fa-moon"></i>
+                <i id="theme-toggle-light-icon" class="fas fa-sun text-yellow-400 hidden"></i>
+            </button>
+        </div>
+    </header>
+
+    <!-- Main Content -->
+    <main class="flex-1 p-6 md:p-10 w-full max-w-4xl mx-auto flex flex-col justify-center relative">
+        <!-- Background Elements -->
+        <div class="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-full h-full bg-indigo-500/5 rounded-full blur-[120px] -z-10"></div>
+
+        <div class="bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl p-8 md:p-12 rounded-[2.5rem] shadow-2xl border border-white/20 dark:border-slate-800/50 relative overflow-hidden">
+            
+            <!-- Loading State -->
+            <div id="loading" class="flex flex-col items-center justify-center py-24 text-slate-500">
+                <div class="relative w-12 h-12 mb-6">
+                    <div class="absolute inset-0 border-4 border-indigo-100 dark:border-indigo-900/30 rounded-full"></div>
+                    <div class="absolute inset-0 border-4 border-indigo-600 rounded-full border-t-transparent animate-spin"></div>
+                </div>
+                <p class="text-[10px] font-black uppercase tracking-widest">Verifying Transaction...</p>
+            </div>
+            
+            <!-- Content State -->
+            <div id="content" class="hidden">
+                <div class="mb-10">
+                    <h2 class="text-3xl font-black text-slate-800 dark:text-white tracking-tight">Return Manifest</h2>
+                    <p class="text-slate-500 dark:text-slate-400 mt-1">Review and process item returns</p>
+                </div>
+                
+                <!-- Borrower Details -->
+                <div id="returnDetails" class="mb-10 p-8 bg-indigo-50 dark:bg-indigo-900/20 rounded-3xl border border-indigo-100 dark:border-indigo-800/50 shadow-sm relative overflow-hidden">
+                    <div class="absolute top-0 right-0 p-4 opacity-5">
+                        <i class="fas fa-receipt text-6xl"></i>
+                    </div>
+                    <!-- Injected by JS -->
+                </div>
+                
+                <h3 class="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-[0.2em] mb-6 flex items-center">
+                    <span class="w-8 h-8 bg-indigo-50 dark:bg-indigo-900/30 rounded-lg flex items-center justify-center text-indigo-500 mr-3">
+                        <i class="fas fa-box-open text-[10px]"></i>
+                    </span>
+                    Items in this Session
+                </h3>
+                
+                <!-- Item List -->
+                <div id="return-items-list" class="space-y-4 mb-10">
+                    <!-- Injected by JS -->
+                </div>
+                
+                <!-- Action Buttons -->
+                <div id="return-actions" class="mt-10 flex flex-col sm:flex-row justify-end gap-4 pt-10 border-t dark:border-slate-800">
+                    <!-- Injected by JS -->
+                </div>
+            </div>
+            
+            <!-- Not Found State -->
+            <div id="not-found" class="hidden flex flex-col items-center justify-center py-20 text-center">
+                 <div class="w-24 h-24 bg-rose-50 dark:bg-rose-900/20 rounded-full flex items-center justify-center mb-8">
+                     <i class="fas fa-exclamation-triangle text-4xl text-rose-500"></i>
+                 </div>
+                 <h2 class="text-3xl font-black text-slate-800 dark:text-white mb-3 tracking-tight">Invalid Transaction</h2>
+                 <p class="text-slate-500 dark:text-slate-400 mb-10 max-w-sm mx-auto font-medium">We couldn't locate this loan ID. Please verify your receipt or contact IT support for manual return.</p>
+                 <button onclick="window.location.href='loan.html'" class="btn-primary px-10 py-4">
+                     Back to Portal
+                 </button>
+            </div>
+        </div>
+    </main>
+
+    <div id="notificationModal" class="modal opacity-0 pointer-events-none fixed inset-0 z-[60] flex items-center justify-center bg-slate-900/60 p-6 backdrop-blur-md transition-all duration-300">
+        <div class="modal-content bg-white dark:bg-slate-900 rounded-[2.5rem] p-10 text-center max-w-sm w-full shadow-2xl border dark:border-slate-800 transform scale-90 transition-all duration-300">
+            <div id="modalIcon" class="mb-6 flex justify-center"></div>
+            <h3 id="modalTitle" class="text-2xl font-black text-slate-800 dark:text-white mb-2 tracking-tight">Alert</h3>
+            <p id="modalMessage" class="text-slate-500 dark:text-slate-400 text-sm font-medium mb-10"></p>
+            <button onclick="closeNotificationAndReload()" class="btn-primary w-full py-4 shadow-xl">Acknowledge</button>
+        </div>
+    </div>
+
+    <script type="module">
+        const API_BASE_URL = window.location.origin;
+        window.addEventListener('load', async () => {
+            const loanId = new URLSearchParams(window.location.search).get('id');
+            if(!loanId) return document.getElementById('not-found').classList.remove('hidden');
+            try {
+                const res = await fetch(`${API_BASE_URL}/api/loans/group/${loanId}`);
+                const { loanItems } = await res.json();
+                document.getElementById('loading').classList.add('hidden');
+                document.getElementById('content').classList.remove('hidden');
+                document.getElementById('returnDetails').innerHTML = `<p class="font-bold">ID: ${loanId}</p>`;
+                document.getElementById('return-items-list').innerHTML = loanItems.map(i => `
+                    <div class="bg-white dark:bg-slate-800 p-4 rounded-xl border flex justify-between">
+                        <span>${i.DeviceSerial}</span>
+                        <span class="text-indigo-500 font-bold">${i.Status}</span>
+                    </div>
+                `).join('');
+            } catch(e) { document.getElementById('not-found').classList.remove('hidden'); }
+        });
+    </script>
+</body>
+</html>

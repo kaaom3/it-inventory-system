@@ -1,119 +1,154 @@
 <!DOCTYPE html>
-<html>
+<html lang="th">
 <head>
     <base target="_top">
-    <title>Login - Inventory System</title>
+    <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sign In · IT Inventory</title>
+
     <script src="https://cdn.tailwindcss.com"></script>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <script>
+      tailwind.config = {
+        darkMode: 'class',
+        theme: { extend: { fontFamily: { sans: ['Inter', 'sans-serif'] } } }
+      };
+    </script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
-    <style>
-        body { font-family: 'Inter', sans-serif; }
-    </style>
+    <link rel="stylesheet" href="style.css">
 </head>
-<body class="bg-slate-50 dark:bg-[#0f172a] text-slate-900 dark:text-slate-100 antialiased">
-    <div class="min-h-screen flex items-center justify-center p-6 relative overflow-hidden">
-        <!-- Abstract Background Elements -->
-        <div class="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] bg-indigo-500/10 rounded-full blur-[120px]"></div>
-        <div class="absolute bottom-[-10%] right-[-10%] w-[40%] h-[40%] bg-emerald-500/10 rounded-full blur-[120px]"></div>
+<body class="min-h-screen flex items-center justify-center p-6 antialiased">
 
-        <div class="max-w-md w-full relative group">
-            <div class="absolute -inset-1 bg-gradient-to-r from-indigo-500 to-emerald-500 rounded-3xl blur opacity-20 group-hover:opacity-30 transition duration-1000 group-hover:duration-200"></div>
-            <div class="relative bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl p-10 rounded-3xl shadow-2xl border border-white/20 dark:border-slate-800/50">
-                
-                <div class="text-center mb-10">
-                    <div class="inline-flex items-center justify-center w-20 h-20 bg-indigo-600 rounded-2xl shadow-xl shadow-indigo-200 dark:shadow-none mb-6 transform group-hover:scale-110 transition-transform duration-500">
-                        <i class="fas fa-cubes text-3xl text-white"></i>
-                    </div>
-                    <h1 class="text-3xl font-black text-slate-800 dark:text-white tracking-tight">Inventory System</h1>
-                    <p class="text-slate-500 dark:text-slate-400 mt-2 font-medium">Enterprise Asset Management</p>
-                </div>
-                
-                <form id="loginForm" class="space-y-6">
-                    <div>
-                        <label for="email" class="block text-xs font-black text-slate-500 dark:text-slate-400 uppercase tracking-widest mb-2">Email Address</label>
-                        <div class="relative">
-                            <div class="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
-                                <i class="far fa-envelope text-slate-400 text-sm"></i>
-                            </div>
-                            <input type="email" id="email" name="email" required 
-                                class="block w-full pl-11 pr-4 py-3.5 bg-slate-50/50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white text-sm rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all outline-none"
-                                placeholder="name@company.com">
-                        </div>
-                    </div>
-                    
-                    <div>
-                        <div class="flex justify-between items-center mb-2">
-                            <label for="password" class="block text-xs font-black text-slate-500 dark:text-slate-400 uppercase tracking-widest">Password</label>
-                            <a href="#" class="text-[10px] font-bold text-indigo-600 dark:text-indigo-400 uppercase tracking-wider hover:underline">Forgot?</a>
-                        </div>
-                        <div class="relative">
-                            <div class="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
-                                <i class="fas fa-lock text-slate-400 text-sm"></i>
-                            </div>
-                            <input type="password" id="password" name="password" required 
-                                class="block w-full pl-11 pr-4 py-3.5 bg-slate-50/50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white text-sm rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all outline-none"
-                                placeholder="••••••••">
-                        </div>
-                    </div>
-                    
-                    <div id="errorMessage" class="text-rose-500 text-xs font-bold text-center h-5"></div>
-                    
-                    <button type="submit" id="loginButton" 
-                        class="w-full flex justify-center py-4 px-4 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-black rounded-xl shadow-lg shadow-indigo-200 dark:shadow-none focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition-all transform active:scale-[0.98] uppercase tracking-widest">
-                        Sign In
-                    </button>
-                </form>
+    <div class="ambient-bg"></div>
 
-                <div class="mt-8 pt-8 border-t border-slate-100 dark:border-slate-800 text-center">
-                    <p class="text-xs text-slate-500 dark:text-slate-400">
-                        Need access? Contact <a href="mailto:it@company.com" class="text-indigo-600 dark:text-indigo-400 font-bold hover:underline">IT Support</a>
-                    </p>
+    <!-- Theme toggle -->
+    <button id="theme-toggle" class="no-print fixed top-6 right-6 w-11 h-11 flex items-center justify-center rounded-2xl glass text-slate-600 dark:text-slate-300 hover:scale-105 transition-transform">
+        <i id="theme-icon" class="fas fa-moon"></i>
+    </button>
+
+    <div class="w-full max-w-md relative group">
+        <!-- Glow border -->
+        <div class="absolute -inset-0.5 bg-gradient-to-r from-indigo-500 via-violet-500 to-emerald-500 rounded-[2rem] blur-md opacity-30 group-hover:opacity-60 transition duration-700"></div>
+
+        <div class="relative glass-strong p-10 rounded-[2rem]">
+            <!-- Logo -->
+            <div class="text-center mb-10">
+                <div class="inline-flex items-center justify-center w-20 h-20 rounded-3xl mb-6 shadow-glow"
+                     style="background: var(--gradient-primary);">
+                    <i class="fas fa-cubes text-3xl text-white"></i>
                 </div>
+                <h1 class="text-3xl font-black tracking-tight text-slate-900 dark:text-white">
+                    Welcome back
+                </h1>
+                <p class="text-sm text-slate-500 dark:text-slate-400 mt-2 font-medium">
+                    Enterprise Asset Management Platform
+                </p>
+            </div>
+
+            <form id="loginForm" class="space-y-5">
+                <!-- Email -->
+                <div>
+                    <label for="email" class="label-overline block mb-2">Email Address</label>
+                    <div class="relative">
+                        <i class="far fa-envelope absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 text-sm pointer-events-none"></i>
+                        <input type="email" id="email" name="email" required
+                               class="input-modern pl-11" placeholder="name@company.com" autocomplete="email">
+                    </div>
+                </div>
+
+                <!-- Password -->
+                <div>
+                    <div class="flex justify-between items-center mb-2">
+                        <label for="password" class="label-overline">Password</label>
+                        <a href="#" class="text-[10px] font-bold uppercase tracking-wider text-indigo-600 dark:text-indigo-400 hover:underline">Forgot?</a>
+                    </div>
+                    <div class="relative">
+                        <i class="fas fa-lock absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 text-sm pointer-events-none"></i>
+                        <input type="password" id="password" name="password" required
+                               class="input-modern pl-11 pr-11" placeholder="••••••••" autocomplete="current-password">
+                        <button type="button" id="togglePw"
+                                class="absolute right-3 top-1/2 -translate-y-1/2 w-8 h-8 flex items-center justify-center rounded-lg text-slate-400 hover:text-indigo-600 transition">
+                            <i class="far fa-eye text-sm"></i>
+                        </button>
+                    </div>
+                </div>
+
+                <div id="errorMessage" class="text-rose-500 text-xs font-bold text-center min-h-[1.25rem]"></div>
+
+                <button type="submit" id="loginButton" class="btn-primary w-full py-4 uppercase tracking-widest">
+                    <span id="loginLabel">Sign In</span>
+                    <i id="loginSpinner" class="fas fa-circle-notch fa-spin hidden"></i>
+                </button>
+            </form>
+
+            <div class="mt-8 pt-6 border-t border-slate-200/50 dark:border-slate-700/50 text-center">
+                <p class="text-xs text-slate-500 dark:text-slate-400">
+                    Need access? Contact
+                    <a href="mailto:it@company.com" class="text-indigo-600 dark:text-indigo-400 font-bold hover:underline">IT Support</a>
+                </p>
             </div>
         </div>
     </div>
 
-    <script type="module">
-        const API_BASE_URL = window.location.origin;
+    <script>
+        // ===== Theme =====
+        const root = document.documentElement;
+        const themeIcon = document.getElementById('theme-icon');
+        const applyTheme = (t) => {
+            root.classList.toggle('dark', t === 'dark');
+            themeIcon.className = t === 'dark' ? 'fas fa-sun' : 'fas fa-moon';
+            localStorage.setItem('theme', t);
+        };
+        applyTheme(localStorage.getItem('theme') || (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'));
+        document.getElementById('theme-toggle').addEventListener('click', () => {
+            applyTheme(root.classList.contains('dark') ? 'light' : 'dark');
+        });
 
+        // ===== Show/hide password =====
+        document.getElementById('togglePw').addEventListener('click', () => {
+            const pw = document.getElementById('password');
+            const isPw = pw.type === 'password';
+            pw.type = isPw ? 'text' : 'password';
+            document.querySelector('#togglePw i').className = isPw ? 'far fa-eye-slash text-sm' : 'far fa-eye text-sm';
+        });
+
+        // ===== Login =====
+        const API_BASE_URL = window.location.origin;
         const loginForm = document.getElementById('loginForm');
-        const emailInput = document.getElementById('email');
-        const passwordInput = document.getElementById('password');
-        const errorMessageDiv = document.getElementById('errorMessage');
-        const loginButton = document.getElementById('loginButton');
+        const errorBox  = document.getElementById('errorMessage');
+        const btn       = document.getElementById('loginButton');
+        const label     = document.getElementById('loginLabel');
+        const spinner   = document.getElementById('loginSpinner');
 
         loginForm.addEventListener('submit', async (e) => {
             e.preventDefault();
-            errorMessageDiv.textContent = '';
-            loginButton.disabled = true;
-            loginButton.innerHTML = 'Signing In...';
-
-            const email = emailInput.value;
-            const password = passwordInput.value;
+            errorBox.textContent = '';
+            btn.disabled = true;
+            label.textContent = 'Signing In…';
+            spinner.classList.remove('hidden');
 
             try {
-                const response = await fetch(`${API_BASE_URL}/api/login`, {
+                const res = await fetch(`${API_BASE_URL}/api/login`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ email, password }),
+                    body: JSON.stringify({
+                        email: document.getElementById('email').value,
+                        password: document.getElementById('password').value
+                    })
                 });
-
-                if (!response.ok) {
-                    const errorData = await response.json();
-                    throw new Error(errorData.message || 'Login failed');
+                if (!res.ok) {
+                    const err = await res.json().catch(() => ({}));
+                    throw new Error(err.message || 'Login failed');
                 }
-
-                const { token, user } = await response.json();
-                
+                const { token, user } = await res.json();
                 localStorage.setItem('authToken', token);
                 localStorage.setItem('user', JSON.stringify(user));
-                
                 window.location.href = 'index.html';
-            } catch (error) {
-                errorMessageDiv.textContent = error.message;
-                loginButton.disabled = false;
-                loginButton.innerHTML = 'Sign In';
+            } catch (err) {
+                errorBox.textContent = err.message;
+                btn.disabled = false;
+                label.textContent = 'Sign In';
+                spinner.classList.add('hidden');
             }
         });
     </script>
