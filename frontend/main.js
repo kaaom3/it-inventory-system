@@ -917,6 +917,9 @@ function generateDynamicPages() {
                     <p class="text-slate-500 dark:text-slate-400 mt-1">Manage and track your ${displayName.toLowerCase()} assets</p>
                 </div>
                 <div class="flex flex-wrap gap-3">
+                    <button onclick="window.openOCRScanner('${colName}')" class="px-5 py-2.5 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 rounded-xl font-bold shadow-sm hover:bg-slate-50 dark:hover:bg-slate-700 transition-all flex items-center">
+                        <i class="fas fa-camera mr-2 text-blue-500"></i>OCR Scan
+                    </button>
                     <button onclick="window.openRapidEntryModal('${colName}')" class="px-5 py-2.5 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 rounded-xl font-bold shadow-sm hover:bg-slate-50 dark:hover:bg-slate-700 transition-all flex items-center">
                         <i class="fas fa-barcode mr-2 text-indigo-500"></i>${t('rapid_scan')}
                     </button>
@@ -2962,8 +2965,73 @@ window.printLabel = function() {
 };
 
 // ==========================================
-// --- 🌟 RAPID SCAN ENTRY MODE ---
+// --- 🌟 OCR SCANNING & PARSING ---
 // ==========================================
+let ocrWorker = null;
+
+async function initOCR() {
+    if (!ocrWorker) {
+        ocrWorker = await Tesseract.createWorker('eng+tha');
+    }
+}
+
+window.openOCRScanner = async function(targetCollection) {
+    await initOCR();
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = 'image/*';
+    input.capture = 'environment'; // Direct to camera on mobile
+    
+    input.onchange = async (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+
+        showNotificationModal('loading', 'Processing OCR', 'Reading label data, please wait...');
+        
+        try {
+            const { data: { text } } = await ocrWorker.recognize(file);
+            const extractedData = parseAssetLabel(text);
+            
+            window.hideModalWindow('notificationModal');
+            
+            if (Object.keys(extractedData).length === 0) {
+                showNotificationModal('warning', 'OCR Failed', 'Could not detect clear S/N or Model prefixes. Please enter manually.');
+                return;
+            }
+
+            window.openModal('add', targetCollection, null, extractedData);
+        } catch (error) {
+            console.error(error);
+            showNotificationModal('warning', 'Error', 'Failed to process image.');
+        }
+    };
+    input.click();
+};
+
+function parseAssetLabel(text) {
+    const results = {};
+    const lines = text.split('\n');
+    
+    // Pattern Matching Logic based on clear prefixes
+    const patterns = {
+        SerialNumber: [/S\/N[:\s]+(\w+)/i, /SN[:\s]+(\w+)/i, /Serial[:\s]+(\w+)/i],
+        Model: [/Model[:\s]+([^\n]+)/i, /M\/N[:\s]+([^\n]+)/i],
+        PartNumber: [/P\/N[:\s]+(\w+)/i, /Part[:\s]+(\w+)/i]
+    };
+
+    lines.forEach(line => {
+        for (const [field, regexes] of Object.entries(patterns)) {
+            regexes.forEach(regex => {
+                const match = line.match(regex);
+                if (match && match[1]) {
+                    results[field] = match[1].trim();
+                }
+            });
+        }
+    });
+
+    return results;
+}
 function injectRapidEntryModal() {
     if (document.getElementById('rapidEntryModal')) return;
     const modalHtml = `
