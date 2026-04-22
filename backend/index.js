@@ -491,23 +491,6 @@ app.get('/api/inventory/search/serial/:sn', verifyToken, async (req, res) => {
     } catch (error) { res.status(500).json({ message: error.message }); }
 });
 
-            const newDevice = { ...sourceDevice, ...overrides };
-            if (newDevice.hasOwnProperty('SerialNumber')) newDevice.SerialNumber = sn;
-            if (newDevice.hasOwnProperty('MonitorSerial')) newDevice.MonitorSerial = sn;
-            
-            newDevice.Timestamp = new Date();
-            if(!overrides || !overrides.Status) newDevice.Status = 'Storage';
-            if(!overrides || !overrides.UserName) newDevice.UserName = '';
-            newDevice.DisposalDate = null;
-            newDevice.DisposalEvidence = null;
-            return newDevice;
-        });
-
-        await db.collection(req.params.collection).insertMany(newDevices);
-        res.status(201).json({ message: `Successfully cloned devices.` });
-    } catch (error) { res.status(500).json({ message: error.message }); }
-});
-
 app.post('/api/inventory/:collection/move', verifyToken, async (req, res) => {
     if (!db) return res.status(500).json({ message: "Database not connected" });
     try {
