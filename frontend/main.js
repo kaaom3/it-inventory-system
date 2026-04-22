@@ -446,56 +446,6 @@ window.scanToSearch = async function(inputElement) {
     inputElement.value = ''; 
 };
 
-                const words = line.split(/\s+/);
-                for (let word of words) {
-                    const clean = word.replace(/[^A-Z0-9-]/gi, '');
-                    // Typical SN length 6-20, must have letters and numbers
-                    if (clean.length >= 6 && clean.length <= 20 && /[A-Z]/.test(clean) && /[0-9]/.test(clean)) {
-                        snVal = clean;
-                        break;
-                    }
-                }
-                if (snVal) break;
-            }
-        }
-
-        // --- ACTION A: If we are in the Dashboard (Searching) ---
-        if (inputElement.id === 'scanSearchInput') {
-            if (snVal) {
-                await window.performSnSearch(snVal);
-            } else {
-                window.hideModal('notificationModal');
-                setTimeout(() => window.showNotificationModal('info', t('scan_failed'), `AI cannot find a clear Serial Number. Please try again with a closer shot.`), 400);
-            }
-        } 
-        // --- ACTION B: If we are in an Edit Modal (Auto-filling) ---
-        else {
-            let foundCount = 0;
-            if (snVal) {
-                const snInput = document.getElementById('edit-SerialNumber') || document.getElementById('edit-MonitorSerial');
-                if (snInput) { snInput.value = snVal; snInput.classList.add('ring-4', 'ring-green-300'); foundCount++; }
-            }
-            if (modelVal) {
-                const modelInput = document.getElementById('edit-Model');
-                if (modelInput) { modelInput.value = modelVal; modelInput.classList.add('ring-4', 'ring-green-300'); foundCount++; }
-            }
-
-            window.hideModal('notificationModal');
-            if (foundCount > 0) {
-                setTimeout(() => window.showNotificationModal('success', 'Success', `AI detected and filled ${foundCount} fields.`), 400);
-            } else {
-                setTimeout(() => window.showNotificationModal('info', 'No Match', 'AI could not identify Serial Number or Model from this photo.'), 400);
-            }
-        }
-
-    } catch (error) {
-        console.error("OCR Error:", error);
-        window.hideModal('notificationModal');
-        setTimeout(() => window.showNotificationModal('warning', 'Error', 'OCR Processing failed.'), 400);
-    }
-    inputElement.value = ''; 
-};
-
 window.manualSnSearch = function() {
     const input = document.getElementById('manualSnSearchInput');
     const sn = input.value.trim();
