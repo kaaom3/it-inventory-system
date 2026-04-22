@@ -448,6 +448,49 @@ app.post('/api/inventory/:collection/clone-bulk', verifyToken, async (req, res) 
 
         delete sourceDevice._id;
         const newDevices = serialNumbers.map(sn => {
+            const clone = { ...sourceDevice, ...overrides, Timestamp: new Date() };
+            if (req.params.collection === 'Monitors') clone.MonitorSerial = sn;
+            else clone.SerialNumber = sn;
+            return clone;
+        });
+
+        await db.collection(req.params.collection).insertMany(newDevices);
+        res.status(201).json({ message: `Cloned ${newDevices.length} items successfully.` });
+    } catch (error) { res.status(500).json({ message: error.message }); }
+});
+
+// ===================================================================
+// 🌟 Search Serial Number Across All Collections
+// ===================================================================
+app.get('/api/inventory/search/serial/:sn', verifyToken, async (req, res) => {
+    if (!db) return res.status(500).json({ message: "Database not connected" });
+    try {
+        const sn = req.params.sn;
+        if (!sn) return res.status(400).json({ message: "Serial number is required" });
+
+        const customMenus = await db.collection('CustomMenus').find().toArray();
+        const collectionsToCheck = ['Computers', 'Monitors', 'Printers', 'Network', ...customMenus.map(m => m.name)];
+        
+        for (const colName of collectionsToCheck) {
+            const item = await db.collection(colName).findOne({
+                $or: [
+                    { SerialNumber: sn },
+                    { MonitorSerial: sn },
+                    { serialNumber: sn },
+                    { monitorSerial: sn },
+                    // Case-insensitive search if needed, but let's stick to exact match first for performance
+                    { SerialNumber: sn.toUpperCase() },
+                    { MonitorSerial: sn.toUpperCase() }
+                ]
+            });
+            if (item) {
+                return res.json({ collection: colName, item });
+            }
+        }
+        res.status(404).json({ message: "Serial number not found" });
+    } catch (error) { res.status(500).json({ message: error.message }); }
+});
+
             const newDevice = { ...sourceDevice, ...overrides };
             if (newDevice.hasOwnProperty('SerialNumber')) newDevice.SerialNumber = sn;
             if (newDevice.hasOwnProperty('MonitorSerial')) newDevice.MonitorSerial = sn;

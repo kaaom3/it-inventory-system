@@ -153,7 +153,13 @@ const translations = {
         label_printer: "Label Printer",
         custom_categories: "Custom Categories",
         assets: "Assets",
-        management: "Management"
+        management: "Management",
+        quick_sn_scan: "Quick Serial Number Search",
+        quick_sn_scan_desc: "Take a photo of the serial number to find device information instantly.",
+        scan_sn_photo: "Scan S/N (Photo)",
+        searching_sn: "Searching for Serial Number...",
+        sn_not_found: "Serial Number not found in system.",
+        enter_sn_manual: "Please enter a Serial Number.",
     },
     th: {
         app_title: "ระบบคลังอุปกรณ์",
@@ -299,7 +305,13 @@ const translations = {
         label_printer: "พิมพ์ฉลาก (Label)",
         custom_categories: "จัดการหมวดหมู่ (Custom)",
         assets: "ทรัพย์สิน",
-        management: "การจัดการ"
+        management: "การจัดการ",
+        quick_sn_scan: "ค้นหาด้วย Serial Number",
+        quick_sn_scan_desc: "ถ่ายภาพ Serial Number ที่ตัวเครื่องเพื่อดูข้อมูลในระบบทันที",
+        scan_sn_photo: "สแกน S/N (ถ่ายรูป)",
+        searching_sn: "กำลังค้นหาข้อมูลจาก Serial Number...",
+        sn_not_found: "ไม่พบ Serial Number นี้ในระบบ",
+        enter_sn_manual: "กรุณาระบุ Serial Number",
     }
 };
 
@@ -414,6 +426,91 @@ window.processOCR = async function(inputElement) {
         setTimeout(() => window.showNotificationModal('warning', t('scan_failed') || 'Error', 'เกิดข้อผิดพลาดในการประมวลผลรูปภาพ'), 400);
     }
     inputElement.value = ''; 
+};
+
+// ==========================================
+// --- 🌟 QUICK S/N SEARCH LOGIC ---
+// ==========================================
+window.scanToSearch = async function(inputElement) {
+    if (!inputElement.files || inputElement.files.length === 0) return;
+    const file = inputElement.files[0];
+
+    document.getElementById('modalTitle').textContent = t('scanning') || 'Scanning Image...';
+    document.getElementById('modalMessage').textContent = t('searching_sn') || 'AI is extracting Serial Number. Please wait...';
+    document.getElementById('modalIcon').innerHTML = '<i class="fas fa-spinner fa-spin text-4xl text-indigo-500 mb-2"></i>';
+    window.openModalWindow('notificationModal');
+
+    try {
+        const worker = await Tesseract.createWorker('eng');
+        const ret = await worker.recognize(file);
+        const extractedText = ret.data.text;
+        await worker.terminate();
+
+        console.log("OCR Search Result:\n", extractedText);
+
+        const snMatch = extractedText.match(/(?:S\/?N|Serial\s*Number)\s*:?\s*([A-Z0-9]+)/i);
+        let snVal = null;
+        if (snMatch && snMatch[1]) {
+            snVal = snMatch[1].trim();
+        } else {
+            // Try fallback: look for any alphanumeric string that looks like a serial (e.g. 6-20 chars)
+            const lines = extractedText.split('\n');
+            for(let line of lines) {
+                const words = line.split(/\s+/);
+                for(let word of words) {
+                    const cleanWord = word.replace(/[^A-Z0-9]/gi, '');
+                    if(cleanWord.length >= 6 && cleanWord.length <= 20 && /[A-Z]/.test(cleanWord) && /[0-9]/.test(cleanWord)) {
+                        snVal = cleanWord;
+                        break;
+                    }
+                }
+                if(snVal) break;
+            }
+        }
+
+        if (snVal) {
+            await window.performSnSearch(snVal);
+        } else {
+            window.hideModal('notificationModal');
+            setTimeout(() => window.showNotificationModal('info', t('scan_failed'), `AI cannot find a clear Serial Number in this image.`), 400);
+        }
+
+    } catch (error) {
+        console.error("OCR Search Error:", error);
+        window.hideModal('notificationModal');
+        setTimeout(() => window.showNotificationModal('warning', 'Error', 'Failed to process image.'), 400);
+    }
+    inputElement.value = ''; 
+};
+
+window.manualSnSearch = function() {
+    const input = document.getElementById('manualSnSearchInput');
+    const sn = input.value.trim();
+    if (!sn) return showNotificationModal('warning', 'Info', t('enter_sn_manual'));
+    window.performSnSearch(sn);
+};
+
+window.performSnSearch = async function(sn) {
+    document.getElementById('modalTitle').textContent = t('searching_sn');
+    document.getElementById('modalMessage').textContent = `Searching for: ${sn}...`;
+    document.getElementById('modalIcon').innerHTML = '<i class="fas fa-search fa-spin text-4xl text-indigo-500 mb-2"></i>';
+    window.openModalWindow('notificationModal');
+
+    try {
+        const result = await apiRequest(`/api/inventory/search/serial/${sn}`);
+        window.hideModal('notificationModal');
+        if (result && result.item) {
+            // Found! Open the edit/details modal
+            setTimeout(() => {
+                window.openModal('edit', result.collection, result.item._id || result.item.id);
+            }, 400);
+        } else {
+            setTimeout(() => window.showNotificationModal('info', 'Not Found', t('sn_not_found')), 400);
+        }
+    } catch (error) {
+        window.hideModal('notificationModal');
+        setTimeout(() => window.showNotificationModal('info', 'Not Found', t('sn_not_found')), 400);
+    }
 };
 
 const AVAILABLE_FIELDS = [
