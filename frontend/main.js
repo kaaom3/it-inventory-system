@@ -974,8 +974,15 @@ window.cloneCustomMenu = function(menuName, event) {
 };
 
 window.openModalWindow = function(modalId) {
-    const modal = document.getElementById(modalId); modal.classList.remove('opacity-0', 'pointer-events-none');
-    if (modal.querySelector('.modal-content')) { modal.querySelector('.modal-content').classList.remove('scale-95'); modal.querySelector('.modal-content').classList.add('scale-100'); }
+    const modal = document.getElementById(modalId);
+    if (!modal) return;
+    modal.classList.add('show');
+    modal.offsetHeight; // Force reflow
+    modal.classList.remove('opacity-0', 'pointer-events-none');
+    if (modal.querySelector('.modal-content')) { 
+        modal.querySelector('.modal-content').classList.remove('scale-95'); 
+        modal.querySelector('.modal-content').classList.add('scale-100'); 
+    }
 }
 
 window.populateParentDropdown = function(selectedParentId = null) {
@@ -1201,7 +1208,21 @@ window.renderCategoryChart = function(data) { const ctx = document.getElementByI
 window.renderLocationChart = function(data) { const ctx = document.getElementById('locationChart'); if(!ctx) return; const sortedLocations = Object.entries(data).sort((a, b) => b[1] - a[1]).slice(0, 5); const labels = sortedLocations.map(item => item[0]); const values = sortedLocations.map(item => item[1]); if(window.locationChartInstance) { window.locationChartInstance.data.labels = labels; window.locationChartInstance.data.datasets[0].data = values; window.locationChartInstance.update(); } else { window.locationChartInstance = new Chart(ctx, { type: 'bar', data: { labels: labels, datasets: [{ label: 'Assets', data: values, backgroundColor: '#14b8a6', borderRadius: 4 }] }, options: { responsive: true, maintainAspectRatio: false, indexAxis: 'y', plugins: { legend: { display: false } } } }); } };
 
 window.showNotificationModal = function(type, title, msg) { document.getElementById('modalTitle').textContent = title; document.getElementById('modalMessage').textContent = msg; const icon = document.getElementById('modalIcon'); if(type === 'success') icon.innerHTML = '<i class="fas fa-check-circle text-4xl text-green-500"></i>'; else if(type === 'warning') icon.innerHTML = '<i class="fas fa-exclamation-triangle text-4xl text-yellow-500"></i>'; else icon.innerHTML = '<i class="fas fa-info-circle text-4xl text-blue-500"></i>'; window.openModalWindow('notificationModal'); };
-window.hideModal = function(id) { const modal = document.getElementById(id); if (!modal) return; modal.classList.add('opacity-0', 'pointer-events-none'); if (modal.querySelector('.modal-content')) { modal.querySelector('.modal-content').classList.remove('scale-100'); modal.querySelector('.modal-content').classList.add('scale-95'); } };
+window.hideModal = function(id) {
+    const modal = document.getElementById(id);
+    if (!modal) return;
+    modal.classList.add('opacity-0', 'pointer-events-none');
+    if (modal.querySelector('.modal-content')) { 
+        modal.querySelector('.modal-content').classList.remove('scale-100'); 
+        modal.querySelector('.modal-content').classList.add('scale-95'); 
+    }
+    // Delay hiding display until transition finishes
+    setTimeout(() => {
+        if (modal.classList.contains('opacity-0')) {
+            modal.classList.remove('show');
+        }
+    }, 300);
+};
 window.switchModalTab = function(tab, btn) { document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active')); document.getElementById(tab+'-tab').classList.add('active'); document.querySelectorAll('.tab-button').forEach(b => { b.classList.remove('active', 'bg-white', 'dark:bg-gray-700', 'text-indigo-600', 'dark:text-indigo-400', 'shadow-sm'); b.classList.add('text-gray-500'); }); btn.classList.remove('text-gray-500'); btn.classList.add('active', 'bg-white', 'dark:bg-gray-700', 'text-indigo-600', 'dark:text-indigo-400', 'shadow-sm'); };
 window.changeRowsPerPage = function(col, el) { paginationState[col].rowsPerPage = parseInt(el.value); paginationState[col].currentPage=1; window.buildTable(col); };
 window.changePage = function(col, dir) { paginationState[col].currentPage += dir; window.buildTable(col); };
