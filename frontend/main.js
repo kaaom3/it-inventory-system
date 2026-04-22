@@ -1772,26 +1772,28 @@ window.openModal = function(mode, collectionName, id = null) {
         </div>
     `;
     
-    const tabsContainer = document.querySelector('#editModal .bg-white.border-b.flex.justify-center.z-0');
+    const tabsContainer = document.querySelector('#editModal .flex.justify-center.z-0');
     if (tabsContainer) {
         tabsContainer.innerHTML = modalHeaderTabsHTML;
     }
 
     let historyTabContent = document.getElementById('history-tab');
     if (!historyTabContent) {
-        const modalBody = document.querySelector('#editModal .flex-1.overflow-y-auto.p-4');
-        historyTabContent = document.createElement('div');
-        historyTabContent.id = 'history-tab';
-        historyTabContent.className = 'tab-content';
-        historyTabContent.innerHTML = `
-            <div class="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm overflow-hidden">
-                <div class="bg-gray-50 dark:bg-gray-900/50 px-5 py-3 border-b border-gray-200 dark:border-gray-700">
-                    <h4 class="text-sm font-bold text-gray-700 dark:text-gray-200 uppercase tracking-wider">${t('device_history')}</h4>
+        const modalBody = document.querySelector('#editModal .flex-1.overflow-y-auto');
+        if (modalBody) {
+            historyTabContent = document.createElement('div');
+            historyTabContent.id = 'history-tab';
+            historyTabContent.className = 'tab-content hidden';
+            historyTabContent.innerHTML = `
+                <div class="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm overflow-hidden">
+                    <div class="bg-gray-50 dark:bg-gray-900/50 px-5 py-3 border-b border-gray-200 dark:border-gray-700">
+                        <h4 class="text-sm font-bold text-gray-700 dark:text-gray-200 uppercase tracking-wider">${t('device_history')}</h4>
+                    </div>
+                    <div id="deviceHistoryList" class="p-6"></div>
                 </div>
-                <div id="deviceHistoryList" class="p-6"></div>
-            </div>
-        `;
-        modalBody.appendChild(historyTabContent);
+            `;
+            modalBody.appendChild(historyTabContent);
+        }
     }
 
     document.getElementById('editModalTitle').innerHTML = `
