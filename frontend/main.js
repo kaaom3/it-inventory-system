@@ -425,18 +425,16 @@ window.processOCR = async function(inputElement) {
         window.hideModal('notificationModal');
         setTimeout(() => window.showNotificationModal('warning', t('scan_failed') || 'Error', 'เกิดข้อผิดพลาดในการประมวลผลรูปภาพ'), 400);
     }
-    inputElement.value = ''; 
-};
-
-// ==========================================
-// --- 🌟 QUICK S/N SEARCH LOGIC ---
-// ==========================================
+// ===================================================================
+// 🌟 📸 INTEGRATED SCAN LOGIC (OCR)
+// ===================================================================
 window.scanToSearch = async function(inputElement) {
     if (!inputElement.files || inputElement.files.length === 0) return;
     const file = inputElement.files[0];
 
+    // Show Scanning Modal
     document.getElementById('modalTitle').textContent = t('scanning') || 'Scanning Image...';
-    document.getElementById('modalMessage').textContent = t('searching_sn') || 'AI is extracting Serial Number. Please wait...';
+    document.getElementById('modalMessage').textContent = t('searching_sn') || 'AI is extracting data. Please wait...';
     document.getElementById('modalIcon').innerHTML = '<i class="fas fa-spinner fa-spin text-4xl text-indigo-500 mb-2"></i>';
     window.openModalWindow('notificationModal');
 
@@ -446,39 +444,66 @@ window.scanToSearch = async function(inputElement) {
         const extractedText = ret.data.text;
         await worker.terminate();
 
-        console.log("OCR Search Result:\n", extractedText);
+        console.log("--- OCR Full Text Results ---\n", extractedText);
 
-        const snMatch = extractedText.match(/(?:S\/?N|Serial\s*Number)\s*:?\s*([A-Z0-9]+)/i);
-        let snVal = null;
-        if (snMatch && snMatch[1]) {
-            snVal = snMatch[1].trim();
-        } else {
-            // Try fallback: look for any alphanumeric string that looks like a serial (e.g. 6-20 chars)
+        // 1. Try to find S/N with common prefixes
+        const snMatch = extractedText.match(/(?:S\/?N|Serial|SerNo|Service\s*Tag)\s*[:|-]?\s*([A-Z0-9-]+)/i);
+        let snVal = snMatch ? snMatch[1].trim() : null;
+
+        // 2. Try to find Model with common prefixes
+        const modelMatch = extractedText.match(/(?:Model|MN|M\/N|Product)\s*[:|-]?\s*([A-Z0-9-]+)/i);
+        let modelVal = modelMatch ? modelMatch[1].trim() : null;
+
+        // 3. Smart Fallback: If no clear S/N found, look for "Serial-like" strings in the text
+        if (!snVal) {
             const lines = extractedText.split('\n');
-            for(let line of lines) {
+            for (let line of lines) {
                 const words = line.split(/\s+/);
-                for(let word of words) {
-                    const cleanWord = word.replace(/[^A-Z0-9]/gi, '');
-                    if(cleanWord.length >= 6 && cleanWord.length <= 20 && /[A-Z]/.test(cleanWord) && /[0-9]/.test(cleanWord)) {
-                        snVal = cleanWord;
+                for (let word of words) {
+                    const clean = word.replace(/[^A-Z0-9-]/gi, '');
+                    // Typical SN length 6-20, must have letters and numbers
+                    if (clean.length >= 6 && clean.length <= 20 && /[A-Z]/.test(clean) && /[0-9]/.test(clean)) {
+                        snVal = clean;
                         break;
                     }
                 }
-                if(snVal) break;
+                if (snVal) break;
             }
         }
 
-        if (snVal) {
-            await window.performSnSearch(snVal);
-        } else {
+        // --- ACTION A: If we are in the Dashboard (Searching) ---
+        if (inputElement.id === 'scanSearchInput') {
+            if (snVal) {
+                await window.performSnSearch(snVal);
+            } else {
+                window.hideModal('notificationModal');
+                setTimeout(() => window.showNotificationModal('info', t('scan_failed'), `AI cannot find a clear Serial Number. Please try again with a closer shot.`), 400);
+            }
+        } 
+        // --- ACTION B: If we are in an Edit Modal (Auto-filling) ---
+        else {
+            let foundCount = 0;
+            if (snVal) {
+                const snInput = document.getElementById('edit-SerialNumber') || document.getElementById('edit-MonitorSerial');
+                if (snInput) { snInput.value = snVal; snInput.classList.add('ring-4', 'ring-green-300'); foundCount++; }
+            }
+            if (modelVal) {
+                const modelInput = document.getElementById('edit-Model');
+                if (modelInput) { modelInput.value = modelVal; modelInput.classList.add('ring-4', 'ring-green-300'); foundCount++; }
+            }
+
             window.hideModal('notificationModal');
-            setTimeout(() => window.showNotificationModal('info', t('scan_failed'), `AI cannot find a clear Serial Number in this image.`), 400);
+            if (foundCount > 0) {
+                setTimeout(() => window.showNotificationModal('success', 'Success', `AI detected and filled ${foundCount} fields.`), 400);
+            } else {
+                setTimeout(() => window.showNotificationModal('info', 'No Match', 'AI could not identify Serial Number or Model from this photo.'), 400);
+            }
         }
 
     } catch (error) {
-        console.error("OCR Search Error:", error);
+        console.error("OCR Error:", error);
         window.hideModal('notificationModal');
-        setTimeout(() => window.showNotificationModal('warning', 'Error', 'Failed to process image.'), 400);
+        setTimeout(() => window.showNotificationModal('warning', 'Error', 'OCR Processing failed.'), 400);
     }
     inputElement.value = ''; 
 };

@@ -474,13 +474,10 @@ app.get('/api/inventory/search/serial/:sn', verifyToken, async (req, res) => {
         for (const colName of collectionsToCheck) {
             const item = await db.collection(colName).findOne({
                 $or: [
-                    { SerialNumber: sn },
-                    { MonitorSerial: sn },
-                    { serialNumber: sn },
-                    { monitorSerial: sn },
-                    // Case-insensitive search if needed, but let's stick to exact match first for performance
-                    { SerialNumber: sn.toUpperCase() },
-                    { MonitorSerial: sn.toUpperCase() }
+                    { SerialNumber: { $regex: new RegExp(`^${sn}$`, 'i') } },
+                    { MonitorSerial: { $regex: new RegExp(`^${sn}$`, 'i') } },
+                    { serialNumber: { $regex: new RegExp(`^${sn}$`, 'i') } },
+                    { monitorSerial: { $regex: new RegExp(`^${sn}$`, 'i') } }
                 ]
             });
             if (item) {
