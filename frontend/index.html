@@ -109,24 +109,18 @@
             <div id="dashboard-page" class="page-content active">
                 <h2 class="text-2xl font-bold mb-6" data-i18n="overview_dashboard">Overview Dashboard</h2>
                 
-                <!-- 📸 🌟 Scan S/N to Search Section -->
+                <!-- 🔍 Quick Serial Number Search Section -->
                 <div class="mb-8 bg-gradient-to-r from-indigo-600 to-blue-500 rounded-2xl p-6 shadow-lg text-white flex flex-col md:flex-row items-center justify-between">
                     <div class="mb-4 md:mb-0">
-                        <h3 class="text-xl font-bold mb-1" data-i18n="quick_sn_scan">Quick Serial Number Search</h3>
-                        <p class="text-indigo-100 text-sm" data-i18n="quick_sn_scan_desc">Take a photo of the serial number to find device information instantly.</p>
+                        <h3 class="text-xl font-bold mb-1" data-i18n="quick_sn_search">Quick Serial Number Search</h3>
+                        <p class="text-indigo-100 text-sm" data-i18n="quick_sn_search_desc">Enter Serial Number to find device information instantly.</p>
                     </div>
                     <div class="flex flex-col sm:flex-row gap-3 w-full md:w-auto">
-                        <button onclick="document.getElementById('scanSearchInput').click()" class="bg-white text-indigo-600 hover:bg-indigo-50 px-6 py-3 rounded-xl font-bold flex items-center justify-center transition shadow-md">
-                            <i class="fas fa-camera mr-2 text-xl"></i>
-                            <span data-i18n="scan_sn_photo">Scan S/N (Photo)</span>
-                        </button>
-                        <input type="file" id="scanSearchInput" accept="image/*" capture="environment" class="hidden" onchange="window.scanToSearch(this)">
-                        
-                        <div class="relative flex-1 md:w-64">
-                            <input type="text" id="manualSnSearchInput" onkeypress="if(event.key==='Enter') window.manualSnSearch()" placeholder="Enter S/N manually..." class="w-full pl-10 pr-4 py-3 rounded-xl bg-white/20 border border-white/30 text-white placeholder-indigo-200 focus:outline-none focus:ring-2 focus:ring-white/50 transition">
+                        <div class="relative flex-1 md:w-80">
+                            <input type="text" id="manualSnSearchInput" onkeypress="if(event.key==='Enter') window.manualSnSearch()" placeholder="Enter S/N manually..." class="w-full pl-10 pr-12 py-3 rounded-xl bg-white/20 border border-white/30 text-white placeholder-indigo-200 focus:outline-none focus:ring-2 focus:ring-white/50 transition">
                             <i class="fas fa-search absolute left-3.5 top-3.5 text-indigo-200"></i>
-                            <button onclick="window.manualSnSearch()" class="absolute right-2 top-2 bg-white text-indigo-600 p-1.5 rounded-lg hover:bg-indigo-50 transition">
-                                <i class="fas fa-arrow-right"></i>
+                            <button onclick="window.manualSnSearch()" class="absolute right-2 top-1.5 bg-white text-indigo-600 px-3 py-1.5 rounded-lg hover:bg-indigo-50 transition shadow-sm font-bold">
+                                <i class="fas fa-arrow-right mr-1"></i> Search
                             </button>
                         </div>
                     </div>
@@ -289,6 +283,38 @@
             <div id="adminmanagement-page" class="page-content hidden"></div>
             <div id="labelprinter-page" class="page-content hidden"></div>
         </main>
+    </div>
+
+    <!-- ======================================================= -->
+    <!-- VIEW DEVICE DETAILS MODAL                               -->
+    <!-- ======================================================= -->
+    <div id="viewModal" class="modal opacity-0 pointer-events-none fixed inset-0 z-50 flex items-center justify-center p-4 backdrop-blur-md bg-gray-900/60 transition-opacity duration-300">
+        <div class="modal-content bg-white dark:bg-gray-900 rounded-2xl shadow-2xl w-full max-w-4xl overflow-hidden flex flex-col border border-gray-200 dark:border-gray-700 transition-all transform scale-95">
+            <!-- Modal Header -->
+            <div class="px-6 py-5 bg-white dark:bg-gray-800 flex justify-between items-start border-b border-gray-200 dark:border-gray-700 relative z-10 shadow-sm">
+                <div id="viewModalHeader">
+                    <!-- Injected by JS -->
+                </div>
+                <button onclick="window.hideModal('viewModal')" class="absolute top-5 right-6 w-8 h-8 flex items-center justify-center rounded-full bg-gray-100 dark:bg-gray-700 text-gray-500 hover:bg-red-100 hover:text-red-500 transition-colors">
+                    <i class="fas fa-times text-lg"></i>
+                </button>
+            </div>
+
+            <!-- Modal Body -->
+            <div class="flex-1 overflow-y-auto p-6 bg-gray-50 dark:bg-gray-800 custom-scrollbar">
+                <div id="viewModalBody" class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <!-- Injected by JS -->
+                </div>
+            </div>
+
+            <!-- Modal Footer -->
+            <div class="px-6 py-4 bg-white dark:bg-gray-800 border-t border-gray-200 dark:border-gray-700 flex justify-end items-center space-x-3">
+                <button onclick="window.hideModal('viewModal')" class="px-6 py-2.5 rounded-xl font-bold text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 transition" data-i18n="close">Close</button>
+                <button id="goToEditBtn" class="bg-indigo-600 hover:bg-indigo-700 text-white px-8 py-2.5 rounded-xl font-bold transition shadow-md flex items-center">
+                    <i class="fas fa-edit mr-2"></i> <span data-i18n="edit_asset">Edit Asset</span>
+                </button>
+            </div>
+        </div>
     </div>
 
     <!-- ======================================================= -->

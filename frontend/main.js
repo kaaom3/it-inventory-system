@@ -154,9 +154,10 @@ const translations = {
         custom_categories: "Custom Categories",
         assets: "Assets",
         management: "Management",
-        quick_sn_scan: "Quick Serial Number Search",
-        quick_sn_scan_desc: "Take a photo of the serial number to find device information instantly.",
-        scan_sn_photo: "Scan S/N (Photo)",
+        quick_sn_search: "Quick Serial Number Search",
+        quick_sn_search_desc: "Enter Serial Number to find device information instantly.",
+        edit_asset: "Edit Asset",
+        view_details: "View Details",
         searching_sn: "Searching for Serial Number...",
         sn_not_found: "Serial Number not found in system.",
         enter_sn_manual: "Please enter a Serial Number.",
@@ -306,9 +307,10 @@ const translations = {
         custom_categories: "จัดการหมวดหมู่ (Custom)",
         assets: "ทรัพย์สิน",
         management: "การจัดการ",
-        quick_sn_scan: "ค้นหาด้วย Serial Number",
-        quick_sn_scan_desc: "ถ่ายภาพ Serial Number ที่ตัวเครื่องเพื่อดูข้อมูลในระบบทันที",
-        scan_sn_photo: "สแกน S/N (ถ่ายรูป)",
+        quick_sn_search: "ค้นหาด้วย Serial Number",
+        quick_sn_search_desc: "ระบุ Serial Number เพื่อดูข้อมูลอุปกรณ์ทันที",
+        edit_asset: "แก้ไขข้อมูล",
+        view_details: "ดูรายละเอียด",
         searching_sn: "กำลังค้นหาข้อมูลจาก Serial Number...",
         sn_not_found: "ไม่พบ Serial Number นี้ในระบบ",
         enter_sn_manual: "กรุณาระบุ Serial Number",
@@ -353,8 +355,50 @@ window.toggleLanguage = function() {
     updateUI();
 };
 
+let tesseractWorker = null;
+
+async function getTesseractWorker() {
+    if (tesseractWorker) return tesseractWorker;
+    tesseractWorker = await Tesseract.createWorker('eng');
+    return tesseractWorker;
+}
+
+// --- 🚀 Pre-process image to speed up OCR (Resize if too large) ---
+window.preprocessImage = async function(file) {
+    return new Promise((resolve) => {
+        const reader = new FileReader();
+        reader.onload = (e) => {
+            const img = new Image();
+            img.onload = () => {
+                const canvas = document.createElement('canvas');
+                let width = img.width;
+                let height = img.height;
+                
+                // Max size 1000px (Balance between speed and accuracy)
+                const MAX_WIDTH = 1000;
+                if (width > MAX_WIDTH) {
+                    height *= MAX_WIDTH / width;
+                    width = MAX_WIDTH;
+                }
+                
+                canvas.width = width;
+                canvas.height = height;
+                const ctx = canvas.getContext('2d');
+                ctx.drawImage(img, 0, 0, width, height);
+                
+                // Convert back to blob or dataURL
+                canvas.toBlob((blob) => {
+                    resolve(blob);
+                }, 'image/jpeg', 0.8);
+            };
+            img.src = e.target.result;
+        };
+        reader.readAsDataURL(file);
+    });
+};
+
 // ===================================================================
-// 🌟 📸 INTEGRATED SCAN LOGIC (OCR)
+// 🌟 📸 INTEGRATED SCAN LOGIC (OCR) - OPTIMIZED
 // ===================================================================
 window.scanToSearch = async function(inputElement) {
     if (!inputElement.files || inputElement.files.length === 0) return;
@@ -367,10 +411,12 @@ window.scanToSearch = async function(inputElement) {
     window.openModalWindow('notificationModal');
 
     try {
-        const worker = await Tesseract.createWorker('eng');
-        const ret = await worker.recognize(file);
+        // --- 🚀 NEW: Pre-process image to speed up OCR (Resize if too large) ---
+        const optimizedImage = await window.preprocessImage(file);
+        
+        const worker = await getTesseractWorker();
+        const ret = await worker.recognize(optimizedImage);
         const extractedText = ret.data.text;
-        await worker.terminate();
 
         console.log("--- OCR Full Text Results ---\n", extractedText);
 
@@ -453,6 +499,64 @@ window.manualSnSearch = function() {
     window.performSnSearch(sn);
 };
 
+window.openViewModal = function(collectionName, item) {
+    const header = document.getElementById('viewModalHeader');
+    const body = document.getElementById('viewModalBody');
+    const config = collectionConfigs[collectionName] || { icon: 'fa-box', displayName: collectionName };
+    const id = item._id || item.id;
+
+    const displayName = config.isCustom ? config.displayName : t(collectionName.toLowerCase()) || config.displayName;
+    const name = item[config.nameField] || item.ComputerName || item.ItemName || 'Unnamed Asset';
+    const serial = item[config.serialField] || item.SerialNumber || 'N/A';
+
+    header.innerHTML = `
+        <div class="flex items-center">
+            <div class="w-12 h-12 rounded-full bg-indigo-100 dark:bg-indigo-900/50 flex items-center justify-center mr-4 shadow-inner">
+                <i class="fas ${config.icon} text-indigo-600 dark:text-indigo-400 text-xl"></i>
+            </div>
+            <div>
+                <h3 class="text-2xl font-bold text-gray-900 dark:text-white leading-tight">${name}</h3>
+                <p class="text-xs text-gray-500 font-medium mt-1 uppercase tracking-widest">${displayName} • S/N: ${serial}</p>
+            </div>
+        </div>
+    `;
+
+    let bodyHtml = '';
+    // Show configured fields
+    const fieldsToShow = config.formFields || Object.keys(item).filter(k => !['_id', 'id', 'Timestamp', 'lastSeenOnline', 'DisposalEvidence'].includes(k));
+    
+    fieldsToShow.forEach(fieldId => {
+        const fieldDef = AVAILABLE_FIELDS.find(f => f.id === fieldId) || { label: fieldId };
+        let val = item[fieldId];
+        if (val === undefined || val === null || val === '') val = '-';
+        
+        if (fieldId === 'Status') {
+            let color = 'gray'; let tStatus = t(val.toLowerCase().replace(' ', '_')) || val;
+            if (val === 'Active') color = 'green'; else if (val === 'On Loan') color = 'yellow'; else if (val === 'Repair') color = 'orange'; else if (val === 'Storage') color = 'blue'; else if (val === 'Damaged') color = 'red';
+            val = `<span class="px-2 py-1 rounded-full text-xs font-bold bg-${color}-100 text-${color}-800 dark:bg-${color}-900/50 dark:text-${color}-300">${tStatus}</span>`;
+        }
+
+        bodyHtml += `
+            <div class="p-3 bg-white dark:bg-gray-700/30 rounded-xl border border-gray-100 dark:border-gray-700">
+                <p class="text-[10px] font-bold text-gray-400 uppercase mb-1">${fieldDef.label}</p>
+                <p class="text-sm font-semibold text-gray-800 dark:text-gray-200">${val}</p>
+            </div>
+        `;
+    });
+
+    body.innerHTML = bodyHtml;
+    
+    const editBtn = document.getElementById('goToEditBtn');
+    if (editBtn) {
+        editBtn.onclick = () => {
+            window.hideModal('viewModal');
+            setTimeout(() => window.openModal('edit', collectionName, id), 300);
+        };
+    }
+
+    window.openModalWindow('viewModal');
+};
+
 window.performSnSearch = async function(sn) {
     document.getElementById('modalTitle').textContent = t('searching_sn');
     document.getElementById('modalMessage').textContent = `Searching for: ${sn}...`;
@@ -463,9 +567,8 @@ window.performSnSearch = async function(sn) {
         const result = await apiRequest(`/api/inventory/search/serial/${sn}`);
         window.hideModal('notificationModal');
         if (result && result.item) {
-            // Found! Open the edit/details modal
             setTimeout(() => {
-                window.openModal('edit', result.collection, result.item._id || result.item.id);
+                window.openViewModal(result.collection, result.item);
             }, 400);
         } else {
             setTimeout(() => window.showNotificationModal('info', 'Not Found', t('sn_not_found')), 400);
