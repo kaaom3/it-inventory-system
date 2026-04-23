@@ -153,14 +153,7 @@ const translations = {
         label_printer: "Label Printer",
         custom_categories: "Custom Categories",
         assets: "Assets",
-        management: "Management",
-        quick_sn_search: "Quick Serial Number Search",
-        quick_sn_search_desc: "Enter Serial Number to find device information instantly.",
-        edit_asset: "Edit Asset",
-        view_details: "View Details",
-        searching_sn: "Searching for Serial Number...",
-        sn_not_found: "Serial Number not found in system.",
-        enter_sn_manual: "Please enter a Serial Number.",
+        management: "Management"
     },
     th: {
         app_title: "ระบบคลังอุปกรณ์",
@@ -306,14 +299,7 @@ const translations = {
         label_printer: "พิมพ์ฉลาก (Label)",
         custom_categories: "จัดการหมวดหมู่ (Custom)",
         assets: "ทรัพย์สิน",
-        management: "การจัดการ",
-        quick_sn_search: "ค้นหาด้วย Serial Number",
-        quick_sn_search_desc: "ระบุ Serial Number เพื่อดูข้อมูลอุปกรณ์ทันที",
-        edit_asset: "แก้ไขข้อมูล",
-        view_details: "ดูรายละเอียด",
-        searching_sn: "กำลังค้นหาข้อมูลจาก Serial Number...",
-        sn_not_found: "ไม่พบ Serial Number นี้ในระบบ",
-        enter_sn_manual: "กรุณาระบุ Serial Number",
+        management: "การจัดการ"
     }
 };
 
@@ -355,241 +341,79 @@ window.toggleLanguage = function() {
     updateUI();
 };
 
-window.manualSnSearch = function() {
-    const input = document.getElementById('manualSnSearchInput');
-    const sn = input.value.trim();
-    if (!sn) return showNotificationModal('warning', 'Info', t('enter_sn_manual'));
-    window.performSnSearch(sn);
-};
-
-// ===================================================================
-// 🌟 📸 MODERN AI OCR SYSTEM (OPTIMIZED & FLUID)
-// ===================================================================
-
-/**
- * ปรับปรุงภาพก่อนส่งให้ AI (Grayscale + Contrast + Resize)
- * ช่วยให้ AI ทำงานได้เร็วขึ้น 200% และแม่นยำขึ้น
- */
-async function preprocessForOcr(file) {
-    return new Promise((resolve) => {
-        const reader = new FileReader();
-        reader.onload = (e) => {
-            const img = new Image();
-            img.onload = () => {
-                const canvas = document.createElement('canvas');
-                const ctx = canvas.getContext('2d');
-                
-                // 1. Resize: ลดขนาดเพื่อลดภาระการประมวลผล (Max 1200px)
-                let width = img.width;
-                let height = img.height;
-                const maxDim = 1200;
-                if (width > maxDim || height > maxDim) {
-                    if (width > height) { height *= maxDim / width; width = maxDim; }
-                    else { width *= maxDim / height; height = maxDim; }
-                }
-                
-                canvas.width = width;
-                canvas.height = height;
-                
-                // 2. Grayscale & Contrast
-                ctx.filter = 'grayscale(100%) contrast(150%) brightness(110%)';
-                ctx.drawImage(img, 0, 0, width, height);
-                
-                canvas.toBlob((blob) => resolve(blob), 'image/jpeg', 0.85);
-            };
-            img.src = e.target.result;
-        };
-        reader.readAsDataURL(file);
-    });
-}
-
-/**
- * ประมวลผลภาพถ่ายด้วย AI OCR
- * @param {HTMLInputElement} inputElement 
- * @param {string} mode 'search' หรือ 'fill'
- */
-window.processOCR = async function(inputElement, mode = 'search') {
+// ==========================================
+// --- 🌟 OCR IMAGE SCANNING LOGIC ---
+// ==========================================
+window.processOCR = async function(inputElement) {
     if (!inputElement.files || inputElement.files.length === 0) return;
     const file = inputElement.files[0];
 
-    // Show Progress Modal
-    window.showOcrProgress(0, t('loading_ai') || 'Initializing AI...');
+    document.getElementById('modalTitle').textContent = t('scanning') || 'Scanning Image...';
+    document.getElementById('modalMessage').textContent = 'AI is extracting data. Please wait a few seconds...';
+    document.getElementById('modalIcon').innerHTML = '<i class="fas fa-spinner fa-spin text-4xl text-indigo-500 mb-2"></i>';
     window.openModalWindow('notificationModal');
 
-    let worker = null;
     try {
-        // --- 1. Pre-process Image ---
-        window.showOcrProgress(10, t('optimizing_image') || 'Optimizing Image...');
-        const optimizedImage = await preprocessForOcr(file);
+        const worker = await Tesseract.createWorker('eng');
+        const ret = await worker.recognize(file);
+        const extractedText = ret.data.text;
+        await worker.terminate();
 
-        // --- 2. Initialize Worker (Lazy Loading) ---
-        window.showOcrProgress(25, t('loading_ai') || 'Loading AI Engine...');
-        worker = await Tesseract.createWorker('eng', 1, {
-            logger: m => {
-                if (m.status === 'recognizing text') {
-                    const progress = 30 + Math.floor(m.progress * 60);
-                    window.showOcrProgress(progress, `${t('analyzing') || 'AI Analyzing...'} (${Math.floor(m.progress * 100)}%)`);
-                }
-            }
-        });
+        console.log("OCR Result:\n", extractedText);
 
-        // --- 3. Run OCR ---
-        const { data: { text } } = await worker.recognize(optimizedImage);
-        console.log("--- OCR Extracted Text ---\n", text);
+        let foundFields = 0;
 
-        // --- 4. Logic Extraction (Smart Matching) ---
-        // Match S/N (6-20 chars, mixed alphanumeric)
-        const snMatch = text.match(/(?:S\/?N|Serial|SerNo|Service\s*Tag|Label|ID|TAG)\s*[:|-]?\s*([A-Z0-9-]{6,20})/i);
-        let snFound = snMatch ? snMatch[1].trim() : null;
-
-        // Fallback: If no label prefix, look for "serial-like" candidate in lines
-        if (!snFound) {
-            const lines = text.split('\n');
-            for (let line of lines) {
-                const words = line.split(/\s+/);
-                for (let word of words) {
-                    const clean = word.replace(/[^A-Z0-9-]/gi, '');
-                    if (clean.length >= 7 && clean.length <= 16 && /[A-Z]/.test(clean) && /[0-9]/.test(clean)) {
-                        snFound = clean;
-                        break;
-                    }
-                }
-                if (snFound) break;
+        const snMatch = extractedText.match(/(?:S\/?N|Serial\s*Number)\s*:?\s*([A-Z0-9]+)/i);
+        if (snMatch && snMatch[1]) {
+            const snVal = snMatch[1].trim();
+            const snInput = document.getElementById('edit-SerialNumber') || document.getElementById('edit-MonitorSerial');
+            if (snInput) {
+                snInput.value = snVal;
+                snInput.classList.add('ring-4', 'ring-green-300', 'bg-green-50');
+                setTimeout(() => snInput.classList.remove('ring-4', 'ring-green-300', 'bg-green-50'), 1500);
+                foundFields++;
             }
         }
 
-        window.showOcrProgress(100, t('scan_success') || 'AI Analysis Complete!');
-
-        // --- 5. Action Based on Mode ---
-        setTimeout(async () => {
-            window.hideModal('notificationModal');
-            if (mode === 'search') {
-                if (snFound) await window.performSnSearch(snFound);
-                else window.showNotificationModal('info', t('scan_failed'), 'AI could not find a clear Serial Number.');
-            } else {
-                if (snFound) {
-                    const snInput = document.getElementById('edit-SerialNumber') || document.getElementById('edit-MonitorSerial');
-                    if (snInput) {
-                        snInput.value = snFound;
-                        snInput.classList.add('ring-4', 'ring-emerald-400', 'bg-emerald-50', 'dark:bg-emerald-900/20');
-                        setTimeout(() => snInput.classList.remove('ring-4', 'ring-emerald-400', 'bg-emerald-50', 'dark:bg-emerald-900/20'), 3000);
-                        window.showNotificationModal('success', t('scan_success'), `AI detected Serial Number: ${snFound}`);
-                    }
-                } else {
-                    window.showNotificationModal('info', t('scan_failed'), 'AI could not identify Serial Number or Model.');
-                }
+        const modelMatch = extractedText.match(/Model\s*[:|-]?\s*([A-Z0-9-]+)/i);
+        if (modelMatch && modelMatch[1]) {
+            const modelVal = modelMatch[1].trim();
+            const modelInput = document.getElementById('edit-Model');
+            if (modelInput) {
+                modelInput.value = modelVal;
+                modelInput.classList.add('ring-4', 'ring-green-300', 'bg-green-50');
+                setTimeout(() => modelInput.classList.remove('ring-4', 'ring-green-300', 'bg-green-50'), 1500);
+                foundFields++;
             }
-        }, 600);
+        }
+
+        const pnMatch = extractedText.match(/P\/N\s*[:|-]?\s*([A-Z0-9-]+)/i);
+        if (pnMatch && pnMatch[1]) {
+            const pnVal = pnMatch[1].trim();
+            const descInput = document.getElementById('edit-Description');
+            if (descInput) {
+                const currentVal = descInput.value;
+                descInput.value = currentVal ? currentVal + '\nP/N: ' + pnVal : 'P/N: ' + pnVal;
+                descInput.classList.add('ring-4', 'ring-green-300', 'bg-green-50');
+                setTimeout(() => descInput.classList.remove('ring-4', 'ring-green-300', 'bg-green-50'), 1500);
+                foundFields++;
+            }
+        }
+
+        window.hideModal('notificationModal');
+
+        if (foundFields > 0) {
+            setTimeout(() => window.showNotificationModal('success', t('scan_success') || 'Success', `AI พบและกรอกข้อมูลให้คุณอัตโนมัติ ${foundFields} ช่อง โปรดตรวจสอบความถูกต้อง`), 400);
+        } else {
+            setTimeout(() => window.showNotificationModal('info', t('scan_failed') || 'No Match', `AI สกัดข้อความมาได้ แต่ไม่พบรูปแบบของ SN หรือ Model ที่ชัดเจนในรูปนี้\n\nข้อความที่เจอ:\n${extractedText.substring(0, 50)}...`), 400);
+        }
 
     } catch (error) {
         console.error("OCR Error:", error);
         window.hideModal('notificationModal');
-        setTimeout(() => window.showNotificationModal('warning', 'OCR Error', 'Processing failed or AI was interrupted.'), 400);
-    } finally {
-        if (worker) await worker.terminate(); // 🔥 IMPORTANT: Clean up memory!
-        inputElement.value = ''; 
+        setTimeout(() => window.showNotificationModal('warning', t('scan_failed') || 'Error', 'เกิดข้อผิดพลาดในการประมวลผลรูปภาพ'), 400);
     }
-};
-
-/**
- * แสดงสถานะความคืบหน้าของ OCR แบบสวยงาม
- */
-window.showOcrProgress = function(percent, statusText) {
-    const title = document.getElementById('modalTitle');
-    const msg = document.getElementById('modalMessage');
-    const icon = document.getElementById('modalIcon');
-    
-    title.textContent = t('scanning') || 'AI Scanning...';
-    icon.innerHTML = `
-        <div class="relative w-24 h-24 mb-4 flex items-center justify-center">
-            <svg class="w-full h-full transform -rotate-90">
-                <circle cx="48" cy="48" r="40" stroke="currentColor" stroke-width="8" fill="transparent" class="text-indigo-100 dark:text-gray-700"/>
-                <circle cx="48" cy="48" r="40" stroke="currentColor" stroke-width="8" fill="transparent" stroke-dasharray="251.2" stroke-dashoffset="${251.2 - (251.2 * percent / 100)}" class="text-indigo-600 transition-all duration-300 ease-out"/>
-            </svg>
-            <span class="absolute text-xl font-bold text-indigo-600 dark:text-indigo-400">${percent}%</span>
-        </div>
-    `;
-    msg.innerHTML = `<p class="font-medium text-gray-700 dark:text-gray-300">${statusText}</p>`;
-};
-
-window.openViewModal = function(collectionName, item) {
-    const header = document.getElementById('viewModalHeader');
-    const body = document.getElementById('viewModalBody');
-    const config = collectionConfigs[collectionName] || { icon: 'fa-box', displayName: collectionName };
-    const id = item._id || item.id;
-
-    const displayName = config.isCustom ? config.displayName : t(collectionName.toLowerCase()) || config.displayName;
-    const name = item[config.nameField] || item.ComputerName || item.ItemName || 'Unnamed Asset';
-    const serial = item[config.serialField] || item.SerialNumber || 'N/A';
-
-    header.innerHTML = `
-        <div class="flex items-center">
-            <div class="w-12 h-12 rounded-full bg-indigo-100 dark:bg-indigo-900/50 flex items-center justify-center mr-4 shadow-inner">
-                <i class="fas ${config.icon} text-indigo-600 dark:text-indigo-400 text-xl"></i>
-            </div>
-            <div>
-                <h3 class="text-2xl font-bold text-gray-900 dark:text-white leading-tight">${name}</h3>
-                <p class="text-xs text-gray-500 font-medium mt-1 uppercase tracking-widest">${displayName} • S/N: ${serial}</p>
-            </div>
-        </div>
-    `;
-
-    let bodyHtml = '';
-    // Show configured fields
-    const fieldsToShow = config.formFields || Object.keys(item).filter(k => !['_id', 'id', 'Timestamp', 'lastSeenOnline', 'DisposalEvidence'].includes(k));
-    
-    fieldsToShow.forEach(fieldId => {
-        const fieldDef = AVAILABLE_FIELDS.find(f => f.id === fieldId) || { label: fieldId };
-        let val = item[fieldId];
-        if (val === undefined || val === null || val === '') val = '-';
-        
-        if (fieldId === 'Status') {
-            let color = 'gray'; let tStatus = t(val.toLowerCase().replace(' ', '_')) || val;
-            if (val === 'Active') color = 'green'; else if (val === 'On Loan') color = 'yellow'; else if (val === 'Repair') color = 'orange'; else if (val === 'Storage') color = 'blue'; else if (val === 'Damaged') color = 'red';
-            val = `<span class="px-2 py-1 rounded-full text-xs font-bold bg-${color}-100 text-${color}-800 dark:bg-${color}-900/50 dark:text-${color}-300">${tStatus}</span>`;
-        }
-
-        bodyHtml += `
-            <div class="p-3 bg-white dark:bg-gray-700/30 rounded-xl border border-gray-100 dark:border-gray-700">
-                <p class="text-[10px] font-bold text-gray-400 uppercase mb-1">${fieldDef.label}</p>
-                <p class="text-sm font-semibold text-gray-800 dark:text-gray-200">${val}</p>
-            </div>
-        `;
-    });
-
-    body.innerHTML = bodyHtml;
-    
-    const editBtn = document.getElementById('goToEditBtn');
-    if (editBtn) {
-        editBtn.onclick = () => {
-            window.hideModal('viewModal');
-            setTimeout(() => window.openModal('edit', collectionName, id), 300);
-        };
-    }
-
-    window.openModalWindow('viewModal');
-};
-
-window.performSnSearch = async function(sn) {
-    document.getElementById('modalTitle').textContent = t('searching_sn');
-    document.getElementById('modalMessage').textContent = `Searching for: ${sn}...`;
-    document.getElementById('modalIcon').innerHTML = '<i class="fas fa-search fa-spin text-4xl text-indigo-500 mb-2"></i>';
-    window.openModalWindow('notificationModal');
-
-    try {
-        const result = await apiRequest(`/api/inventory/search/serial/${sn}`);
-        window.hideModal('notificationModal');
-        if (result && result.item) {
-            setTimeout(() => {
-                window.openViewModal(result.collection, result.item);
-            }, 400);
-        } else {
-            setTimeout(() => window.showNotificationModal('info', 'Not Found', t('sn_not_found')), 400);
-        }
-    } catch (error) {
-        window.hideModal('notificationModal');
-        setTimeout(() => window.showNotificationModal('info', 'Not Found', t('sn_not_found')), 400);
-    }
+    inputElement.value = ''; 
 };
 
 const AVAILABLE_FIELDS = [
@@ -735,6 +559,8 @@ async function refreshAllData() {
         const defaultConfigs = {
             Computers: { displayName: 'Computers', headers: ['Last Seen', 'ComputerName', 'SerialNumber', 'UserName', 'Status'], formFields: ['ComputerName', 'Manufacturer', 'Model', 'Type', 'SerialNumber', 'CPU', 'RAM_GB', 'DiskSize_GB', 'OS', 'IPAddress', 'MacAddress', 'UserName', 'Location', 'PurchaseDate', 'WarrantyEndDate', 'Status', 'Description'], nameField: 'ComputerName', serialField: 'SerialNumber', icon: 'fa-laptop', dropdowns: { Status: ['Active', 'On Loan', 'Repair', 'Storage', 'Damaged', 'Disposed'], Type: ['Desktop', 'Laptop', 'MacBook', 'Tablet', 'POS', 'Server', 'Other'] }, isCustom: false },
             Monitors: { displayName: 'Monitors', headers: ['Model', 'MonitorSerial', 'AssignedComputer', 'UserName', 'Status'], formFields: ['Manufacturer', 'Model', 'MonitorSerial', 'UserName', 'Location', 'AssignedComputer', 'PurchaseDate', 'WarrantyEndDate', 'Status', 'Description'], nameField: 'Model', serialField: 'MonitorSerial', icon: 'fa-desktop', dropdowns: { Status: ['Active', 'On Loan', 'Repair', 'Storage', 'Damaged', 'Disposed'] }, isCustom: false },
+            Keyboards: { displayName: 'Keyboards', headers: ['Model', 'AssignedComputer', 'UserName', 'Status'], formFields: ['Manufacturer', 'Model', 'SerialNumber', 'UserName', 'Location', 'AssignedComputer', 'PurchaseDate', 'Status', 'Description'], nameField: 'Model', serialField: 'SerialNumber', icon: 'fa-keyboard', dropdowns: { Status: ['Active', 'On Loan', 'Repair', 'Storage', 'Damaged', 'Disposed'] }, isCustom: false },
+            Mice: { displayName: 'Mice', headers: ['Model', 'AssignedComputer', 'UserName', 'Status'], formFields: ['Manufacturer', 'Model', 'SerialNumber', 'UserName', 'Location', 'AssignedComputer', 'PurchaseDate', 'Status', 'Description'], nameField: 'Model', serialField: 'SerialNumber', icon: 'fa-mouse-pointer', dropdowns: { Status: ['Active', 'On Loan', 'Repair', 'Storage', 'Damaged', 'Disposed'] }, isCustom: false },
             Printers: { displayName: 'Printers', headers: ['Last Seen', 'Name', 'AssignedComputer', 'IPAddress', 'Status'], formFields: ['Name', 'Manufacturer', 'Model', 'SerialNumber', 'IPAddress', 'MacAddress', 'Location', 'AssignedComputer', 'UserName', 'PurchaseDate', 'Status', 'Description'], nameField: 'Name', serialField: 'SerialNumber', icon: 'fa-print', dropdowns: { Status: ['Active', 'On Loan', 'Repair', 'Storage', 'Damaged', 'Disposed'] }, isCustom: false },
             Network: { displayName: 'Network Devices', headers: ['Last Seen', 'DeviceName', 'Model', 'IPAddress', 'Status'], formFields: ['DeviceName', 'Manufacturer', 'Model', 'SerialNumber', 'Type', 'IPAddress', 'MacAddress', 'Location', 'PurchaseDate', 'Status', 'Description'], nameField: 'DeviceName', serialField: 'SerialNumber', icon: 'fa-network-wired', dropdowns: { Status: ['Active', 'On Loan', 'Repair', 'Storage', 'Damaged', 'Disposed'], Type: ['Router', 'Switch', 'Access Point', 'Firewall', 'CCTV', 'Other'] }, isCustom: false }
         };
@@ -882,6 +708,7 @@ function renderSidebarDynamic() {
     const assetChildren = [
         { id: 'Computers', name: t('computers'), icon: 'fa-laptop', isSystem: true, clickAction: "window.loadPage('Computers', this)" },
         { id: 'Monitors', name: t('monitors'), icon: 'fa-desktop', isSystem: true, clickAction: "window.loadPage('Monitors', this)" },
+        { id: 'AccessoriesParent', name: t('accessories'), icon: 'fa-headphones', isSystem: true, children: [{ id: 'Keyboards', name: t('keyboards'), icon: 'fa-keyboard', isSystem: true, clickAction: "window.loadPage('Keyboards', this)" }, { id: 'Mice', name: t('mice'), icon: 'fa-mouse-pointer', isSystem: true, clickAction: "window.loadPage('Mice', this)" }] },
         { id: 'Printers', name: t('printers'), icon: 'fa-print', isSystem: true, clickAction: "window.loadPage('Printers', this)" },
         { id: 'Network', name: t('network'), icon: 'fa-network-wired', isSystem: true, clickAction: "window.loadPage('Network', this)" }
     ];
@@ -891,8 +718,8 @@ function renderSidebarDynamic() {
         { id: 'UserSettings', name: t('system_settings'), icon: 'fa-cogs', isSystem: true, children: [{ id: 'StaffManagement', name: t('staff_management'), icon: 'fa-users', isSystem: true, clickAction: "window.loadPage('StaffManagement', this)" }, { id: 'AdminManagement', name: t('admin_management'), icon: 'fa-user-shield', isSystem: true, clickAction: "window.loadPage('AdminManagement', this)" }, { id: 'LabelPrinter', name: t('label_printer'), icon: 'fa-tags', isSystem: true, clickAction: "window.loadPage('LabelPrinter', this)" }, { id: 'Settings', name: t('custom_categories'), icon: 'fa-sliders-h', isSystem: true, clickAction: "window.loadPage('Settings', this)" }] }
     ];
     const customMenus = allData.CustomMenus || [];
-    const customNodes = customMenus.filter(m => collectionConfigs[m.name] && !['Computers','Monitors','Printers','Network'].includes(m.name)).sort((a, b) => (a.order || 0) - (b.order || 0) || a.displayName.localeCompare(b.displayName)).map(m => ({ id: m.name, name: m.displayName, icon: m.icon, isSystem: false, parentId: m.parentId, clickAction: `window.loadPage('${m.name}', this)`, allowDelete: true, allowEdit: true, order: m.order }));
-    const allKnown = ['Computers', 'Monitors', 'Printers', 'Network', ...customNodes.map(n => n.id)];
+    const customNodes = customMenus.filter(m => collectionConfigs[m.name] && !['Computers','Monitors','Keyboards','Mice','Printers','Network'].includes(m.name)).sort((a, b) => (a.order || 0) - (b.order || 0) || a.displayName.localeCompare(b.displayName)).map(m => ({ id: m.name, name: m.displayName, icon: m.icon, isSystem: false, parentId: m.parentId, clickAction: `window.loadPage('${m.name}', this)`, allowDelete: true, allowEdit: true, order: m.order }));
+    const allKnown = ['Computers', 'Monitors', 'Keyboards', 'Mice', 'Printers', 'Network', 'AccessoriesParent', ...customNodes.map(n => n.id)];
     Object.keys(collectionConfigs).forEach(key => { if (!allKnown.includes(key)) customNodes.push({ id: key, name: collectionConfigs[key].displayName, icon: 'fa-box', isSystem: false, parentId: null, clickAction: `window.loadPage('${key}', this)`, allowDelete: false, allowEdit: true, order: 99 }); });
     const rootNodes = [dashboardNode, { type: 'header', label: t('assets') }, ...assetChildren, ...customNodes.filter(n => !n.parentId), { type: 'header', label: t('management') }, ...managementChildren];
     const nodeMap = {}; [...rootNodes, ...customNodes].forEach(n => { if(n.id) nodeMap[n.id] = n; });
@@ -987,15 +814,8 @@ window.cloneCustomMenu = function(menuName, event) {
 };
 
 window.openModalWindow = function(modalId) {
-    const modal = document.getElementById(modalId);
-    if (!modal) return;
-    modal.classList.add('show');
-    modal.offsetHeight; // Force reflow
-    modal.classList.remove('opacity-0', 'pointer-events-none');
-    if (modal.querySelector('.modal-content')) { 
-        modal.querySelector('.modal-content').classList.remove('scale-95'); 
-        modal.querySelector('.modal-content').classList.add('scale-100'); 
-    }
+    const modal = document.getElementById(modalId); modal.classList.remove('opacity-0', 'pointer-events-none');
+    if (modal.querySelector('.modal-content')) { modal.querySelector('.modal-content').classList.remove('scale-95'); modal.querySelector('.modal-content').classList.add('scale-100'); }
 }
 
 window.populateParentDropdown = function(selectedParentId = null) {
@@ -1207,7 +1027,7 @@ window.updateDashboard = function(folderId) {
             const action = children.length > 0 ? `window.updateDashboard('${colName}')` : `window.loadPage('${colName}')`; const iconMarker = children.length > 0 ? `<div class="absolute top-2 right-2 text-xs text-indigo-400"><i class="fas fa-folder"></i></div>` : ''; const stats = getFolderStats(colName); const finalDisplayName = config.isCustom ? displayName : t(colName.toLowerCase()) || displayName;
             return `<div class="relative bg-white dark:bg-gray-800 p-4 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700 flex flex-col justify-center cursor-pointer hover:bg-indigo-50 dark:hover:bg-gray-700 transition-colors transform hover:-translate-y-1" onclick="${action}">${iconMarker}<div class="flex items-center space-x-3 w-full"><div class="bg-indigo-100 dark:bg-indigo-900/50 w-10 h-10 rounded-full flex items-center justify-center shrink-0"><i class="fas ${config.icon || 'fa-box'} text-indigo-600 dark:text-indigo-400"></i></div><div class="flex-1 min-w-0"><p class="text-sm font-bold text-gray-800 dark:text-white truncate">${finalDisplayName}</p><p class="text-xs text-gray-500 dark:text-gray-400">${stats.total} ${t('items_count')}</p></div></div><div class="mt-3 flex items-center gap-1.5 flex-wrap"><span class="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold bg-green-100 text-green-800 dark:bg-green-900/40 dark:text-green-400" title="Active / On Loan"><i class="fas fa-check-circle mr-1"></i>${stats.active}</span><span class="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold bg-blue-100 text-blue-800 dark:bg-blue-900/40 dark:text-blue-400" title="Storage"><i class="fas fa-box mr-1"></i>${stats.storage}</span><span class="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold bg-orange-100 text-orange-800 dark:bg-orange-900/40 dark:text-orange-400" title="Issues / Repair"><i class="fas fa-tools mr-1"></i>${stats.issues}</span></div></div>`;
         };
-        if (currentDashboardFolder === null) { const rootCollections = []; Object.keys(collectionConfigs).forEach(colName => { if (colName === 'Software') return; const menuDef = (allData.CustomMenus || []).find(m => m.name === colName); const isDefaultRoot = ['Computers', 'Monitors', 'Printers', 'Network'].includes(colName); const isCustomRoot = menuDef && !menuDef.parentId; if (isDefaultRoot || isCustomRoot) { rootCollections.push(colName); } }); rootCollections.forEach(colName => { const config = collectionConfigs[colName]; const displayName = config.displayName || colName; const children = getChildren(colName); overviewGrid.innerHTML += generateFolderCardHTML(colName, config, displayName, children, false); }); } else { const parentConfig = collectionConfigs[currentDashboardFolder]; const parentDisplayName = parentConfig.isCustom ? parentConfig.displayName : t(currentDashboardFolder.toLowerCase()) || currentDashboardFolder; overviewGrid.innerHTML += generateFolderCardHTML(null, null, null, null, true); overviewGrid.innerHTML += `<div class="bg-indigo-50 dark:bg-indigo-900/30 p-4 rounded-xl shadow-sm border border-indigo-200 dark:border-indigo-700 flex flex-col justify-center cursor-pointer hover:bg-indigo-100 dark:hover:bg-indigo-800/50 transition-colors transform hover:-translate-y-1" onclick="window.loadPage('${currentDashboardFolder}')"><div class="flex items-center space-x-3 w-full"><div class="bg-indigo-200 dark:bg-indigo-800 w-10 h-10 rounded-full flex items-center justify-center shrink-0"><i class="fas fa-list text-indigo-700 dark:text-indigo-300"></i></div><div class="flex-1 min-w-0"><p class="text-xs text-indigo-500 dark:text-indigo-400 truncate">${t('view_items')}</p><p class="text-sm font-bold text-indigo-900 dark:text-indigo-100 truncate">${parentDisplayName}</p></div></div></div>`; const children = getChildren(currentDashboardFolder); children.forEach(colName => { const config = collectionConfigs[colName]; const displayName = config.displayName || colName; const subChildren = getChildren(colName); overviewGrid.innerHTML += generateFolderCardHTML(colName, config, displayName, subChildren, false); }); }
+        if (currentDashboardFolder === null) { const rootCollections = []; Object.keys(collectionConfigs).forEach(colName => { if (colName === 'Software') return; const menuDef = (allData.CustomMenus || []).find(m => m.name === colName); const isDefaultRoot = ['Computers', 'Monitors', 'Keyboards', 'Mice', 'Printers', 'Network'].includes(colName); const isCustomRoot = menuDef && !menuDef.parentId; if (isDefaultRoot || isCustomRoot) { rootCollections.push(colName); } }); rootCollections.forEach(colName => { const config = collectionConfigs[colName]; const displayName = config.displayName || colName; const children = getChildren(colName); overviewGrid.innerHTML += generateFolderCardHTML(colName, config, displayName, children, false); }); } else { const parentConfig = collectionConfigs[currentDashboardFolder]; const parentDisplayName = parentConfig.isCustom ? parentConfig.displayName : t(currentDashboardFolder.toLowerCase()) || currentDashboardFolder; overviewGrid.innerHTML += generateFolderCardHTML(null, null, null, null, true); overviewGrid.innerHTML += `<div class="bg-indigo-50 dark:bg-indigo-900/30 p-4 rounded-xl shadow-sm border border-indigo-200 dark:border-indigo-700 flex flex-col justify-center cursor-pointer hover:bg-indigo-100 dark:hover:bg-indigo-800/50 transition-colors transform hover:-translate-y-1" onclick="window.loadPage('${currentDashboardFolder}')"><div class="flex items-center space-x-3 w-full"><div class="bg-indigo-200 dark:bg-indigo-800 w-10 h-10 rounded-full flex items-center justify-center shrink-0"><i class="fas fa-list text-indigo-700 dark:text-indigo-300"></i></div><div class="flex-1 min-w-0"><p class="text-xs text-indigo-500 dark:text-indigo-400 truncate">${t('view_items')}</p><p class="text-sm font-bold text-indigo-900 dark:text-indigo-100 truncate">${parentDisplayName}</p></div></div></div>`; const children = getChildren(currentDashboardFolder); children.forEach(colName => { const config = collectionConfigs[colName]; const displayName = config.displayName || colName; const subChildren = getChildren(colName); overviewGrid.innerHTML += generateFolderCardHTML(colName, config, displayName, subChildren, false); }); }
     }
     const statusCounts = {}; allItems.filter(i => i.Status !== 'Disposed').forEach(i => { statusCounts[i.Status] = (statusCounts[i.Status] || 0) + 1; }); window.renderStatusChart(statusCounts);
     const categoryCounts = {}; for (const [key, items] of Object.entries(allData)) { if (skipKeys.includes(key)) continue; if (Array.isArray(items)) { const activeItems = items.filter(i => i.Status !== 'Disposed'); if (activeItems.length > 0) { const displayName = collectionConfigs[key] ? collectionConfigs[key].displayName : key; const translatedDisplayName = collectionConfigs[key].isCustom ? displayName : t(key.toLowerCase()) || displayName; categoryCounts[translatedDisplayName] = activeItems.length; } } } window.renderCategoryChart(categoryCounts);
@@ -1221,21 +1041,7 @@ window.renderCategoryChart = function(data) { const ctx = document.getElementByI
 window.renderLocationChart = function(data) { const ctx = document.getElementById('locationChart'); if(!ctx) return; const sortedLocations = Object.entries(data).sort((a, b) => b[1] - a[1]).slice(0, 5); const labels = sortedLocations.map(item => item[0]); const values = sortedLocations.map(item => item[1]); if(window.locationChartInstance) { window.locationChartInstance.data.labels = labels; window.locationChartInstance.data.datasets[0].data = values; window.locationChartInstance.update(); } else { window.locationChartInstance = new Chart(ctx, { type: 'bar', data: { labels: labels, datasets: [{ label: 'Assets', data: values, backgroundColor: '#14b8a6', borderRadius: 4 }] }, options: { responsive: true, maintainAspectRatio: false, indexAxis: 'y', plugins: { legend: { display: false } } } }); } };
 
 window.showNotificationModal = function(type, title, msg) { document.getElementById('modalTitle').textContent = title; document.getElementById('modalMessage').textContent = msg; const icon = document.getElementById('modalIcon'); if(type === 'success') icon.innerHTML = '<i class="fas fa-check-circle text-4xl text-green-500"></i>'; else if(type === 'warning') icon.innerHTML = '<i class="fas fa-exclamation-triangle text-4xl text-yellow-500"></i>'; else icon.innerHTML = '<i class="fas fa-info-circle text-4xl text-blue-500"></i>'; window.openModalWindow('notificationModal'); };
-window.hideModal = function(id) {
-    const modal = document.getElementById(id);
-    if (!modal) return;
-    modal.classList.add('opacity-0', 'pointer-events-none');
-    if (modal.querySelector('.modal-content')) { 
-        modal.querySelector('.modal-content').classList.remove('scale-100'); 
-        modal.querySelector('.modal-content').classList.add('scale-95'); 
-    }
-    // Delay hiding display until transition finishes
-    setTimeout(() => {
-        if (modal.classList.contains('opacity-0')) {
-            modal.classList.remove('show');
-        }
-    }, 300);
-};
+window.hideModal = function(id) { const modal = document.getElementById(id); if (!modal) return; modal.classList.add('opacity-0', 'pointer-events-none'); if (modal.querySelector('.modal-content')) { modal.querySelector('.modal-content').classList.remove('scale-100'); modal.querySelector('.modal-content').classList.add('scale-95'); } };
 window.switchModalTab = function(tab, btn) { document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active')); document.getElementById(tab+'-tab').classList.add('active'); document.querySelectorAll('.tab-button').forEach(b => { b.classList.remove('active', 'bg-white', 'dark:bg-gray-700', 'text-indigo-600', 'dark:text-indigo-400', 'shadow-sm'); b.classList.add('text-gray-500'); }); btn.classList.remove('text-gray-500'); btn.classList.add('active', 'bg-white', 'dark:bg-gray-700', 'text-indigo-600', 'dark:text-indigo-400', 'shadow-sm'); };
 window.changeRowsPerPage = function(col, el) { paginationState[col].rowsPerPage = parseInt(el.value); paginationState[col].currentPage=1; window.buildTable(col); };
 window.changePage = function(col, dir) { paginationState[col].currentPage += dir; window.buildTable(col); };
@@ -1435,111 +1241,14 @@ window.buildMaintenancePage = function() {
 
 window.filterLoanHistory = function(val) { const term=val.toUpperCase(); document.querySelectorAll('#LoanHistoryContainer > div').forEach(el => el.style.display = el.textContent.toUpperCase().includes(term)?'':'none'); };
 window.filterMaintenanceHistory = function(val) { const term=val.toUpperCase(); document.querySelectorAll('#MaintenanceContainer > div').forEach(el => el.style.display = el.textContent.toUpperCase().includes(term)?'':'none'); };
-window.filterAssetsByUser = function(val) {
-    const term = val.toUpperCase();
-    document.querySelectorAll('.user-asset-card').forEach(el => {
-        const text = el.textContent.toUpperCase();
-        el.style.display = text.includes(term) ? '' : 'none';
-    });
-};
+window.filterAssetsByUser = function(val) { const term=val.toUpperCase(); document.querySelectorAll('#AssetsByUserContainer > details').forEach(el => el.style.display = el.textContent.toUpperCase().includes(term)?'':'none'); };
 
 window.buildAssetsByUserPage = function() {
-    const container = document.getElementById('AssetsByUserContainer');
-    if (!container) return;
-    container.innerHTML = '';
-    const byUser = {};
-    const skipKeys = ['Staff', 'CustomMenus', 'TransactionHistory', 'LoanHistory', 'Maintenance Log', 'admins', 'Software'];
-    
-    // Group assets by user
-    Object.keys(allData).forEach(key => {
-        if (skipKeys.includes(key)) return;
-        (allData[key] || []).forEach(item => {
-            const u = item.UserName || 'Unassigned';
-            if (!byUser[u]) byUser[u] = [];
-            byUser[u].push({ ...item, type: key });
-        });
-    });
-
-    // Render cards
-    Object.keys(byUser).sort().forEach(username => {
-        if (username === 'Unassigned') return; 
-        
-        const assets = byUser[username];
-        const staff = (allData.Staff || []).find(s => (s.UserName || '').toLowerCase() === username.toLowerCase()) || {};
-        const firstName = staff.FirstName === 'Auto' ? '' : (staff.FirstName || '');
-        const lastName = staff.LastName === 'Detected' ? '' : (staff.LastName || '');
-        const fullName = (firstName || lastName) ? `${firstName} ${lastName}`.trim() : username;
-        const department = staff.Department && staff.Department !== 'N/A' ? staff.Department : t('unknown');
-        
-        // Count assets by category for summary
-        const typeCounts = {};
-        assets.forEach(a => { typeCounts[a.type] = (typeCounts[a.type] || 0) + 1; });
-        const summaryHtml = Object.entries(typeCounts).map(([type, count]) => {
-            const config = collectionConfigs[type] || { icon: 'fa-box' };
-            const dispType = config.isCustom ? config.displayName : t(type.toLowerCase()) || type;
-            return `<span class="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold bg-indigo-50 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-400 border border-indigo-100 dark:border-indigo-800 mr-1 mb-1" title="${dispType}"><i class="fas ${config.icon} mr-1"></i>${count}</span>`;
-        }).join('');
-
-        const userCard = `
-            <div class="user-asset-card bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 overflow-hidden hover:shadow-md transition-shadow mb-4">
-                <details class="group">
-                    <summary class="p-5 flex flex-wrap justify-between items-center cursor-pointer list-none">
-                        <div class="flex items-center space-x-4">
-                            <div class="w-12 h-12 rounded-full bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center text-white shadow-lg shrink-0">
-                                <i class="fas fa-user text-xl"></i>
-                            </div>
-                            <div class="min-w-0">
-                                <h3 class="font-bold text-gray-900 dark:text-white leading-tight truncate">${fullName}</h3>
-                                <div class="flex items-center mt-1 flex-wrap gap-y-1">
-                                    <span class="text-xs text-gray-500 dark:text-gray-400 font-medium mr-3 flex items-center"><i class="fas fa-id-badge mr-1"></i>${username}</span>
-                                    <span class="text-xs text-indigo-500 dark:text-indigo-400 font-bold bg-indigo-50 dark:bg-indigo-900/30 px-2 py-0.5 rounded-full border border-indigo-100 dark:border-indigo-800/50">${department}</span>
-                                </div>
-                            </div>
-                        </div>
-                        <div class="flex flex-col items-end mt-3 md:mt-0 w-full md:w-auto">
-                            <div class="flex flex-wrap justify-end mb-1">${summaryHtml}</div>
-                            <div class="flex items-center text-xs text-gray-400 font-bold uppercase tracking-wider">
-                                <span>${assets.length} ${t('items_count')}</span>
-                                <i class="fas fa-chevron-right ml-3 transform group-open:rotate-90 transition-transform"></i>
-                            </div>
-                        </div>
-                    </summary>
-                    <div class="px-5 pb-5 pt-2 border-t border-gray-50 dark:border-gray-700 bg-gray-50/50 dark:bg-gray-900/20">
-                        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-                            ${assets.map(a => {
-                                const config = collectionConfigs[a.type] || { icon: 'fa-box', nameField: 'SerialNumber' };
-                                const deviceName = a[config.nameField] || a.ComputerName || a.ItemName || a.Model || 'Unknown';
-                                const serial = a.SerialNumber || a.MonitorSerial || '-';
-                                const lastSeen = a.lastSeenOnline;
-                                let statusDot = '';
-                                if (lastSeen) {
-                                    const isOnline = (new Date() - new Date(lastSeen)) / 60000 <= 15;
-                                    statusDot = `<div class="h-2 w-2 rounded-full ${isOnline ? 'bg-green-500 shadow-[0_0_5px_#22c55e] animate-pulse' : 'bg-gray-400'} mr-2 shrink-0"></div>`;
-                                }
-                                
-                                return `
-                                    <div class="p-3 bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 flex items-center shadow-sm hover:border-indigo-300 dark:hover:border-indigo-500 transition-colors cursor-pointer group/item" onclick='window.openViewModal("${a.type}", ${JSON.stringify(a).replace(/'/g, "&#39;")})'>
-                                        <div class="w-10 h-10 rounded-lg bg-gray-50 dark:bg-gray-700 flex items-center justify-center mr-3 text-gray-400 group-hover/item:text-indigo-500 transition-colors shrink-0">
-                                            <i class="fas ${config.icon}"></i>
-                                        </div>
-                                        <div class="flex-1 min-w-0">
-                                            <div class="flex items-center">
-                                                ${statusDot}
-                                                <p class="font-bold text-sm text-gray-800 dark:text-gray-200 truncate">${deviceName}</p>
-                                            </div>
-                                            <p class="text-[10px] text-gray-500 dark:text-gray-400 font-mono truncate uppercase tracking-tighter mt-0.5">
-                                                ${config.isCustom ? config.displayName : t(a.type.toLowerCase()) || a.type} • ${serial}
-                                            </p>
-                                        </div>
-                                    </div>
-                                `;
-                            }).join('')}
-                        </div>
-                    </div>
-                </details>
-            </div>
-        `;
-        container.insertAdjacentHTML('beforeend', userCard);
+    const container = document.getElementById('AssetsByUserContainer'); if(!container) return; container.innerHTML = ''; const byUser = {}; const skipKeys = ['Staff', 'CustomMenus', 'TransactionHistory', 'LoanHistory', 'Maintenance Log', 'admins', 'Software'];
+    Object.keys(allData).forEach(key => { if (skipKeys.includes(key)) return; (allData[key] || []).forEach(item => { const u = item.UserName || 'Unassigned'; if(!byUser[u]) byUser[u] = []; byUser[u].push({...item, type: key}); }); });
+    Object.keys(byUser).sort().forEach(user => {
+        if(user === 'Unassigned') return; const assets = byUser[user];
+        container.innerHTML += `<details class="group bg-white dark:bg-gray-800 rounded-lg shadow mb-3"><summary class="p-4 flex justify-between items-center cursor-pointer list-none"><span class="font-bold text-gray-800 dark:text-white"><i class="fas fa-user mr-2"></i>${user}</span><span class="bg-indigo-100 text-indigo-800 text-xs px-2 py-1 rounded-full">${assets.length} items</span></summary><div class="p-4 border-t dark:border-gray-700"><ul class="text-sm space-y-2">${assets.map(a => `<li class="flex justify-between items-center"><span>${a.ComputerName || a.DeviceName || a.ItemName || a.Model} <span class="text-xs text-gray-500">(${t(a.type.toLowerCase()) || a.type})</span></span><span class="text-xs font-mono">${a.SerialNumber || a.MonitorSerial || '-'}</span></li>`).join('')}</ul></div></details>`;
     });
 };
 

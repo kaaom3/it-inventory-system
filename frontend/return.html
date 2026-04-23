@@ -29,9 +29,8 @@
         .modal.active { opacity: 1; pointer-events: auto; }
         .modal.active .modal-content { transform: scale(1); }
     </style>
-    <link rel="stylesheet" href="style.css">
 </head>
-<body class="text-slate-900 dark:text-slate-100 min-h-screen flex flex-col transition-colors duration-300 antialiased">
+<body class="bg-slate-50 dark:bg-[#0f172a] text-slate-900 dark:text-slate-100 min-h-screen flex flex-col transition-colors duration-300 antialiased">
     
     <!-- Header -->
     <header class="w-full bg-white/80 dark:bg-slate-900/80 backdrop-blur-md border-b dark:border-slate-800 p-4 sticky top-0 z-40">
@@ -144,25 +143,5 @@
             } catch(e) { document.getElementById('not-found').classList.remove('hidden'); }
         });
     </script>
-<script>
-if (localStorage.getItem('theme') === 'dark' || (!localStorage.getItem('theme') && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
-  document.documentElement.classList.add('dark');
-}
-document.addEventListener('DOMContentLoaded', () => {
-  const t = document.getElementById('theme-toggle');
-  if (!t) return;
-  const dark = document.documentElement.classList.contains('dark');
-  document.getElementById('theme-toggle-light-icon').classList.toggle('hidden', !dark);
-  document.getElementById('theme-toggle-dark-icon').classList.toggle('hidden', dark);
-  t.addEventListener('click', () => {
-    document.documentElement.classList.toggle('dark');
-    const d = document.documentElement.classList.contains('dark');
-    localStorage.setItem('theme', d ? 'dark' : 'light');
-    document.getElementById('theme-toggle-light-icon').classList.toggle('hidden', !d);
-    document.getElementById('theme-toggle-dark-icon').classList.toggle('hidden', d);
-  });
-});
-function closeNotificationAndReload(){location.reload();}
-</script>
 </body>
 </html>

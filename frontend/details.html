@@ -10,9 +10,8 @@
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
         body { font-family: 'Inter', sans-serif; }
     </style>
-    <link rel="stylesheet" href="style.css">
 </head>
-<body class="text-slate-900 dark:text-slate-100 min-h-screen p-4 md:p-10 flex justify-center items-start antialiased relative">
+<body class="bg-slate-50 dark:bg-[#0f172a] text-slate-900 dark:text-slate-100 min-h-screen p-4 md:p-10 flex justify-center items-start antialiased relative overflow-hidden">
     <!-- Abstract Background -->
     <div class="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] bg-indigo-500/5 rounded-full blur-[120px]"></div>
     <div class="absolute bottom-[-10%] right-[-10%] w-[40%] h-[40%] bg-emerald-500/5 rounded-full blur-[120px]"></div>
@@ -147,10 +146,5 @@
             document.getElementById('fields-container').innerHTML = html;
         }
     </script>
-<script>
-if (localStorage.getItem('theme') === 'dark' || (!localStorage.getItem('theme') && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
-  document.documentElement.classList.add('dark');
-}
-</script>
 </body>
 </html>
