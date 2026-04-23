@@ -1493,19 +1493,25 @@ window.handleImageSearch = async function(inputElement) {
         console.log("Image Search OCR Result:\n", extractedText);
 
         // Extract SN (same regex as OCR auto-fill)
-        const snMatch = extractedText.match(/(?:S\/?N|Serial\s*Number)\s*:?\s*([A-Z0-9]+)/i) || extractedText.match(/([A-Z0-9]{5,20})/);
+        const snMatch = extractedText.match(/(?:S\/?N|Serial\s*Number)\s*:?\s*([A-Z0-9]+)/i);
         
         if (snMatch && snMatch[1]) {
             const snVal = snMatch[1].trim();
             window.performDeviceSearch(snVal);
         } else {
-            resultsList.innerHTML = `
-                <div class="bg-orange-50 dark:bg-orange-900/20 p-8 rounded-2xl border border-orange-200 dark:border-orange-800 text-center">
-                    <i class="fas fa-exclamation-circle text-4xl text-orange-500 mb-4"></i>
-                    <p class="text-orange-800 dark:text-orange-200">${t('scan_failed')}</p>
-                    <p class="text-xs text-orange-600 mt-2">Could not clearly identify a Serial Number in the image.</p>
-                </div>
-            `;
+            // Fallback: search for any string that looks like an SN (5-20 chars, alphanumeric)
+            const genericMatch = extractedText.match(/([A-Z0-9]{6,20})/);
+            if (genericMatch && genericMatch[1]) {
+                window.performDeviceSearch(genericMatch[1].trim());
+            } else {
+                resultsList.innerHTML = `
+                    <div class="bg-orange-50 dark:bg-orange-900/20 p-8 rounded-2xl border border-orange-200 dark:border-orange-800 text-center">
+                        <i class="fas fa-exclamation-circle text-4xl text-orange-500 mb-4"></i>
+                        <p class="text-orange-800 dark:text-orange-200">${t('scan_failed')}</p>
+                        <p class="text-xs text-orange-600 mt-2">Could not clearly identify a Serial Number in the image.</p>
+                    </div>
+                `;
+            }
         }
 
     } catch (error) {

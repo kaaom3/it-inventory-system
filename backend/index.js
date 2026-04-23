@@ -580,7 +580,17 @@ app.get('/api/inventory/find/:sn', async (req, res) => {
             if (sn.length === 24 && /^[0-9a-fA-F]{24}$/.test(sn)) searchIds.push(new ObjectId(sn));
 
             const item = await db.collection(col.name).findOne({
-                $or: [ { SerialNumber: sn }, { MonitorSerial: sn }, { _id: { $in: searchIds } }, { id: { $in: searchIds } } ]
+                $or: [
+                    { SerialNumber: sn },
+                    { MonitorSerial: sn },
+                    { ComputerName: sn },
+                    { DeviceName: sn },
+                    { ItemName: sn },
+                    { Name: sn },
+                    { IPAddress: sn },
+                    { _id: { $in: searchIds } },
+                    { id: { $in: searchIds } }
+                ]
             });
             if (item) return res.json({ item, collectionName: col.name });
         }
