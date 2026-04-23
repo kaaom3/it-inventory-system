@@ -1492,26 +1492,53 @@ window.handleImageSearch = async function(inputElement) {
 
         console.log("Image Search OCR Result:\n", extractedText);
 
-        // Extract SN (same regex as OCR auto-fill)
-        const snMatch = extractedText.match(/(?:S\/?N|Serial\s*Number)\s*:?\s*([A-Z0-9]+)/i);
+        // 1. Try to find SN pattern first (Highest Priority)
+        const snMatch = extractedText.match(/(?:S\/?N|Serial\s*Number)\s*:?\s*([A-Z0-9-]+)/i);
         
+        // 2. Extract potential keywords (Words with letters and numbers, length >= 4)
+        const words = extractedText.split(/[\s\n,]+/)
+            .map(w => w.replace(/[^A-Z0-9-]/gi, '').trim())
+            .filter(w => w.length >= 4 && !/^(SERIAL|NUMBER|MODEL|NAME|BRAND|PROPERTY|ASSET|WARRANTY|VOID|MADE|CHINA|VIETNAM)$/i.test(w));
+
+        let searchCandidate = null;
         if (snMatch && snMatch[1]) {
-            const snVal = snMatch[1].trim();
-            window.performDeviceSearch(snVal);
-        } else {
-            // Fallback: search for any string that looks like an SN (5-20 chars, alphanumeric)
-            const genericMatch = extractedText.match(/([A-Z0-9]{6,20})/);
-            if (genericMatch && genericMatch[1]) {
-                window.performDeviceSearch(genericMatch[1].trim());
-            } else {
-                resultsList.innerHTML = `
-                    <div class="bg-orange-50 dark:bg-orange-900/20 p-8 rounded-2xl border border-orange-200 dark:border-orange-800 text-center">
-                        <i class="fas fa-exclamation-circle text-4xl text-orange-500 mb-4"></i>
-                        <p class="text-orange-800 dark:text-orange-200">${t('scan_failed')}</p>
-                        <p class="text-xs text-orange-600 mt-2">Could not clearly identify a Serial Number in the image.</p>
-                    </div>
-                `;
+            searchCandidate = snMatch[1].trim();
+        } else if (words.length > 0) {
+            // Pick the longest word as the best candidate for keyword search
+            searchCandidate = words.sort((a, b) => b.length - a.length)[0];
+        }
+
+        if (searchCandidate) {
+            console.log("Auto-searching with candidate:", searchCandidate);
+            window.performDeviceSearch(searchCandidate);
+            
+            // If there are other words, show them as suggested keywords below the result
+            if (words.length > 1) {
+                setTimeout(() => {
+                    const resultsArea = document.getElementById('searchResultsArea');
+                    const suggestions = words.filter(w => w !== searchCandidate).slice(0, 5);
+                    if (suggestions.length > 0) {
+                        const sugHtml = `
+                            <div class="mt-4 p-3 bg-gray-50 dark:bg-gray-800/50 rounded-xl border border-dashed border-gray-300 dark:border-gray-600">
+                                <p class="text-[10px] font-bold text-gray-500 uppercase tracking-widest mb-2">Other detected keywords (Click to search):</p>
+                                <div class="flex flex-wrap gap-2">
+                                    ${suggestions.map(s => `<button onclick="window.performDeviceSearch('${s}')" class="px-3 py-1 bg-white dark:bg-gray-700 text-xs font-semibold rounded-full border border-gray-200 dark:border-gray-600 hover:border-indigo-500 dark:hover:border-indigo-400 transition-colors">${s}</button>`).join('')}
+                                </div>
+                            </div>
+                        `;
+                        const list = document.getElementById('searchResultsList');
+                        list.insertAdjacentHTML('beforeend', sugHtml);
+                    }
+                }, 1000);
             }
+        } else {
+            resultsList.innerHTML = `
+                <div class="bg-orange-50 dark:bg-orange-900/20 p-8 rounded-2xl border border-orange-200 dark:border-orange-800 text-center">
+                    <i class="fas fa-exclamation-circle text-4xl text-orange-500 mb-4"></i>
+                    <p class="text-orange-800 dark:text-orange-200">${t('scan_failed')}</p>
+                    <p class="text-xs text-orange-600 mt-2">Could not identify any useful keywords or Serial Numbers in the image.</p>
+                </div>
+            `;
         }
 
     } catch (error) {
