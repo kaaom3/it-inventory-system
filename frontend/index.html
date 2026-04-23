@@ -345,19 +345,9 @@
                 
                 <!-- Tab 1: Details -->
                 <div id="details-tab" class="tab-content active">
-                    
-                    <!-- 🌟 📸 เพิ่มปุ่มแสกนภาพ OCR ไว้ก่อนฟอร์มกรอกข้อมูล -->
-                    <div class="mb-5 flex justify-end">
-                        <button type="button" onclick="document.getElementById('ocrFileInput').click()" class="bg-indigo-100 text-indigo-700 hover:bg-indigo-200 dark:bg-indigo-900/40 dark:text-indigo-400 px-4 py-2.5 rounded-xl font-bold text-sm flex items-center transition shadow-sm border border-indigo-200 dark:border-indigo-800">
-                            <i class="fas fa-camera mr-2 text-lg"></i> <span data-i18n="scan_image">สแกนภาพ (กรอกอัตโนมัติ)</span>
-                        </button>
-                        <!-- input ไฟล์ ที่รองรับการถ่ายรูปบนมือถือ (capture="environment") -->
-                        <input type="file" id="ocrFileInput" accept="image/*" capture="environment" class="hidden" onchange="window.processOCR(this)">
-                    </div>
 
                     <!-- ฟอร์มที่จะถูก JavaScript Inject โค้ดใส่ -->
-                    <form id="editForm" class="space-y-6"></form>
-                    
+                    <form id="editForm" class="space-y-6"></form>                    
                     <!-- 🌟 Disposal Evidence Card -->
                     <div id="disposal-evidence-section" class="hidden mt-6 bg-white dark:bg-gray-800 rounded-xl border border-red-200 dark:border-red-900/50 shadow-sm overflow-hidden">
                         <div class="bg-red-50 dark:bg-red-900/20 px-5 py-3 border-b border-red-200 dark:border-red-900/50 flex items-center">
