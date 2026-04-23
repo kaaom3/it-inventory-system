@@ -1425,18 +1425,17 @@ window.buildSearchScanPage = function() {
                     <h3 class="text-lg font-bold text-gray-800 dark:text-white mb-4">${t('image_search')}</h3>
                     
                     <div class="grid grid-cols-2 gap-3">
-                        <button onclick="document.getElementById('cameraSearchInput').click()" class="flex flex-col items-center justify-center py-4 bg-emerald-600 text-white font-bold rounded-xl hover:bg-emerald-700 transition shadow-sm">
+                        <label class="flex flex-col items-center justify-center py-4 bg-emerald-600 text-white font-bold rounded-xl hover:bg-emerald-700 transition shadow-sm cursor-pointer">
                             <i class="fas fa-camera text-2xl mb-2"></i>
                             <span class="text-xs">Take Photo</span>
-                        </button>
-                        <button onclick="document.getElementById('fileSearchInput').click()" class="flex flex-col items-center justify-center py-4 bg-white dark:bg-gray-700 text-emerald-600 dark:text-emerald-400 font-bold rounded-xl border-2 border-emerald-600 dark:border-emerald-400 hover:bg-emerald-50 dark:hover:bg-emerald-900/20 transition shadow-sm">
+                            <input type="file" accept="image/*" capture="environment" onchange="window.handleImageSearch(this)" class="absolute opacity-0 w-1 h-1">
+                        </label>
+                        <label class="flex flex-col items-center justify-center py-4 bg-white dark:bg-gray-700 text-emerald-600 dark:text-emerald-400 font-bold rounded-xl border-2 border-emerald-600 dark:border-emerald-400 hover:bg-emerald-50 dark:hover:bg-emerald-900/20 transition shadow-sm cursor-pointer">
                             <i class="fas fa-images text-2xl mb-2"></i>
                             <span class="text-xs">Choose File</span>
-                        </button>
+                            <input type="file" accept="image/*" onchange="window.handleImageSearch(this)" class="absolute opacity-0 w-1 h-1">
+                        </label>
                     </div>
-                    
-                    <input type="file" id="cameraSearchInput" class="hidden" accept="image/*" capture="environment" onchange="window.handleImageSearch(this)">
-                    <input type="file" id="fileSearchInput" class="hidden" accept="image/*" onchange="window.handleImageSearch(this)">
                 </div>
             </div>
 
