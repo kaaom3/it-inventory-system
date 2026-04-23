@@ -153,7 +153,16 @@ const translations = {
         label_printer: "Label Printer",
         custom_categories: "Custom Categories",
         assets: "Assets",
-        management: "Management"
+        management: "Management",
+        search_scan: "Search & Scan",
+        quick_search: "Quick Search",
+        image_search: "Search from Image",
+        search_placeholder: "Enter SN, Computer Name, or IP...",
+        scanning_image: "Analyzing image for SN/Model...",
+        found_device: "Device Found!",
+        no_device_found: "No device found with this information.",
+        go_to_device: "View Device Details",
+        search_results: "Search Results"
     },
     th: {
         app_title: "ระบบคลังอุปกรณ์",
@@ -299,7 +308,16 @@ const translations = {
         label_printer: "พิมพ์ฉลาก (Label)",
         custom_categories: "จัดการหมวดหมู่ (Custom)",
         assets: "ทรัพย์สิน",
-        management: "การจัดการ"
+        management: "การจัดการ",
+        search_scan: "ค้นหาและสแกน",
+        quick_search: "ค้นหาด่วน",
+        image_search: "ค้นหาจากรูปภาพ",
+        search_placeholder: "ระบุ SN, ชื่อเครื่อง, หรือ IP...",
+        scanning_image: "กำลังวิเคราะห์รูปภาพเพื่อหา SN/Model...",
+        found_device: "พบอุปกรณ์ในระบบ!",
+        no_device_found: "ไม่พบข้อมูลอุปกรณ์นี้ในระบบ",
+        go_to_device: "ดูรายละเอียดอุปกรณ์",
+        search_results: "ผลการค้นหา"
     }
 };
 
@@ -703,6 +721,7 @@ function renderSidebarDynamic() {
     const container = document.getElementById('sidebar-menu-container');
     if (!container) return; container.innerHTML = ''; 
     const dashboardNode = { id: 'Dashboard', name: t('dashboard'), icon: 'fa-tachometer-alt', children: [], isSystem: true, clickAction: "window.loadPage('Dashboard', this)" };
+    const searchScanNode = { id: 'SearchScan', name: t('search_scan'), icon: 'fa-search-plus', children: [], isSystem: true, clickAction: "window.loadPage('SearchScan', this)" };
     const assetChildren = [
         { id: 'Computers', name: t('computers'), icon: 'fa-laptop', isSystem: true, clickAction: "window.loadPage('Computers', this)" },
         { id: 'Monitors', name: t('monitors'), icon: 'fa-desktop', isSystem: true, clickAction: "window.loadPage('Monitors', this)" },
@@ -718,7 +737,7 @@ function renderSidebarDynamic() {
     const customNodes = customMenus.filter(m => collectionConfigs[m.name] && !['Computers','Monitors','Printers','Network'].includes(m.name)).sort((a, b) => (a.order || 0) - (b.order || 0) || a.displayName.localeCompare(b.displayName)).map(m => ({ id: m.name, name: m.displayName, icon: m.icon, isSystem: false, parentId: m.parentId, clickAction: `window.loadPage('${m.name}', this)`, allowDelete: true, allowEdit: true, order: m.order }));
     const allKnown = ['Computers', 'Monitors', 'Printers', 'Network', ...customNodes.map(n => n.id)];
     Object.keys(collectionConfigs).forEach(key => { if (!allKnown.includes(key)) customNodes.push({ id: key, name: collectionConfigs[key].displayName, icon: 'fa-box', isSystem: false, parentId: null, clickAction: `window.loadPage('${key}', this)`, allowDelete: false, allowEdit: true, order: 99 }); });
-    const rootNodes = [dashboardNode, { type: 'header', label: t('assets') }, ...assetChildren, ...customNodes.filter(n => !n.parentId), { type: 'header', label: t('management') }, ...managementChildren];
+    const rootNodes = [dashboardNode, searchScanNode, { type: 'header', label: t('assets') }, ...assetChildren, ...customNodes.filter(n => !n.parentId), { type: 'header', label: t('management') }, ...managementChildren];
     const nodeMap = {}; [...rootNodes, ...customNodes].forEach(n => { if(n.id) nodeMap[n.id] = n; });
     customNodes.forEach(node => { if (node.parentId && nodeMap[node.parentId]) { if (!nodeMap[node.parentId].children) nodeMap[node.parentId].children = []; if (!nodeMap[node.parentId].children.find(c => c.id === node.id)) { nodeMap[node.parentId].children.push(node); nodeMap[node.parentId].children.sort((a, b) => (a.order || 0) - (b.order || 0) || a.name.localeCompare(b.name)); } } });
 
@@ -1368,4 +1387,226 @@ window.processMove = async function() {
     const sourceCollection = document.getElementById('moveSourceCollection').value; const sourceId = document.getElementById('moveSourceId').value; const targetCollection = document.getElementById('moveTargetCollection').value;
     if (!targetCollection) return showNotificationModal('warning', 'ข้อมูลไม่ครบ', 'กรุณาเลือกหมวดหมู่ปลายทาง');
     if (confirm(`คุณแน่ใจหรือไม่ที่จะย้ายอุปกรณ์นี้ไปยังหมวดหมู่ ${collectionConfigs[targetCollection]?.displayName || targetCollection} ?`)) { try { await apiRequest(`/api/inventory/${sourceCollection}/move`, 'POST', { targetCollection: targetCollection, id: sourceId }); showNotificationModal('success', 'ย้ายสำเร็จ', `ย้ายอุปกรณ์ไปยังหมวดหมู่ ${collectionConfigs[targetCollection]?.displayName || targetCollection} เรียบร้อยแล้ว`); window.hideModal('moveModal'); await refreshAllData(); window.buildTable(sourceCollection); window.updateDashboard(currentDashboardFolder); } catch (error) { showNotificationModal('warning', 'การย้ายล้มเหลว', error.message); } }
+};
+
+window.buildSearchScanPage = function() {
+    const pageId = 'searchscan-page'; let pageDiv = document.getElementById(pageId);
+    if (!pageDiv) {
+        pageDiv = document.createElement('div'); pageDiv.id = pageId; pageDiv.className = 'page-content hidden';
+        document.getElementById('dynamic-pages-container').appendChild(pageDiv);
+    }
+    pageDiv.innerHTML = `
+        <div class="max-w-4xl mx-auto">
+            <div class="mb-8 text-center">
+                <h2 class="text-3xl font-extrabold text-gray-900 dark:text-white mb-2">${t('search_scan')}</h2>
+                <p class="text-gray-500 dark:text-gray-400">Search for devices using Serial Number or Image Recognition</p>
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
+                <!-- Manual Search -->
+                <div class="bg-white dark:bg-gray-800 p-6 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700">
+                    <div class="w-12 h-12 bg-indigo-100 dark:bg-indigo-900/50 rounded-xl flex items-center justify-center text-indigo-600 dark:text-indigo-400 mb-4">
+                        <i class="fas fa-search text-xl"></i>
+                    </div>
+                    <h3 class="text-lg font-bold text-gray-800 dark:text-white mb-2">${t('quick_search')}</h3>
+                    <div class="relative">
+                        <input type="text" id="quickSearchInput" onkeypress="if(event.key==='Enter') window.handleManualQuickSearch()" class="w-full pl-4 pr-12 py-3 bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none dark:text-white" placeholder="${t('search_placeholder')}">
+                        <button onclick="window.handleManualQuickSearch()" class="absolute right-2 top-2 w-8 h-8 flex items-center justify-center bg-indigo-600 text-white rounded-lg hover:bg-indigo-700">
+                            <i class="fas fa-arrow-right"></i>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Image Search -->
+                <div class="bg-white dark:bg-gray-800 p-6 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700">
+                    <div class="w-12 h-12 bg-emerald-100 dark:bg-emerald-900/50 rounded-xl flex items-center justify-center text-emerald-600 dark:text-emerald-400 mb-4">
+                        <i class="fas fa-camera text-xl"></i>
+                    </div>
+                    <h3 class="text-lg font-bold text-gray-800 dark:text-white mb-2">${t('image_search')}</h3>
+                    <button onclick="document.getElementById('imageSearchInput').click()" class="w-full py-3 bg-emerald-600 text-white font-bold rounded-xl hover:bg-emerald-700 transition shadow-sm flex items-center justify-center">
+                        <i class="fas fa-upload mr-2"></i> Upload or Take Photo
+                    </button>
+                    <input type="file" id="imageSearchInput" class="hidden" accept="image/*" onchange="window.handleImageSearch(this)">
+                </div>
+            </div>
+
+            <!-- Results Area -->
+            <div id="searchResultsArea" class="hidden space-y-4">
+                <h4 class="text-xs font-bold text-gray-500 uppercase tracking-widest px-2">${t('search_results')}</h4>
+                <div id="searchResultsList"></div>
+            </div>
+
+            <div id="searchEmptyState" class="py-20 text-center text-gray-400">
+                <i class="fas fa-search-plus text-6xl mb-4 opacity-20"></i>
+                <p>Ready to search for your assets</p>
+            </div>
+        </div>
+    `;
+};
+
+// Override original loadPage to handle SearchScan
+const originalLoadPage = window.loadPage;
+window.loadPage = function(pageName, navElement) {
+    if (pageName === 'SearchScan') {
+        window.buildSearchScanPage();
+    }
+    originalLoadPage(pageName, navElement);
+    if (pageName === 'SearchScan') {
+        document.getElementById('searchscan-page').classList.remove('hidden');
+        document.getElementById('searchscan-page').classList.add('active');
+        document.getElementById('searchscan-page').style.display = 'block';
+    }
+};
+
+window.handleManualQuickSearch = async function() {
+    const input = document.getElementById('quickSearchInput');
+    const term = input.value.trim();
+    if (!term) return;
+
+    window.performDeviceSearch(term);
+};
+
+window.handleImageSearch = async function(inputElement) {
+    if (!inputElement.files || inputElement.files.length === 0) return;
+    const file = inputElement.files[0];
+
+    // Show loading UI
+    const resultsList = document.getElementById('searchResultsList');
+    const resultsArea = document.getElementById('searchResultsArea');
+    const emptyState = document.getElementById('searchEmptyState');
+    
+    emptyState.classList.add('hidden');
+    resultsArea.classList.remove('hidden');
+    resultsList.innerHTML = `
+        <div class="bg-white dark:bg-gray-800 p-8 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 text-center">
+            <i class="fas fa-spinner fa-spin text-4xl text-indigo-500 mb-4"></i>
+            <p class="text-gray-600 dark:text-gray-300">${t('scanning_image')}</p>
+        </div>
+    `;
+
+    try {
+        const worker = await Tesseract.createWorker('eng');
+        const ret = await worker.recognize(file);
+        const extractedText = ret.data.text;
+        await worker.terminate();
+
+        console.log("Image Search OCR Result:\n", extractedText);
+
+        // Extract SN (same regex as OCR auto-fill)
+        const snMatch = extractedText.match(/(?:S\/?N|Serial\s*Number)\s*:?\s*([A-Z0-9]+)/i) || extractedText.match(/([A-Z0-9]{5,20})/);
+        
+        if (snMatch && snMatch[1]) {
+            const snVal = snMatch[1].trim();
+            window.performDeviceSearch(snVal);
+        } else {
+            resultsList.innerHTML = `
+                <div class="bg-orange-50 dark:bg-orange-900/20 p-8 rounded-2xl border border-orange-200 dark:border-orange-800 text-center">
+                    <i class="fas fa-exclamation-circle text-4xl text-orange-500 mb-4"></i>
+                    <p class="text-orange-800 dark:text-orange-200">${t('scan_failed')}</p>
+                    <p class="text-xs text-orange-600 mt-2">Could not clearly identify a Serial Number in the image.</p>
+                </div>
+            `;
+        }
+
+    } catch (error) {
+        console.error("Image Search Error:", error);
+        resultsList.innerHTML = `<div class="p-8 text-center text-red-500">Error: ${error.message}</div>`;
+    }
+    inputElement.value = '';
+};
+
+window.performDeviceSearch = async function(term) {
+    const resultsList = document.getElementById('searchResultsList');
+    const resultsArea = document.getElementById('searchResultsArea');
+    const emptyState = document.getElementById('searchEmptyState');
+
+    emptyState.classList.add('hidden');
+    resultsArea.classList.remove('hidden');
+    resultsList.innerHTML = `<div class="text-center py-10"><i class="fas fa-spinner fa-spin text-indigo-500"></i> Searching...</div>`;
+
+    try {
+        // Try direct find by SN first
+        const res = await fetch(`${API_BASE_URL}/api/inventory/find/${term}`);
+        
+        if (res.ok) {
+            const data = await res.json();
+            window.renderSearchResult(data.item, data.collectionName);
+        } else {
+            // If not found by direct SN, maybe it's partial or something else
+            // For now, let's just show not found if direct SN fails
+            resultsList.innerHTML = `
+                <div class="bg-white dark:bg-gray-800 p-8 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 text-center">
+                    <i class="fas fa-search text-4xl text-gray-300 mb-4"></i>
+                    <p class="text-gray-500 dark:text-gray-400">${t('no_device_found')}</p>
+                </div>
+            `;
+        }
+    } catch (error) {
+        console.error("Search Error:", error);
+        resultsList.innerHTML = `<div class="p-8 text-center text-red-500">Error: ${error.message}</div>`;
+    }
+};
+
+window.renderSearchResult = function(item, collectionName) {
+    const resultsList = document.getElementById('searchResultsList');
+    const config = collectionConfigs[collectionName];
+    const name = item.ComputerName || item.DeviceName || item.ItemName || item.Model || 'Asset';
+    const sn = item.SerialNumber || item.MonitorSerial || 'N/A';
+    const status = item.Status || 'Unknown';
+    const translatedStatus = t(status.toLowerCase().replace(' ', '_')) || status;
+    const catName = config ? config.displayName : collectionName;
+    const translatedCat = config && !config.isCustom ? t(collectionName.toLowerCase()) : catName;
+
+    let statusColor = 'gray';
+    if (status === 'Active') statusColor = 'green';
+    else if (status === 'On Loan') statusColor = 'yellow';
+    else if (status === 'Storage') statusColor = 'blue';
+    else if (status === 'Repair') statusColor = 'orange';
+
+    resultsList.innerHTML = `
+        <div class="bg-white dark:bg-gray-800 p-6 rounded-2xl shadow-lg border border-indigo-100 dark:border-indigo-900/50 transform transition hover:scale-[1.01]">
+            <div class="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+                <div class="flex items-center space-x-4">
+                    <div class="w-16 h-16 bg-indigo-50 dark:bg-indigo-900/30 rounded-2xl flex items-center justify-center text-indigo-600 dark:text-indigo-400">
+                        <i class="fas ${config ? config.icon : 'fa-box'} text-3xl"></i>
+                    </div>
+                    <div>
+                        <div class="flex items-center space-x-2 mb-1">
+                            <span class="px-2 py-0.5 bg-indigo-100 dark:bg-indigo-900/50 text-indigo-700 dark:text-indigo-300 text-[10px] font-black rounded uppercase tracking-widest">${translatedCat}</span>
+                            <span class="px-2 py-0.5 bg-${statusColor}-100 dark:bg-${statusColor}-900/50 text-${statusColor}-700 dark:text-${statusColor}-300 text-[10px] font-black rounded uppercase tracking-widest">${translatedStatus}</span>
+                        </div>
+                        <h3 class="text-xl font-black text-gray-900 dark:text-white">${name}</h3>
+                        <p class="text-sm font-mono text-gray-500 dark:text-gray-400">SN: ${sn}</p>
+                    </div>
+                </div>
+                <div class="flex space-x-2 w-full md:w-auto">
+                    <button onclick="window.location.href='details.html?sn=${sn}'" class="flex-1 md:flex-none px-6 py-3 bg-indigo-600 text-white font-bold rounded-xl hover:bg-indigo-700 shadow-md flex items-center justify-center">
+                        <i class="fas fa-external-link-alt mr-2"></i> ${t('go_to_device')}
+                    </button>
+                    <button onclick="window.loadPage('${collectionName}'); setTimeout(() => window.openModal('edit', '${collectionName}', '${item._id || item.id}'), 100)" class="flex-1 md:flex-none px-6 py-3 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200 font-bold rounded-xl hover:bg-gray-200 dark:hover:bg-gray-600">
+                        <i class="fas fa-edit mr-2"></i> Edit
+                    </button>
+                </div>
+            </div>
+            
+            <div class="mt-6 grid grid-cols-2 md:grid-cols-4 gap-4 pt-6 border-t dark:border-gray-700">
+                <div>
+                    <p class="text-[10px] text-gray-400 font-bold uppercase tracking-widest mb-1">User</p>
+                    <p class="text-sm font-bold dark:text-white">${item.UserName || '-'}</p>
+                </div>
+                <div>
+                    <p class="text-[10px] text-gray-400 font-bold uppercase tracking-widest mb-1">Location</p>
+                    <p class="text-sm font-bold dark:text-white">${item.Location || '-'}</p>
+                </div>
+                <div>
+                    <p class="text-[10px] text-gray-400 font-bold uppercase tracking-widest mb-1">IP Address</p>
+                    <p class="text-sm font-bold dark:text-white">${item.IPAddress || '-'}</p>
+                </div>
+                <div>
+                    <p class="text-[10px] text-gray-400 font-bold uppercase tracking-widest mb-1">Last Seen</p>
+                    <p class="text-sm font-bold dark:text-white">${window.formatTimeAgo(item.lastSeenOnline)}</p>
+                </div>
+            </div>
+        </div>
+    `;
 };
