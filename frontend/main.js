@@ -1422,11 +1422,21 @@ window.buildSearchScanPage = function() {
                     <div class="w-12 h-12 bg-emerald-100 dark:bg-emerald-900/50 rounded-xl flex items-center justify-center text-emerald-600 dark:text-emerald-400 mb-4">
                         <i class="fas fa-camera text-xl"></i>
                     </div>
-                    <h3 class="text-lg font-bold text-gray-800 dark:text-white mb-2">${t('image_search')}</h3>
-                    <button onclick="document.getElementById('imageSearchInput').click()" class="w-full py-3 bg-emerald-600 text-white font-bold rounded-xl hover:bg-emerald-700 transition shadow-sm flex items-center justify-center">
-                        <i class="fas fa-upload mr-2"></i> Upload or Take Photo
-                    </button>
-                    <input type="file" id="imageSearchInput" class="hidden" accept="image/*" onchange="window.handleImageSearch(this)">
+                    <h3 class="text-lg font-bold text-gray-800 dark:text-white mb-4">${t('image_search')}</h3>
+                    
+                    <div class="grid grid-cols-2 gap-3">
+                        <button onclick="document.getElementById('cameraSearchInput').click()" class="flex flex-col items-center justify-center py-4 bg-emerald-600 text-white font-bold rounded-xl hover:bg-emerald-700 transition shadow-sm">
+                            <i class="fas fa-camera text-2xl mb-2"></i>
+                            <span class="text-xs">Take Photo</span>
+                        </button>
+                        <button onclick="document.getElementById('fileSearchInput').click()" class="flex flex-col items-center justify-center py-4 bg-white dark:bg-gray-700 text-emerald-600 dark:text-emerald-400 font-bold rounded-xl border-2 border-emerald-600 dark:border-emerald-400 hover:bg-emerald-50 dark:hover:bg-emerald-900/20 transition shadow-sm">
+                            <i class="fas fa-images text-2xl mb-2"></i>
+                            <span class="text-xs">Choose File</span>
+                        </button>
+                    </div>
+                    
+                    <input type="file" id="cameraSearchInput" class="hidden" accept="image/*" capture="environment" onchange="window.handleImageSearch(this)">
+                    <input type="file" id="fileSearchInput" class="hidden" accept="image/*" onchange="window.handleImageSearch(this)">
                 </div>
             </div>
 
