@@ -1531,21 +1531,27 @@ window.performDeviceSearch = async function(term) {
     resultsList.innerHTML = `<div class="text-center py-10"><i class="fas fa-spinner fa-spin text-indigo-500"></i> Searching...</div>`;
 
     try {
-        // Try direct find by SN first
-        const res = await fetch(`${API_BASE_URL}/api/inventory/find/${term}`);
+        // Try partial keyword search first
+        const res = await fetch(`${API_BASE_URL}/api/inventory/search/all?q=${encodeURIComponent(term)}`);
         
         if (res.ok) {
-            const data = await res.json();
-            window.renderSearchResult(data.item, data.collectionName);
+            const results = await res.json();
+            if (results && results.length > 0) {
+                resultsList.innerHTML = '';
+                results.forEach(resItem => {
+                    const cardHtml = window.generateSearchResultCard(resItem.item, resItem.collectionName);
+                    resultsList.insertAdjacentHTML('beforeend', cardHtml);
+                });
+            } else {
+                resultsList.innerHTML = `
+                    <div class="bg-white dark:bg-gray-800 p-8 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 text-center">
+                        <i class="fas fa-search text-4xl text-gray-300 mb-4"></i>
+                        <p class="text-gray-500 dark:text-gray-400">${t('no_device_found')}</p>
+                    </div>
+                `;
+            }
         } else {
-            // If not found by direct SN, maybe it's partial or something else
-            // For now, let's just show not found if direct SN fails
-            resultsList.innerHTML = `
-                <div class="bg-white dark:bg-gray-800 p-8 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 text-center">
-                    <i class="fas fa-search text-4xl text-gray-300 mb-4"></i>
-                    <p class="text-gray-500 dark:text-gray-400">${t('no_device_found')}</p>
-                </div>
-            `;
+            throw new Error("Search failed");
         }
     } catch (error) {
         console.error("Search Error:", error);
@@ -1553,10 +1559,9 @@ window.performDeviceSearch = async function(term) {
     }
 };
 
-window.renderSearchResult = function(item, collectionName) {
-    const resultsList = document.getElementById('searchResultsList');
+window.generateSearchResultCard = function(item, collectionName) {
     const config = collectionConfigs[collectionName];
-    const name = item.ComputerName || item.DeviceName || item.ItemName || item.Model || 'Asset';
+    const name = item.ComputerName || item.DeviceName || item.ItemName || item.Name || item.Model || 'Asset';
     const sn = item.SerialNumber || item.MonitorSerial || 'N/A';
     const status = item.Status || 'Unknown';
     const translatedStatus = t(status.toLowerCase().replace(' ', '_')) || status;
@@ -1569,50 +1574,53 @@ window.renderSearchResult = function(item, collectionName) {
     else if (status === 'Storage') statusColor = 'blue';
     else if (status === 'Repair') statusColor = 'orange';
 
-    resultsList.innerHTML = `
-        <div class="bg-white dark:bg-gray-800 p-6 rounded-2xl shadow-lg border border-indigo-100 dark:border-indigo-900/50 transform transition hover:scale-[1.01]">
+    return `
+        <div class="bg-white dark:bg-gray-800 p-6 rounded-2xl shadow-md border border-gray-100 dark:border-gray-700 transform transition hover:scale-[1.01] mb-4">
             <div class="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
                 <div class="flex items-center space-x-4">
-                    <div class="w-16 h-16 bg-indigo-50 dark:bg-indigo-900/30 rounded-2xl flex items-center justify-center text-indigo-600 dark:text-indigo-400">
-                        <i class="fas ${config ? config.icon : 'fa-box'} text-3xl"></i>
+                    <div class="w-12 h-12 bg-indigo-50 dark:bg-indigo-900/30 rounded-xl flex items-center justify-center text-indigo-600 dark:text-indigo-400">
+                        <i class="fas ${config ? config.icon : 'fa-box'} text-2xl"></i>
                     </div>
                     <div>
                         <div class="flex items-center space-x-2 mb-1">
-                            <span class="px-2 py-0.5 bg-indigo-100 dark:bg-indigo-900/50 text-indigo-700 dark:text-indigo-300 text-[10px] font-black rounded uppercase tracking-widest">${translatedCat}</span>
-                            <span class="px-2 py-0.5 bg-${statusColor}-100 dark:bg-${statusColor}-900/50 text-${statusColor}-700 dark:text-${statusColor}-300 text-[10px] font-black rounded uppercase tracking-widest">${translatedStatus}</span>
+                            <span class="px-2 py-0.5 bg-indigo-100 dark:bg-indigo-900/50 text-indigo-700 dark:text-indigo-300 text-[9px] font-bold rounded uppercase tracking-widest">${translatedCat}</span>
+                            <span class="px-2 py-0.5 bg-${statusColor}-100 dark:bg-${statusColor}-900/50 text-${statusColor}-700 dark:text-${statusColor}-300 text-[9px] font-bold rounded uppercase tracking-widest">${translatedStatus}</span>
                         </div>
-                        <h3 class="text-xl font-black text-gray-900 dark:text-white">${name}</h3>
-                        <p class="text-sm font-mono text-gray-500 dark:text-gray-400">SN: ${sn}</p>
+                        <h3 class="text-lg font-bold text-gray-900 dark:text-white">${name}</h3>
+                        <p class="text-xs font-mono text-gray-500 dark:text-gray-400">SN: ${sn}</p>
                     </div>
                 </div>
                 <div class="flex space-x-2 w-full md:w-auto">
-                    <button onclick="window.location.href='details.html?sn=${sn}'" class="flex-1 md:flex-none px-6 py-3 bg-indigo-600 text-white font-bold rounded-xl hover:bg-indigo-700 shadow-md flex items-center justify-center">
+                    <button onclick="window.location.href='details.html?sn=${sn}'" class="flex-1 md:flex-none px-4 py-2 bg-indigo-600 text-white text-sm font-bold rounded-lg hover:bg-indigo-700 shadow-sm flex items-center justify-center">
                         <i class="fas fa-external-link-alt mr-2"></i> ${t('go_to_device')}
                     </button>
-                    <button onclick="window.loadPage('${collectionName}'); setTimeout(() => window.openModal('edit', '${collectionName}', '${item._id || item.id}'), 100)" class="flex-1 md:flex-none px-6 py-3 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200 font-bold rounded-xl hover:bg-gray-200 dark:hover:bg-gray-600">
+                    <button onclick="window.loadPage('${collectionName}'); setTimeout(() => window.openModal('edit', '${collectionName}', '${item._id || item.id}'), 100)" class="flex-1 md:flex-none px-4 py-2 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200 text-sm font-bold rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600">
                         <i class="fas fa-edit mr-2"></i> Edit
                     </button>
                 </div>
             </div>
-            
-            <div class="mt-6 grid grid-cols-2 md:grid-cols-4 gap-4 pt-6 border-t dark:border-gray-700">
+            <div class="mt-4 grid grid-cols-2 md:grid-cols-4 gap-4 pt-4 border-t dark:border-gray-700">
                 <div>
-                    <p class="text-[10px] text-gray-400 font-bold uppercase tracking-widest mb-1">User</p>
-                    <p class="text-sm font-bold dark:text-white">${item.UserName || '-'}</p>
+                    <p class="text-[9px] text-gray-400 font-bold uppercase tracking-widest mb-0.5">User</p>
+                    <p class="text-xs font-bold dark:text-white truncate">${item.UserName || '-'}</p>
                 </div>
                 <div>
-                    <p class="text-[10px] text-gray-400 font-bold uppercase tracking-widest mb-1">Location</p>
-                    <p class="text-sm font-bold dark:text-white">${item.Location || '-'}</p>
+                    <p class="text-[9px] text-gray-400 font-bold uppercase tracking-widest mb-0.5">Location</p>
+                    <p class="text-xs font-bold dark:text-white truncate">${item.Location || '-'}</p>
                 </div>
                 <div>
-                    <p class="text-[10px] text-gray-400 font-bold uppercase tracking-widest mb-1">IP Address</p>
-                    <p class="text-sm font-bold dark:text-white">${item.IPAddress || '-'}</p>
+                    <p class="text-[9px] text-gray-400 font-bold uppercase tracking-widest mb-0.5">IP Address</p>
+                    <p class="text-xs font-bold dark:text-white truncate">${item.IPAddress || '-'}</p>
                 </div>
                 <div>
-                    <p class="text-[10px] text-gray-400 font-bold uppercase tracking-widest mb-1">Last Seen</p>
-                    <p class="text-sm font-bold dark:text-white">${window.formatTimeAgo(item.lastSeenOnline)}</p>
+                    <p class="text-[9px] text-gray-400 font-bold uppercase tracking-widest mb-0.5">Last Seen</p>
+                    <p class="text-xs font-bold dark:text-white">${window.formatTimeAgo(item.lastSeenOnline)}</p>
                 </div>
             </div>
         </div>
     `;
+};
+
+window.renderSearchResult = function(item, collectionName) {
+    // This function is now deprecated in favor of generateSearchResultCard used in performDeviceSearch
 };

@@ -567,6 +567,45 @@ app.delete('/api/inventory/:collection/:id', verifyToken, async (req, res) => {
     } catch (error) { res.status(500).json({ message: error.message }); }
 });
 
+app.get('/api/inventory/search/all', async (req, res) => {
+    if (!db) return res.status(500).json({ message: "Database not connected" });
+    try {
+        const query = req.query.q;
+        if (!query) return res.json([]);
+
+        const collections = await db.listCollections().toArray();
+        let results = [];
+        const regex = new RegExp(query, 'i'); // Case-insensitive partial match
+
+        for (let col of collections) {
+            const skipKeys = ['admins', 'CustomMenus', 'Staff', 'TransactionHistory', 'LoanHistory', 'Maintenance Log'];
+            if (skipKeys.includes(col.name)) continue;
+
+            const items = await db.collection(col.name).find({
+                $or: [
+                    { SerialNumber: regex },
+                    { MonitorSerial: regex },
+                    { ComputerName: regex },
+                    { DeviceName: regex },
+                    { ItemName: regex },
+                    { Name: regex },
+                    { IPAddress: regex },
+                    { Model: regex },
+                    { UserName: regex },
+                    { Location: regex }
+                ]
+            }).limit(20).toArray();
+
+            items.forEach(item => {
+                results.push({ item, collectionName: col.name });
+            });
+            
+            if (results.length >= 50) break; // Limit total results for performance
+        }
+        res.json(results);
+    } catch (error) { res.status(500).json({ message: error.message }); }
+});
+
 app.get('/api/inventory/find/:sn', async (req, res) => {
     if (!db) return res.status(500).json({ message: "Database not connected" });
     try {
