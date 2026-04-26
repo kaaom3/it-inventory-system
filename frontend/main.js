@@ -46,7 +46,6 @@ const translations = {
         handover: "Handover",
         return: "Return",
         loan_history: "Loan History",
-        maintenance_history: "Maintenance Logs",
         assets_by_user: "Assets by User",
         scan_image: "Scan Image (Auto-fill)",
         scanning: "AI is analyzing image...",
@@ -201,7 +200,6 @@ const translations = {
         handover: "ส่งมอบ",
         return: "รับคืน",
         loan_history: "ประวัติการยืม",
-        maintenance_history: "ประวัติการซ่อมบำรุง",
         assets_by_user: "อุปกรณ์แยกตามพนักงาน",
         scan_image: "สแกนภาพ (กรอกอัตโนมัติ)",
         scanning: "AI กำลังวิเคราะห์รูปภาพ...",
@@ -606,7 +604,7 @@ async function refreshAllData() {
                 dropdowns: { Status: ['Active', 'On Loan', 'Repair', 'Storage', 'Damaged', 'Disposed'], Type: ['Desktop', 'Laptop', 'MacBook', 'Tablet', 'POS', 'Server', 'Other'] }, isCustom: true
             };
         });
-        const skipKeys = ['Staff', 'CustomMenus', 'TransactionHistory', 'LoanHistory', 'Maintenance Log', 'admins', 'Accessory'];
+        const skipKeys = ['Staff', 'CustomMenus', 'TransactionHistory', 'LoanHistory', 'admins', 'Accessory'];
         Object.keys(allData).forEach(key => {
             if (!skipKeys.includes(key) && Array.isArray(allData[key]) && !collectionConfigs[key]) {
                 collectionConfigs[key] = {
@@ -730,7 +728,7 @@ function renderSidebarDynamic() {
     ];
     const managementChildren = [
         { id: 'Transactions', name: t('transactions'), icon: 'fa-tasks', isSystem: true, children: [{ id: 'Handover', name: t('handover_return_title'), icon: 'fa-dolly-flatbed', isSystem: true, clickAction: "window.loadPage('Handover', this)" }, { id: 'LoanPage', name: t('loan_page_user'), icon: 'fa-external-link-alt', isSystem: true, clickAction: "window.open('loan.html', '_blank')" }] },
-        { id: 'Reports', name: t('reports'), icon: 'fa-file-alt', isSystem: true, children: [{ id: 'LoanHistory', name: t('loan_history'), icon: 'fa-history', isSystem: true, clickAction: "window.loadPage('LoanHistory', this)" }, { id: 'Maintenance', name: t('maintenance_history'), icon: 'fa-tools', isSystem: true, clickAction: "window.loadPage('Maintenance', this)" }, { id: 'AssetsByUser', name: t('assets_by_user'), icon: 'fa-user-tag', isSystem: true, clickAction: "window.loadPage('AssetsByUser', this)" }, { id: 'DisposedAssets', name: t('disposed_assets'), icon: 'fa-trash-alt', isSystem: true, clickAction: "window.loadPage('DisposedAssets', this)" }] },
+        { id: 'Reports', name: t('reports'), icon: 'fa-file-alt', isSystem: true, children: [{ id: 'LoanHistory', name: t('loan_history'), icon: 'fa-history', isSystem: true, clickAction: "window.loadPage('LoanHistory', this)" }, { id: 'AssetsByUser', name: t('assets_by_user'), icon: 'fa-user-tag', isSystem: true, clickAction: "window.loadPage('AssetsByUser', this)" }, { id: 'DisposedAssets', name: t('disposed_assets'), icon: 'fa-trash-alt', isSystem: true, clickAction: "window.loadPage('DisposedAssets', this)" }] },
         { id: 'UserSettings', name: t('system_settings'), icon: 'fa-cogs', isSystem: true, children: [{ id: 'StaffManagement', name: t('staff_management'), icon: 'fa-users', isSystem: true, clickAction: "window.loadPage('StaffManagement', this)" }, { id: 'AdminManagement', name: t('admin_management'), icon: 'fa-user-shield', isSystem: true, clickAction: "window.loadPage('AdminManagement', this)" }, { id: 'LabelPrinter', name: t('label_printer'), icon: 'fa-tags', isSystem: true, clickAction: "window.loadPage('LabelPrinter', this)" }, { id: 'Settings', name: t('custom_categories'), icon: 'fa-sliders-h', isSystem: true, clickAction: "window.loadPage('Settings', this)" }] }
     ];
     const customMenus = allData.CustomMenus || [];
