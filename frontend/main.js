@@ -1,6 +1,6 @@
 // ===================================================================
 // Frontend Logic for IT Inventory System (Full Complete Version)
-// FEATURES: Bilingual (TH/EN), Auto-fill OCR, Dashboard, Labels, Custom Menus
+// FEATURES: Bilingual (TH/EN), Auto-fill OCR, Dashboard, Labels, Custom Menus, Search
 // ===================================================================
 
 const API_BASE_URL = 'https://it-inventory-system-ncd9.onrender.com';
@@ -139,9 +139,6 @@ const translations = {
         dashboard: "Dashboard",
         computers: "Computers",
         monitors: "Monitors",
-        accessories: "Accessories",
-        keyboards: "Keyboards",
-        mice: "Mice",
         printers: "Printers",
         network: "Network",
         transactions: "Transactions",
@@ -294,9 +291,6 @@ const translations = {
         dashboard: "แผงควบคุม",
         computers: "คอมพิวเตอร์",
         monitors: "หน้าจอ",
-        accessories: "อุปกรณ์เสริม",
-        keyboards: "คีย์บอร์ด",
-        mice: "เมาส์",
         printers: "เครื่องพิมพ์",
         network: "อุปกรณ์เครือข่าย",
         transactions: "การทำรายการ",
@@ -346,7 +340,7 @@ function updateUI() {
     generateDynamicPages();
     
     const activePage = document.querySelector('.page-content.active');
-    if (activePage && activePage.id !== 'dashboard-page') {
+    if (activePage && activePage.id !== 'dashboard-page' && activePage.id !== 'searchscan-page') {
         const colName = activePage.id.replace('-page', '');
         const realKey = Object.keys(collectionConfigs).find(k => k.toLowerCase() === colName);
         if(realKey) window.buildTable(realKey);
@@ -376,6 +370,8 @@ window.processOCR = async function(inputElement) {
         const ret = await worker.recognize(file);
         const extractedText = ret.data.text;
         await worker.terminate();
+
+        console.log("OCR Result:\n", extractedText);
 
         let foundFields = 0;
 
@@ -539,7 +535,7 @@ async function initializeAppLogic() {
         refreshIntervalId = setInterval(async () => { 
             await refreshAllData();
             const visiblePage = document.querySelector('.page-content.active');
-            if (visiblePage && visiblePage.id !== 'dashboard-page') {
+            if (visiblePage && visiblePage.id !== 'dashboard-page' && visiblePage.id !== 'searchscan-page') {
                 const colName = visiblePage.id.replace('-page', '');
                 const realKey = Object.keys(collectionConfigs).find(k => k.toLowerCase() === colName);
                 if(realKey) window.buildTable(realKey);
@@ -1008,7 +1004,8 @@ window.addMaintenanceLog = async function() {
     const deviceSerial = item[config.serialField] || item.SerialNumber || item.MonitorSerial || '-';
     
     try {
-        await apiRequest('/api/inventory/maintenance', 'POST', { 
+        // แก้ไข Endpoint ให้ส่งไปที่ Maintenance Log ตรงๆ เพื่อหลีกเลี่ยงการถูก Route อื่นดักจับ
+        await apiRequest('/api/inventory/Maintenance%20Log', 'POST', { 
             deviceId: itemId, 
             deviceCollection: collection, 
             deviceName: deviceName,
@@ -1325,69 +1322,74 @@ window.deleteAdmin = async function(id) { if(confirm("Delete admin?")) { await a
 
 window.buildMaintenanceLogInModal = function(item) {
     const list = document.getElementById('maintenanceLogList'); if(!list) return; list.innerHTML = '';
+    
     const itemId = String(item._id || item.id || '');
-    if (!itemId) { list.innerHTML = `<p class="text-xs text-gray-500">${t('no_data')}</p>`; return; }
-    const logs = (allData['Maintenance Log'] || []).filter(l => String(l.deviceId) === itemId).sort((a, b) => new Date(b.logDate) - new Date(a.logDate));
-    if(logs.length === 0) { list.innerHTML = `<div class="p-8 text-center text-gray-500"><i class="fas fa-tools mb-2 text-2xl opacity-20"></i><p class="text-xs">${t('no_data')}</p></div>`; return; }
+    if (!itemId) {
+        list.innerHTML = `<p class="text-xs text-gray-500">${t('no_data')}</p>`;
+        return;
+    }
+
+    const logs = (allData['Maintenance Log'] || [])
+        .filter(l => String(l.deviceId) === itemId)
+        .sort((a, b) => new Date(b.logDate) - new Date(a.logDate));
+    
+    if(logs.length === 0) {
+        list.innerHTML = `<div class="p-8 text-center text-gray-500"><i class="fas fa-tools mb-2 text-2xl opacity-20"></i><p class="text-xs">${t('no_data')}</p></div>`;
+        return;
+    }
     
     logs.forEach(l => { 
-        const logId = l._id || l.id;
         const formattedDate = new Date(l.logDate).toLocaleDateString('th-TH', { year: 'numeric', month: 'short', day: 'numeric' });
         const costStr = l.cost ? ` • <span class="text-indigo-600 dark:text-indigo-400 font-bold">฿${parseFloat(l.cost).toLocaleString()}</span>` : '';
         const techStr = l.technician ? `<p class="text-[10px] text-gray-500 mt-1"><i class="fas fa-user-cog mr-1"></i> ${l.technician}</p>` : '';
-        list.innerHTML += `<div class="border-b last:border-0 py-3 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700/30 transition-colors px-1"><div class="flex justify-between items-start mb-1"><p class="text-xs font-bold text-gray-900 dark:text-gray-100">${formattedDate}${costStr}</p><button type="button" onclick="window.deleteMaintenanceLog('${logId}')" class="text-red-400 hover:text-red-600 transition" title="Delete Log"><i class="fas fa-trash-alt text-xs"></i></button></div><p class="text-sm text-gray-600 dark:text-gray-400 leading-relaxed">${l.description}</p>${techStr}</div>`; 
+        
+        list.innerHTML += `
+            <div class="border-b last:border-0 py-3 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700/30 transition-colors px-1">
+                <div class="flex justify-between items-start mb-1">
+                    <p class="text-xs font-bold text-gray-900 dark:text-gray-100">${formattedDate}${costStr}</p>
+                </div>
+                <p class="text-sm text-gray-600 dark:text-gray-400 leading-relaxed">${l.description}</p>
+                ${techStr}
+            </div>`; 
     });
 };
 
 window.addMaintenanceLog = async function() {
-    const { collection, id } = currentEdit; const desc = document.getElementById('newLogDescription').value; const date = document.getElementById('newLogDate').value; const cost = document.getElementById('newLogCost').value; const tech = document.getElementById('newLogTechnician').value;
+    const { collection, id } = currentEdit; 
+    const desc = document.getElementById('newLogDescription').value; 
+    const date = document.getElementById('newLogDate').value; 
+    const cost = document.getElementById('newLogCost').value; 
+    const tech = document.getElementById('newLogTechnician').value;
+    
     if(!desc || !date) return window.showNotificationModal('warning', 'Missing Info', "Date and Description are required");
+    
     const itemId = String(id);
-    const item = (allData[collection] || []).find(i => String(i._id || i.id) === itemId) || {};
-    const config = collectionConfigs[collection] || {};
-    const deviceName = item[config.nameField] || item.ComputerName || item.DeviceName || item.ItemName || item.Model || 'Unknown Device';
-    const deviceSerial = item[config.serialField] || item.SerialNumber || item.MonitorSerial || '-';
+    
     try {
-        await apiRequest('/api/inventory/maintenance', 'POST', { deviceId: itemId, deviceCollection: collection, deviceName: deviceName, deviceSerial: deviceSerial, description: desc, logDate: date, cost: cost, technician: tech });
+        await apiRequest('/api/inventory/maintenance', 'POST', { 
+            deviceId: itemId, 
+            deviceCollection: collection, 
+            description: desc, 
+            logDate: date, 
+            cost: cost, 
+            technician: tech 
+        });
+        
         window.showNotificationModal('success', 'Log Added', "Maintenance record saved successfully.");
-        const form = document.getElementById('maintenanceLogForm'); if(form) form.reset();
+        const form = document.getElementById('maintenanceLogForm');
+        if(form) form.reset();
+        
         await refreshAllData();
         const updatedItem = (allData[collection] || []).find(i => String(i._id || i.id) === itemId);
-        window.buildMaintenanceLogInModal(updatedItem || { _id: itemId });
-    } catch (error) { window.showNotificationModal('warning', 'Error', error.message); }
-};
-
-window.deleteMaintenanceLog = async function(logId) {
-    if(!confirm("Are you sure you want to delete this maintenance log?")) return;
-    try {
-        await apiRequest(`/api/inventory/Maintenance%20Log/${logId}`, 'DELETE');
-        window.showNotificationModal('success', 'Deleted', 'Maintenance log deleted.');
-        await refreshAllData();
-        const { collection, id } = currentEdit;
-        const updatedItem = (allData[collection] || []).find(i => String(i._id || i.id) === String(id));
-        window.buildMaintenanceLogInModal(updatedItem || { _id: id });
-        if(document.getElementById('maintenance-page').classList.contains('active')) window.buildMaintenancePage();
-    } catch(e) { window.showNotificationModal('warning', 'Error', e.message); }
-};
-
-window.buildMaintenancePage = function() {
-    const container = document.getElementById('MaintenanceContainer'); if(!container) return; container.innerHTML = '';
-    const logs = allData['Maintenance Log'] || [];
-    if (logs.length === 0) { container.innerHTML = `<div class="text-center text-gray-500 py-10"><i class="fas fa-tools text-4xl mb-3 opacity-20"></i><p>${t('no_data')}</p></div>`; return; }
-    logs.sort((a,b) => new Date(b.logDate) - new Date(a.logDate)).forEach(log => {
-        let deviceName = log.deviceName || 'Unknown Device'; let deviceSerial = log.deviceSerial || '-'; let config = collectionConfigs[log.deviceCollection];
-        if (!log.deviceName && allData[log.deviceCollection]) {
-            const device = allData[log.deviceCollection].find(d => String(d._id || d.id) === String(log.deviceId));
-            if (device) { deviceName = device[config?.nameField] || device.ComputerName || device.DeviceName || device.ItemName || device.Model || 'Unknown Device'; deviceSerial = device[config?.serialField] || device.SerialNumber || device.MonitorSerial || '-'; }
+        if(updatedItem) {
+            window.buildMaintenanceLogInModal(updatedItem);
+        } else {
+            window.buildMaintenanceLogInModal({ _id: itemId });
         }
-        const catName = config ? config.displayName : log.deviceCollection;
-        container.innerHTML += `<div class="bg-white dark:bg-gray-800 p-5 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700 mb-3 hover:shadow-md transition relative"><button onclick="window.deleteMaintenanceLogFromGlobal('${log._id || log.id}')" class="absolute top-4 right-4 text-red-400 hover:text-red-600 transition" title="Delete Log"><i class="fas fa-trash-alt"></i></button><div class="flex justify-between items-start mb-2 pr-6"><div><span class="px-2 py-0.5 bg-indigo-100 dark:bg-indigo-900/50 text-indigo-700 dark:text-indigo-400 text-[10px] font-bold rounded uppercase tracking-wider mb-1 inline-block">${catName}</span><h3 class="font-bold text-gray-800 dark:text-white text-lg">${deviceName} <span class="text-xs text-gray-500 font-normal ml-2">SN: ${deviceSerial}</span></h3></div></div><span class="text-sm font-semibold text-gray-500 bg-gray-100 dark:bg-gray-700 px-3 py-1 rounded-lg inline-block mb-3"><i class="far fa-calendar-alt mr-1"></i> ${new Date(log.logDate).toLocaleDateString('th-TH')}</span><p class="text-gray-600 dark:text-gray-300 bg-gray-50 dark:bg-gray-900/50 p-3 rounded-lg border border-gray-100 dark:border-gray-700 text-sm">${log.description}</p><div class="mt-3 flex items-center justify-between"><div class="flex items-center space-x-4"><span class="text-xs text-gray-500 font-medium flex items-center"><i class="fas fa-user-cog mr-1.5 text-indigo-400"></i> ${log.technician || 'ไม่ระบุช่าง'}</span></div><span class="text-sm font-bold text-green-600 dark:text-green-400 bg-green-50 dark:bg-green-900/20 px-3 py-1 rounded-lg">฿ ${log.cost ? parseFloat(log.cost).toLocaleString() : '0'}</span></div></div>`;
-    });
-};
-
-window.deleteMaintenanceLogFromGlobal = async function(logId) {
-    if(!confirm("Are you sure you want to delete this maintenance log?")) return;
-    try { await apiRequest(`/api/inventory/Maintenance%20Log/${logId}`, 'DELETE'); window.showNotificationModal('success', 'Deleted', 'Maintenance log deleted.'); await refreshAllData(); window.buildMaintenancePage(); } catch(e) { window.showNotificationModal('warning', 'Error', e.message); }
+        
+    } catch (error) {
+        window.showNotificationModal('warning', 'Error', error.message);
+    }
 };
 
 window.openImportModal = function(collectionName) {
