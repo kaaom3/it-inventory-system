@@ -278,3 +278,22 @@ body {
 #AssetsByUserContainer .card-modern details summary i.fa-chevron-down {
   transition: transform 0.3s ease;
 }
+
+/* Maintenance Page Styles */
+.maintenance-card {
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+.maintenance-card:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 12px 20px -5px rgba(0, 0, 0, 0.1);
+}
+
+.maintenance-status-badge {
+  padding: 0.25rem 0.75rem;
+  border-radius: 9999px;
+  font-size: 0.7rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+

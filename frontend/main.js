@@ -728,7 +728,7 @@ function renderSidebarDynamic() {
     ];
     const managementChildren = [
         { id: 'Transactions', name: t('transactions'), icon: 'fa-tasks', isSystem: true, children: [{ id: 'Handover', name: t('handover_return_title'), icon: 'fa-dolly-flatbed', isSystem: true, clickAction: "window.loadPage('Handover', this)" }, { id: 'LoanPage', name: t('loan_page_user'), icon: 'fa-external-link-alt', isSystem: true, clickAction: "window.open('loan.html', '_blank')" }] },
-        { id: 'Reports', name: t('reports'), icon: 'fa-file-alt', isSystem: true, children: [{ id: 'LoanHistory', name: t('loan_history'), icon: 'fa-history', isSystem: true, clickAction: "window.loadPage('LoanHistory', this)" }, { id: 'AssetsByUser', name: t('assets_by_user'), icon: 'fa-user-tag', isSystem: true, clickAction: "window.loadPage('AssetsByUser', this)" }, { id: 'DisposedAssets', name: t('disposed_assets'), icon: 'fa-trash-alt', isSystem: true, clickAction: "window.loadPage('DisposedAssets', this)" }] },
+        { id: 'Reports', name: t('reports'), icon: 'fa-file-alt', isSystem: true, children: [{ id: 'LoanHistory', name: t('loan_history'), icon: 'fa-history', isSystem: true, clickAction: "window.loadPage('LoanHistory', this)" }, { id: 'Maintenance', name: t('maintenance_management'), icon: 'fa-tools', isSystem: true, clickAction: "window.loadPage('Maintenance', this)" }, { id: 'AssetsByUser', name: t('assets_by_user'), icon: 'fa-user-tag', isSystem: true, clickAction: "window.loadPage('AssetsByUser', this)" }, { id: 'DisposedAssets', name: t('disposed_assets'), icon: 'fa-trash-alt', isSystem: true, clickAction: "window.loadPage('DisposedAssets', this)" }] },
         { id: 'UserSettings', name: t('system_settings'), icon: 'fa-cogs', isSystem: true, children: [{ id: 'StaffManagement', name: t('staff_management'), icon: 'fa-users', isSystem: true, clickAction: "window.loadPage('StaffManagement', this)" }, { id: 'AdminManagement', name: t('admin_management'), icon: 'fa-user-shield', isSystem: true, clickAction: "window.loadPage('AdminManagement', this)" }, { id: 'LabelPrinter', name: t('label_printer'), icon: 'fa-tags', isSystem: true, clickAction: "window.loadPage('LabelPrinter', this)" }, { id: 'Settings', name: t('custom_categories'), icon: 'fa-sliders-h', isSystem: true, clickAction: "window.loadPage('Settings', this)" }] }
     ];
     const customMenus = allData.CustomMenus || [];
@@ -1184,14 +1184,67 @@ window.deleteAdmin = async function(id) { if(confirm("Delete admin?")) { await a
 window.buildMaintenanceLogInModal = function(item) {
     const list = document.getElementById('maintenanceLogList'); if(!list) return; list.innerHTML = '';
     const logs = (allData['Maintenance Log'] || []).filter(l => l.deviceId === item._id || l.deviceId === item.id);
-    if(logs.length === 0) list.innerHTML = `<p class="text-xs text-gray-500">${t('no_data')}</p>`;
-    logs.forEach(l => { list.innerHTML += `<div class="border-b py-2 dark:border-gray-700"><p class="text-sm font-semibold dark:text-gray-200">${new Date(l.logDate).toLocaleDateString()}</p><p class="text-sm dark:text-gray-400">${l.description}</p></div>`; });
+    
+    if(logs.length === 0) {
+        list.innerHTML = `<div class="text-center py-6 text-gray-400 italic text-sm">No maintenance history found for this device.</div>`;
+        return;
+    }
+
+    list.innerHTML = logs.sort((a,b) => new Date(b.logDate || b.Timestamp) - new Date(a.logDate || a.Timestamp)).map(l => {
+        const status = l.Status || 'Completed';
+        let statusColor = 'text-green-600 bg-green-50';
+        if (status === 'In Progress') statusColor = 'text-yellow-600 bg-yellow-50';
+        else if (status === 'Scheduled') statusColor = 'text-blue-600 bg-blue-50';
+
+        return `<div class="p-3 bg-gray-50 dark:bg-gray-900/30 rounded-xl border border-gray-100 dark:border-gray-800 mb-2">
+            <div class="flex justify-between items-start mb-1">
+                <span class="text-[10px] font-bold px-2 py-0.5 rounded-full ${statusColor} uppercase">${status}</span>
+                <span class="text-[10px] text-gray-400 font-mono">${new Date(l.logDate || l.Timestamp).toLocaleDateString()}</span>
+            </div>
+            <p class="text-sm font-semibold text-gray-800 dark:text-gray-200">${l.description}</p>
+            <div class="mt-2 flex justify-between items-center text-[10px] text-gray-500 font-medium">
+                <span><i class="fas fa-user-cog mr-1"></i> ${l.technician || '-'}</span>
+                <span class="text-emerald-600 font-bold">฿${parseFloat(l.cost || 0).toLocaleString()}</span>
+            </div>
+        </div>`;
+    }).join('');
 };
 
-window.addMaintenanceLog = function() {
-    const { collection, id } = currentEdit; const desc = document.getElementById('newLogDescription').value; const date = document.getElementById('newLogDate').value; const cost = document.getElementById('newLogCost').value; const tech = document.getElementById('newLogTechnician').value;
-    if(!desc || !date) return alert("Date and Description required");
-    apiRequest('/api/inventory/maintenance', 'POST', { deviceId: id, deviceCollection: collection, description: desc, logDate: date, cost: cost, technician: tech }).then(() => { alert("Log added"); document.getElementById('maintenanceLogForm').reset(); refreshAllData(); });
+window.addMaintenanceLog = async function() {
+    const { collection, id } = currentEdit;
+    const desc = document.getElementById('newLogDescription').value;
+    const date = document.getElementById('newLogDate').value;
+    const cost = document.getElementById('newLogCost').value;
+    const tech = document.getElementById('newLogTechnician').value;
+    const status = 'Completed'; // Default status for manual logs from modal
+    
+    if(!desc || !date) return alert("Date and Description are required");
+    
+    try {
+        await apiRequest('/api/inventory/maintenance', 'POST', { 
+            deviceId: id, 
+            deviceCollection: collection, 
+            description: desc, 
+            logDate: date, 
+            cost: cost, 
+            technician: tech,
+            Status: status 
+        });
+        
+        // Auto-update device status to Active if it was in repair
+        const item = allData[collection].find(i => i._id === id || i.id === id);
+        if (item && item.Status === 'Repair') {
+            await apiRequest(`/api/inventory/${collection}/${id}`, 'PUT', { Status: 'Active' });
+        }
+        
+        showNotificationModal('success', 'Log Saved', 'Maintenance record added successfully.');
+        document.getElementById('maintenanceLogForm').reset();
+        await refreshAllData();
+        window.buildMaintenanceLogInModal(item);
+        window.buildTable(collection);
+    } catch (e) {
+        alert(e.message);
+    }
 };
 
 window.openImportModal = function(collectionName) {
@@ -1247,12 +1300,94 @@ window.downloadLoanQR = function(loanId, borrowerName, loanDate) {
 };
 
 window.buildMaintenancePage = function() {
-    const container = document.getElementById('MaintenanceContainer'); if(!container) return; container.innerHTML = ''; const logs = allData['Maintenance Log'] || [];
-    logs.sort((a,b) => new Date(b.logDate) - new Date(a.logDate)).forEach(log => { container.innerHTML += `<div class="bg-white dark:bg-gray-800 p-4 rounded-lg shadow mb-3"><div class="flex justify-between"><span class="font-bold text-gray-800 dark:text-white">${log.deviceCollection} (ID: ${log.deviceId})</span><span class="text-sm text-gray-500">${new Date(log.logDate).toLocaleDateString()}</span></div><p class="text-gray-600 dark:text-gray-300 mt-1">${log.description}</p><div class="mt-2 text-xs text-gray-400 flex justify-between"><span>Tech: ${log.technician || '-'}</span><span>Cost: ${log.cost || 0}</span></div></div>`; });
+    const container = document.getElementById('MaintenanceContainer');
+    if (!container) return;
+    container.innerHTML = '';
+    
+    // Use 'Maintenance Log' collection
+    const tasks = allData['Maintenance Log'] || [];
+    
+    const activeTasks = tasks.filter(t => t.Status !== 'Completed' && t.Status !== 'Cancelled');
+    const activeCountEl = document.getElementById('mt-active-count');
+    if(activeCountEl) activeCountEl.innerText = activeTasks.length;
+
+    if (tasks.length === 0) {
+        container.innerHTML = `
+            <div class="col-span-full py-20 text-center text-gray-400 bg-white dark:bg-gray-800 rounded-2xl border-2 border-dashed border-gray-200 dark:border-gray-700">
+                <i class="fas fa-tools text-6xl mb-4 opacity-20"></i>
+                <p class="text-lg font-medium">No maintenance tasks found.</p>
+                <p class="text-sm">Start by adding a maintenance log to an asset.</p>
+            </div>`;
+        return;
+    }
+
+    tasks.sort((a, b) => new Date(b.logDate || b.Timestamp) - new Date(a.logDate || a.Timestamp)).forEach(task => {
+        const status = task.Status || 'Completed'; 
+        let statusColor = 'bg-green-100 text-green-700 border-green-200';
+        let statusIcon = 'fa-check-circle';
+        
+        if (status === 'Scheduled') { statusColor = 'bg-blue-100 text-blue-700 border-blue-200'; statusIcon = 'fa-calendar-alt'; }
+        else if (status === 'In Progress') { statusColor = 'bg-yellow-100 text-yellow-700 border-yellow-200'; statusIcon = 'fa-spinner fa-spin'; }
+        else if (status === 'Waiting for Parts') { statusColor = 'bg-orange-100 text-orange-700 border-orange-200'; statusIcon = 'fa-clock'; }
+        else if (status === 'Repair' || status === 'Damaged') { statusColor = 'bg-red-100 text-red-700 border-red-200'; statusIcon = 'fa-exclamation-triangle'; }
+        
+        const cost = parseFloat(task.cost || 0).toLocaleString();
+        const date = task.logDate || (task.Timestamp ? new Date(task.Timestamp).toISOString().split('T')[0] : '-');
+        
+        container.innerHTML += `
+            <div class="maintenance-card bg-white dark:bg-gray-800 p-5 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 hover:shadow-md transition-shadow">
+                <div class="flex justify-between items-start mb-4">
+                    <div class="flex items-center">
+                        <div class="w-10 h-10 rounded-xl bg-indigo-50 dark:bg-indigo-900/30 flex items-center justify-center mr-3 text-indigo-500">
+                            <i class="fas fa-wrench"></i>
+                        </div>
+                        <div>
+                            <h4 class="font-bold text-gray-900 dark:text-white leading-none">${task.deviceCollection || 'Asset'}</h4>
+                            <p class="text-[10px] text-gray-500 mt-1 font-mono uppercase tracking-tight">${task.deviceId || 'Unknown ID'}</p>
+                        </div>
+                    </div>
+                    <span class="px-3 py-1 rounded-full text-[10px] font-bold border ${statusColor} flex items-center shadow-sm">
+                        <i class="fas ${statusIcon} mr-1.5"></i> ${status.toUpperCase()}
+                    </span>
+                </div>
+                
+                <div class="mb-4">
+                    <p class="text-sm text-gray-700 dark:text-gray-300 font-medium line-clamp-2">${task.description}</p>
+                </div>
+
+                <div class="grid grid-cols-3 gap-2 pt-4 border-t dark:border-gray-700">
+                    <div>
+                        <p class="text-[9px] text-gray-400 font-bold uppercase tracking-widest mb-0.5">Date</p>
+                        <p class="text-xs font-bold dark:text-white">${date}</p>
+                    </div>
+                    <div>
+                        <p class="text-[9px] text-gray-400 font-bold uppercase tracking-widest mb-0.5">Technician</p>
+                        <p class="text-xs font-bold dark:text-white truncate">${task.technician || '-'}</p>
+                    </div>
+                    <div>
+                        <p class="text-[9px] text-gray-400 font-bold uppercase tracking-widest mb-0.5">Cost</p>
+                        <p class="text-xs font-bold text-emerald-600">฿${cost}</p>
+                    </div>
+                </div>
+            </div>`;
+    });
 };
 
 window.filterLoanHistory = function(val) { const term=val.toUpperCase(); document.querySelectorAll('#LoanHistoryContainer > div').forEach(el => el.style.display = el.textContent.toUpperCase().includes(term)?'':'none'); };
-window.filterMaintenanceHistory = function(val) { const term=val.toUpperCase(); document.querySelectorAll('#MaintenanceContainer > div').forEach(el => el.style.display = el.textContent.toUpperCase().includes(term)?'':'none'); };
+window.filterMaintenanceHistory = function(val) { window.filterMaintenanceTasks(val); };
+window.filterMaintenanceTasks = function(val) {
+    const term = val.toUpperCase();
+    document.querySelectorAll('#MaintenanceContainer > .maintenance-card').forEach(el => {
+        el.style.display = el.textContent.toUpperCase().includes(term) ? '' : 'none';
+    });
+};
+
+window.filterMaintenanceByStatus = function(status) {
+    document.querySelectorAll('#MaintenanceContainer > .maintenance-card').forEach(el => {
+        if (status === 'all') el.style.display = '';
+        else el.style.display = el.textContent.toUpperCase().includes(status.toUpperCase()) ? '' : 'none';
+    });
+};
 window.filterAssetsByUser = function(val) {
     const term = val.toUpperCase();
     document.querySelectorAll('#AssetsByUserContainer > .card-modern').forEach(el => {
