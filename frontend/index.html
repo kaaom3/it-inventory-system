@@ -253,12 +253,17 @@
                 <div id="MaintenanceContainer" class="space-y-4"></div>
             </div>
 
-            <!-- Assets By User Page -->
-            <div id="assetsbyuser-page" class="page-content hidden">
-                <h2 class="text-2xl font-bold mb-6" data-i18n="assets_by_user">Assets by User</h2>
-                <input type="text" onkeyup="window.filterAssetsByUser(this.value)" placeholder="Search user..." class="w-full mb-6 p-3 border rounded-lg dark:bg-gray-700 dark:border-gray-600 dark:text-white focus:ring-indigo-500">
-                <div id="AssetsByUserContainer" class="space-y-4"></div>
-            </div>
+                <!-- Assets By User Page -->
+                <div id="assetsbyuser-page" class="page-content hidden">
+                    <h2 class="text-2xl font-bold mb-6" data-i18n="assets_by_user">Assets by User</h2>
+                    <div class="relative mb-6">
+                        <div class="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none text-gray-400">
+                            <i class="fas fa-search"></i>
+                        </div>
+                        <input type="text" onkeyup="window.filterAssetsByUser(this.value)" placeholder="Search user or device..." class="input-modern w-full pl-12 shadow-sm" data-i18n-placeholder="search_user_device">
+                    </div>
+                    <div id="AssetsByUserContainer" class="space-y-4"></div>
+                </div>
 
             <!-- Management Pages injected by JS -->
             <div id="staffmanagement-page" class="page-content hidden"></div>

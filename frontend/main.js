@@ -1257,14 +1257,108 @@ window.buildMaintenancePage = function() {
 
 window.filterLoanHistory = function(val) { const term=val.toUpperCase(); document.querySelectorAll('#LoanHistoryContainer > div').forEach(el => el.style.display = el.textContent.toUpperCase().includes(term)?'':'none'); };
 window.filterMaintenanceHistory = function(val) { const term=val.toUpperCase(); document.querySelectorAll('#MaintenanceContainer > div').forEach(el => el.style.display = el.textContent.toUpperCase().includes(term)?'':'none'); };
-window.filterAssetsByUser = function(val) { const term=val.toUpperCase(); document.querySelectorAll('#AssetsByUserContainer > details').forEach(el => el.style.display = el.textContent.toUpperCase().includes(term)?'':'none'); };
+window.filterAssetsByUser = function(val) {
+    const term = val.toUpperCase();
+    document.querySelectorAll('#AssetsByUserContainer > .card-modern').forEach(el => {
+        el.style.display = el.textContent.toUpperCase().includes(term) ? '' : 'none';
+    });
+};
 
 window.buildAssetsByUserPage = function() {
-    const container = document.getElementById('AssetsByUserContainer'); if(!container) return; container.innerHTML = ''; const byUser = {}; const skipKeys = ['Staff', 'CustomMenus', 'TransactionHistory', 'LoanHistory', 'Maintenance Log', 'admins', 'Software'];
-    Object.keys(allData).forEach(key => { if (skipKeys.includes(key)) return; (allData[key] || []).forEach(item => { const u = item.UserName || 'Unassigned'; if(!byUser[u]) byUser[u] = []; byUser[u].push({...item, type: key}); }); });
-    Object.keys(byUser).sort().forEach(user => {
-        if(user === 'Unassigned') return; const assets = byUser[user];
-        container.innerHTML += `<details class="group bg-white dark:bg-gray-800 rounded-lg shadow mb-3"><summary class="p-4 flex justify-between items-center cursor-pointer list-none"><span class="font-bold text-gray-800 dark:text-white"><i class="fas fa-user mr-2"></i>${user}</span><span class="bg-indigo-100 text-indigo-800 text-xs px-2 py-1 rounded-full">${assets.length} items</span></summary><div class="p-4 border-t dark:border-gray-700"><ul class="text-sm space-y-2">${assets.map(a => `<li class="flex justify-between items-center"><span>${a.ComputerName || a.DeviceName || a.ItemName || a.Model} <span class="text-xs text-gray-500">(${t(a.type.toLowerCase()) || a.type})</span></span><span class="text-xs font-mono">${a.SerialNumber || a.MonitorSerial || '-'}</span></li>`).join('')}</ul></div></details>`;
+    const container = document.getElementById('AssetsByUserContainer');
+    if (!container) return;
+    container.innerHTML = '';
+    const byUser = {};
+    const skipKeys = ['Staff', 'CustomMenus', 'TransactionHistory', 'LoanHistory', 'Maintenance Log', 'admins', 'Software'];
+
+    Object.keys(allData).forEach(key => {
+        if (skipKeys.includes(key)) return;
+        (allData[key] || []).forEach(item => {
+            const u = item.UserName || 'Unassigned';
+            if (!byUser[u]) byUser[u] = [];
+            byUser[u].push({ ...item, type: key });
+        });
+    });
+
+    const sortedUsers = Object.keys(byUser).sort();
+    if (sortedUsers.length === 0 || (sortedUsers.length === 1 && sortedUsers[0] === 'Unassigned')) {
+        container.innerHTML = `
+            <div class="flex flex-col items-center justify-center p-12 text-gray-500 bg-white dark:bg-gray-800 rounded-2xl border-2 border-dashed border-gray-200 dark:border-gray-700">
+                <i class="fas fa-user-slash text-5xl mb-4 opacity-20"></i>
+                <p class="font-medium text-lg">No user-assigned assets found.</p>
+                <p class="text-sm opacity-60">Try assigning an asset to a user first.</p>
+            </div>`;
+        return;
+    }
+
+    sortedUsers.forEach(user => {
+        if (user === 'Unassigned') return;
+        const assets = byUser[user];
+        const userInitial = user.charAt(0).toUpperCase();
+
+        const assetsHtml = assets.map(a => {
+            let iconClass = 'fas fa-box';
+            const typeLower = a.type.toLowerCase();
+            if (typeLower.includes('computer') || typeLower.includes('laptop')) iconClass = 'fas fa-laptop';
+            else if (typeLower.includes('monitor')) iconClass = 'fas fa-desktop';
+            else if (typeLower.includes('print')) iconClass = 'fas fa-print';
+            else if (typeLower.includes('phone') || typeLower.includes('mobile')) iconClass = 'fas fa-mobile-alt';
+            else if (typeLower.includes('tablet') || typeLower.includes('ipad')) iconClass = 'fas fa-tablet-alt';
+            else if (typeLower.includes('network') || typeLower.includes('switch')) iconClass = 'fas fa-network-wired';
+
+            const sn = a.SerialNumber || a.MonitorSerial || a.SN || '-';
+
+            return `
+                <div class="flex items-center p-3 bg-white dark:bg-gray-800 rounded-xl border border-gray-100 dark:border-gray-700 transition-all hover:border-indigo-200 dark:hover:border-indigo-800 shadow-sm group/item">
+                    <div class="w-10 h-10 rounded-lg bg-indigo-50 dark:bg-indigo-900/20 flex items-center justify-center mr-3 text-indigo-500 group-hover/item:scale-110 transition-transform">
+                        <i class="${iconClass}"></i>
+                    </div>
+                    <div class="flex-1 min-w-0">
+                        <div class="flex justify-between items-start">
+                            <p class="text-sm font-semibold text-gray-900 dark:text-white truncate">
+                                ${a.ComputerName || a.DeviceName || a.ItemName || a.Model || 'Unknown Device'}
+                            </p>
+                            <span class="text-[9px] font-bold px-1.5 py-0.5 rounded bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400 uppercase tracking-wider ml-2">
+                                ${t(a.type.toLowerCase()) || a.type}
+                            </span>
+                        </div>
+                        <div class="flex items-center mt-0.5">
+                            <i class="fas fa-barcode text-[10px] text-gray-400 mr-1"></i>
+                            <p class="text-xs font-mono text-gray-500 dark:text-gray-400 truncate">${sn}</p>
+                        </div>
+                    </div>
+                </div>`;
+        }).join('');
+
+        container.innerHTML += `
+            <div class="card-modern overflow-hidden mb-4 group transition-all duration-300 border border-gray-100 dark:border-gray-700">
+                <details class="w-full">
+                    <summary class="p-5 flex items-center justify-between cursor-pointer list-none focus:outline-none">
+                        <div class="flex items-center">
+                            <div class="w-12 h-12 rounded-2xl bg-gradient-to-br from-indigo-500 to-indigo-700 flex items-center justify-center text-white font-bold text-xl mr-4 shadow-lg shadow-indigo-100 dark:shadow-none transition-transform group-hover:scale-105">
+                                ${userInitial}
+                            </div>
+                            <div>
+                                <h3 class="text-lg font-bold text-gray-900 dark:text-white leading-none">${user}</h3>
+                                <p class="text-xs text-gray-500 mt-1.5 font-medium flex items-center">
+                                    <span class="w-2 h-2 rounded-full bg-green-500 mr-2"></span>
+                                    ${assets.length} ${assets.length > 1 ? 'Assets' : 'Asset'} assigned
+                                </p>
+                            </div>
+                        </div>
+                        <div class="flex items-center">
+                            <div class="w-8 h-8 rounded-full flex items-center justify-center bg-gray-50 dark:bg-gray-800 text-gray-400 group-hover:bg-indigo-50 dark:group-hover:bg-indigo-900/30 group-hover:text-indigo-500 transition-colors">
+                                <i class="fas fa-chevron-down transition-transform duration-300"></i>
+                            </div>
+                        </div>
+                    </summary>
+                    <div class="px-5 pb-5 pt-2 border-t border-gray-50 dark:border-gray-700/50 bg-gray-50/50 dark:bg-gray-900/20">
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-3 mt-2">
+                            ${assetsHtml}
+                        </div>
+                    </div>
+                </details>
+            </div>`;
     });
 };
 

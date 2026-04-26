@@ -269,3 +269,12 @@ body {
   opacity: 0.03;
   border-radius: 0 0 0 100%;
 }
+
+/* Assets by User Enhancements */
+#AssetsByUserContainer .card-modern details[open] summary i.fa-chevron-down {
+  transform: rotate(180deg);
+}
+
+#AssetsByUserContainer .card-modern details summary i.fa-chevron-down {
+  transition: transform 0.3s ease;
+}
