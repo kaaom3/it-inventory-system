@@ -614,7 +614,7 @@ async function refreshAllData() {
                 dropdowns: { Status: ['Active', 'On Loan', 'Repair', 'Storage', 'Damaged', 'Disposed'], Type: ['Desktop', 'Laptop', 'MacBook', 'Tablet', 'POS', 'Server', 'Other'] }, isCustom: true
             };
         });
-        const skipKeys = ['Staff', 'CustomMenus', 'TransactionHistory', 'LoanHistory', 'Maintenance Log', 'admins', 'Accessory'];
+        const skipKeys = ['Staff', 'CustomMenus', 'TransactionHistory', 'LoanHistory', 'Maintenance Log', 'Maintenance', 'admins', 'Software', 'Accessory'];
         Object.keys(allData).forEach(key => {
             if (!skipKeys.includes(key) && Array.isArray(allData[key]) && !collectionConfigs[key]) {
                 collectionConfigs[key] = {
@@ -631,7 +631,7 @@ async function refreshAllData() {
         let staffList = allData.Staff || [];
         let existingUsernames = new Set(staffList.map(s => (s.UserName || '').toLowerCase()));
         Object.keys(allData).forEach(key => {
-            if (!['Staff', 'CustomMenus', 'TransactionHistory', 'LoanHistory', 'Maintenance Log', 'admins', 'Software'].includes(key) && Array.isArray(allData[key])) {
+            if (!['Staff', 'CustomMenus', 'TransactionHistory', 'LoanHistory', 'Maintenance Log', 'Maintenance', 'admins', 'Software'].includes(key) && Array.isArray(allData[key])) {
                 allData[key].forEach(item => {
                     if (item.UserName && item.UserName.trim() !== '') {
                         let uname = item.UserName.trim();
@@ -743,7 +743,7 @@ function renderSidebarDynamic() {
     ];
     const customMenus = allData.CustomMenus || [];
     const customNodes = customMenus.filter(m => collectionConfigs[m.name] && !['Computers','Monitors','Printers','Network'].includes(m.name)).sort((a, b) => (a.order || 0) - (b.order || 0) || a.displayName.localeCompare(b.displayName)).map(m => ({ id: m.name, name: m.displayName, icon: m.icon, isSystem: false, parentId: m.parentId, clickAction: `window.loadPage('${m.name}', this)`, allowDelete: true, allowEdit: true, order: m.order }));
-    const allKnown = ['Computers', 'Monitors', 'Printers', 'Network', ...customNodes.map(n => n.id)];
+    const allKnown = ['Computers', 'Monitors', 'Printers', 'Network', 'Maintenance', 'Maintenance Log', ...customNodes.map(n => n.id)];
     Object.keys(collectionConfigs).forEach(key => { if (!allKnown.includes(key)) customNodes.push({ id: key, name: collectionConfigs[key].displayName, icon: 'fa-box', isSystem: false, parentId: null, clickAction: `window.loadPage('${key}', this)`, allowDelete: false, allowEdit: true, order: 99 }); });
     const rootNodes = [dashboardNode, searchScanNode, { type: 'header', label: t('assets') }, ...assetChildren, ...customNodes.filter(n => !n.parentId), { type: 'header', label: t('management') }, ...managementChildren];
     const nodeMap = {}; [...rootNodes, ...customNodes].forEach(n => { if(n.id) nodeMap[n.id] = n; });
@@ -1245,18 +1245,27 @@ window.buildMaintenanceLogInModal = function(item) {
 
 window.addMaintenanceLog = async function() {
     const { collection, id } = currentEdit;
+    const config = collectionConfigs[collection];
+    const item = allData[collection].find(i => i._id === id || i.id === id);
+    if (!item) return alert("Device not found");
+
     const desc = document.getElementById('newLogDescription').value;
     const date = document.getElementById('newLogDate').value;
     const cost = document.getElementById('newLogCost').value;
     const tech = document.getElementById('newLogTechnician').value;
-    const status = 'Completed'; // Default status for manual logs from modal
+    const status = document.getElementById('newLogStatus')?.value || 'Completed';
     
     if(!desc || !date) return alert("Date and Description are required");
+
+    const deviceName = item[config.nameField] || item.ComputerName || item.ItemName || item.DeviceName || 'Unknown Device';
+    const deviceSerial = item[config.serialField] || item.SerialNumber || item.MonitorSerial || 'N/A';
     
     try {
         await apiRequest('/api/inventory/maintenance', 'POST', { 
             deviceId: id, 
-            deviceCollection: collection, 
+            deviceCollection: collection,
+            deviceName: deviceName,
+            deviceSerial: deviceSerial,
             description: desc, 
             logDate: date, 
             cost: cost, 
@@ -1264,16 +1273,16 @@ window.addMaintenanceLog = async function() {
             Status: status 
         });
         
-        // Auto-update device status to Active if it was in repair
-        const item = allData[collection].find(i => i._id === id || i.id === id);
-        if (item && item.Status === 'Repair') {
+        // Auto-update device status to Active if it was in repair and status is completed
+        if (status === 'Completed' && item.Status === 'Repair') {
             await apiRequest(`/api/inventory/${collection}/${id}`, 'PUT', { Status: 'Active' });
         }
         
         showNotificationModal('success', 'Log Saved', 'Maintenance record added successfully.');
         document.getElementById('maintenanceLogForm').reset();
         await refreshAllData();
-        window.buildMaintenanceLogInModal(item);
+        const updatedItem = allData[collection].find(i => i._id === id || i.id === id);
+        window.buildMaintenanceLogInModal(updatedItem);
         window.buildTable(collection);
     } catch (e) {
         alert(e.message);
@@ -1366,7 +1375,9 @@ window.buildMaintenancePage = function() {
         
         const cost = parseFloat(task.cost || 0).toLocaleString();
         const date = task.logDate || (task.Timestamp ? new Date(task.Timestamp).toISOString().split('T')[0] : '-');
-        
+        const deviceDisplayName = task.deviceName || task.deviceCollection || 'Asset';
+        const deviceSN = task.deviceSerial || task.deviceId || 'Unknown SN';
+
         container.innerHTML += `
             <div class="maintenance-card bg-white dark:bg-gray-800 p-5 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 hover:shadow-md transition-shadow">
                 <div class="flex justify-between items-start mb-4">
@@ -1374,12 +1385,12 @@ window.buildMaintenancePage = function() {
                         <div class="w-10 h-10 rounded-xl bg-indigo-50 dark:bg-indigo-900/30 flex items-center justify-center mr-3 text-indigo-500">
                             <i class="fas fa-wrench"></i>
                         </div>
-                        <div>
-                            <h4 class="font-bold text-gray-900 dark:text-white leading-none">${task.deviceCollection || 'Asset'}</h4>
-                            <p class="text-[10px] text-gray-500 mt-1 font-mono uppercase tracking-tight">${task.deviceId || 'Unknown ID'}</p>
+                        <div class="flex-1 min-w-0">
+                            <h4 class="font-bold text-gray-900 dark:text-white leading-none truncate">${deviceDisplayName}</h4>
+                            <p class="text-[10px] text-gray-500 mt-1 font-mono uppercase tracking-tight truncate">${deviceSN}</p>
                         </div>
                     </div>
-                    <span class="px-3 py-1 rounded-full text-[10px] font-bold border ${statusColor} flex items-center shadow-sm">
+                    <span class="px-3 py-1 rounded-full text-[10px] font-bold border ${statusColor} flex items-center shadow-sm shrink-0 ml-2">
                         <i class="fas ${statusIcon} mr-1.5"></i> ${status.toUpperCase()}
                     </span>
                 </div>

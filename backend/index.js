@@ -573,7 +573,7 @@ app.get('/api/inventory/search/all', async (req, res) => {
         const regex = new RegExp(query, 'i'); // Case-insensitive partial match
 
         for (let col of collections) {
-            const skipKeys = ['admins', 'CustomMenus', 'Staff', 'TransactionHistory', 'LoanHistory', 'Maintenance Log'];
+            const skipKeys = ['admins', 'CustomMenus', 'Staff', 'TransactionHistory', 'LoanHistory', 'Maintenance Log', 'Maintenance'];
             if (skipKeys.includes(col.name)) continue;
 
             const items = await db.collection(col.name).find({
@@ -607,7 +607,7 @@ app.get('/api/inventory/find/:sn', async (req, res) => {
         const sn = req.params.sn;
         const collections = await db.listCollections().toArray();
         for (let col of collections) {
-            const skipKeys = ['admins', 'CustomMenus', 'Staff', 'TransactionHistory', 'LoanHistory', 'Maintenance Log'];
+            const skipKeys = ['admins', 'CustomMenus', 'Staff', 'TransactionHistory', 'LoanHistory', 'Maintenance Log', 'Maintenance'];
             if (skipKeys.includes(col.name)) continue;
 
             const searchIds = [sn];
@@ -680,7 +680,7 @@ app.get('/api/public/loanable-items', async (req, res) => {
         const collections = await db.listCollections().toArray();
         const allData = {};
         for (let col of collections) {
-            const skipKeys = ['admins', 'CustomMenus', 'Staff', 'TransactionHistory', 'LoanHistory', 'Maintenance Log'];
+            const skipKeys = ['admins', 'CustomMenus', 'Staff', 'TransactionHistory', 'LoanHistory', 'Maintenance Log', 'Maintenance'];
             if (!skipKeys.includes(col.name)) allData[col.name] = await db.collection(col.name).find({ Status: 'Storage' }).toArray();
         }
         res.json(allData);
@@ -787,6 +787,15 @@ app.put('/api/staff/:id', verifyToken, async (req, res) => {
 app.delete('/api/staff/:id', verifyToken, async (req, res) => {
     if (!db) return res.status(500).json({ message: "Database not connected" });
     try { await db.collection('Staff').deleteOne(buildIdQuery(req.params.id)); res.json({ message: "Staff deleted" }); } catch (error) { res.status(500).json({ message: error.message }); }
+});
+
+app.post('/api/inventory/maintenance', verifyToken, async (req, res) => {
+    if (!db) return res.status(500).json({ message: "Database not connected" });
+    try {
+        const data = req.body; data.Timestamp = new Date();
+        await db.collection('Maintenance Log').insertOne(data);
+        res.status(201).json({ message: "Maintenance log added" });
+    } catch (error) { res.status(500).json({ message: error.message }); }
 });
 
 app.get('/api/ping/:target', verifyToken, async (req, res) => {
