@@ -377,8 +377,6 @@ window.processOCR = async function(inputElement) {
         const extractedText = ret.data.text;
         await worker.terminate();
 
-        console.log("OCR Result:\n", extractedText);
-
         let foundFields = 0;
 
         const snMatch = extractedText.match(/(?:S\/?N|Serial\s*Number)\s*:?\s*([A-Z0-9]+)/i);
@@ -765,11 +763,15 @@ function generateDynamicPages() {
     });
 }
 
+const originalLoadPage = window.loadPage || function(){};
 window.loadPage = function(pageName, navElement) {
     document.querySelectorAll('.nav-link').forEach(l => { l.classList.remove('bg-indigo-50', 'text-indigo-600', 'dark:bg-gray-700', 'dark:text-white', 'font-semibold'); l.classList.add('text-gray-600', 'dark:text-gray-300'); });
     document.querySelectorAll('.page-content').forEach(p => { p.classList.remove('active'); p.classList.add('hidden'); p.style.display = 'none'; });
     let targetNav = navElement || document.getElementById(`nav-${pageName}`);
     if (targetNav) { targetNav.classList.remove('text-gray-600', 'dark:text-gray-300'); targetNav.classList.add('bg-indigo-50', 'text-indigo-600', 'dark:bg-gray-700', 'dark:text-white', 'font-semibold'); const parentDetails = targetNav.closest('details'); if (parentDetails) parentDetails.setAttribute('open', 'true'); }
+    
+    if (pageName === 'SearchScan') window.buildSearchScanPage();
+
     const pageId = `${pageName.toLowerCase()}-page`;
     let pageDiv = document.getElementById(pageId);
     if (pageName === 'LabelPrinter' && !pageDiv) { pageDiv = document.createElement('div'); pageDiv.id = pageId; pageDiv.className = 'page-content hidden'; document.getElementById('main-content').appendChild(pageDiv); }
@@ -960,6 +962,142 @@ window.buildTable = function(collectionName) {
 window.renderPaginationControls = function(collectionName, totalRows) {
     const container = document.getElementById(collectionName + 'Pagination'); if (!container) return; const state = paginationState[collectionName]; const totalPages = Math.ceil(totalRows / state.rowsPerPage); const startItem = totalRows > 0 ? (state.currentPage - 1) * state.rowsPerPage + 1 : 0; const endItem = Math.min(state.currentPage * state.rowsPerPage, totalRows);
     container.innerHTML = `<div class="text-sm">${t('showing')} <span class="font-semibold">${startItem}</span> ${t('to')} <span class="font-semibold">${endItem}</span> ${t('of')} <span class="font-semibold">${totalRows}</span> ${t('results')}</div><div class="flex items-center space-x-2"><label class="text-sm font-medium">${t('rows')}</label><select onchange="window.changeRowsPerPage('${collectionName}', this)" class="rounded-md border-gray-300 dark:bg-gray-700 dark:border-gray-600 text-sm"><option value="10" ${state.rowsPerPage == 10 ? 'selected' : ''}>10</option><option value="25" ${state.rowsPerPage == 25 ? 'selected' : ''}>25</option><option value="50" ${state.rowsPerPage == 50 ? 'selected' : ''}>50</option></select><button onclick="window.changePage('${collectionName}', -1)" ${state.currentPage===1?'disabled':''} class="px-2 py-1 border rounded disabled:opacity-50 bg-white dark:bg-gray-700"><i class="fas fa-chevron-left"></i></button><span class="text-sm">${t('page')} ${state.currentPage} / ${totalPages || 1}</span><button onclick="window.changePage('${collectionName}', 1)" ${state.currentPage>=totalPages?'disabled':''} class="px-2 py-1 border rounded disabled:opacity-50 bg-white dark:bg-gray-700"><i class="fas fa-chevron-right"></i></button></div>`;
+};
+
+// 🌟 ปรับปรุงการแสดงผลประวัติใน Modal
+window.buildMaintenanceLogInModal = function(item) {
+    const list = document.getElementById('maintenanceLogList'); if(!list) return; list.innerHTML = '';
+    const itemId = String(item._id || item.id || '');
+    if (!itemId) { list.innerHTML = `<p class="text-xs text-gray-500">${t('no_data')}</p>`; return; }
+    const logs = (allData['Maintenance Log'] || []).filter(l => String(l.deviceId) === itemId).sort((a, b) => new Date(b.logDate) - new Date(a.logDate));
+    if(logs.length === 0) { list.innerHTML = `<div class="p-8 text-center text-gray-500"><i class="fas fa-tools mb-2 text-2xl opacity-20"></i><p class="text-xs">${t('no_data')}</p></div>`; return; }
+    
+    logs.forEach(l => { 
+        const logId = l._id || l.id;
+        const formattedDate = new Date(l.logDate).toLocaleDateString('th-TH', { year: 'numeric', month: 'short', day: 'numeric' });
+        const costStr = l.cost ? ` • <span class="text-indigo-600 dark:text-indigo-400 font-bold">฿${parseFloat(l.cost).toLocaleString()}</span>` : '';
+        const techStr = l.technician ? `<p class="text-[10px] text-gray-500 mt-1"><i class="fas fa-user-cog mr-1"></i> ${l.technician}</p>` : '';
+        
+        list.innerHTML += `
+            <div class="border-b last:border-0 py-3 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700/30 transition-colors px-1">
+                <div class="flex justify-between items-start mb-1">
+                    <p class="text-xs font-bold text-gray-900 dark:text-gray-100">${formattedDate}${costStr}</p>
+                    <button type="button" onclick="window.deleteMaintenanceLog('${logId}')" class="text-red-400 hover:text-red-600 transition" title="Delete Log"><i class="fas fa-trash-alt text-xs"></i></button>
+                </div>
+                <p class="text-sm text-gray-600 dark:text-gray-400 leading-relaxed">${l.description}</p>
+                ${techStr}
+            </div>`; 
+    });
+};
+
+// 🌟 ปรับปรุงการเพิ่ม Log ให้เซฟ Name และ S/N ไปด้วย
+window.addMaintenanceLog = async function() {
+    const { collection, id } = currentEdit; 
+    const desc = document.getElementById('newLogDescription').value; 
+    const date = document.getElementById('newLogDate').value; 
+    const cost = document.getElementById('newLogCost').value; 
+    const tech = document.getElementById('newLogTechnician').value;
+    
+    if(!desc || !date) return window.showNotificationModal('warning', 'Missing Info', "Date and Description are required");
+    const itemId = String(id);
+    
+    // ดึงชื่อและ S/N มาใส่ไว้ใน Log เลย
+    const item = (allData[collection] || []).find(i => String(i._id || i.id) === itemId) || {};
+    const config = collectionConfigs[collection] || {};
+    const deviceName = item[config.nameField] || item.ComputerName || item.DeviceName || item.ItemName || item.Model || 'Unknown Device';
+    const deviceSerial = item[config.serialField] || item.SerialNumber || item.MonitorSerial || '-';
+    
+    try {
+        await apiRequest('/api/inventory/maintenance', 'POST', { 
+            deviceId: itemId, 
+            deviceCollection: collection, 
+            deviceName: deviceName,
+            deviceSerial: deviceSerial,
+            description: desc, 
+            logDate: date, 
+            cost: cost, 
+            technician: tech 
+        });
+        
+        window.showNotificationModal('success', 'Log Added', "Maintenance record saved successfully.");
+        const form = document.getElementById('maintenanceLogForm');
+        if(form) form.reset();
+        
+        await refreshAllData();
+        const updatedItem = (allData[collection] || []).find(i => String(i._id || i.id) === itemId);
+        window.buildMaintenanceLogInModal(updatedItem || { _id: itemId });
+    } catch (error) { window.showNotificationModal('warning', 'Error', error.message); }
+};
+
+// 🌟 เพิ่มฟังก์ชันลบ Log ใน Modal
+window.deleteMaintenanceLog = async function(logId) {
+    if(!confirm("Are you sure you want to delete this maintenance log?")) return;
+    try {
+        await apiRequest(`/api/inventory/Maintenance%20Log/${logId}`, 'DELETE');
+        window.showNotificationModal('success', 'Deleted', 'Maintenance log deleted.');
+        await refreshAllData();
+        const { collection, id } = currentEdit;
+        const updatedItem = (allData[collection] || []).find(i => String(i._id || i.id) === String(id));
+        window.buildMaintenanceLogInModal(updatedItem || { _id: id });
+        if(document.getElementById('maintenance-page').classList.contains('active')) window.buildMaintenancePage();
+    } catch(e) { window.showNotificationModal('warning', 'Error', e.message); }
+};
+
+// 🌟 ปรับปรุงหน้าประวัติรวม (Global View) ให้แสดงรายละเอียดชัดเจน
+window.buildMaintenancePage = function() {
+    const container = document.getElementById('MaintenanceContainer'); if(!container) return; container.innerHTML = '';
+    const logs = allData['Maintenance Log'] || [];
+    
+    if (logs.length === 0) {
+        container.innerHTML = `<div class="text-center text-gray-500 py-10"><i class="fas fa-tools text-4xl mb-3 opacity-20"></i><p>${t('no_data')}</p></div>`;
+        return;
+    }
+    
+    logs.sort((a,b) => new Date(b.logDate) - new Date(a.logDate)).forEach(log => {
+        let deviceName = log.deviceName || 'Unknown Device';
+        let deviceSerial = log.deviceSerial || '-';
+        let config = collectionConfigs[log.deviceCollection];
+        
+        // ถ้าเป็น log เก่าที่ไม่ได้เซฟชื่อไว้ ให้ลองพยายามค้นหาจาก allData
+        if (!log.deviceName && allData[log.deviceCollection]) {
+            const device = allData[log.deviceCollection].find(d => String(d._id || d.id) === String(log.deviceId));
+            if (device) {
+                deviceName = device[config?.nameField] || device.ComputerName || device.DeviceName || device.ItemName || device.Model || 'Unknown Device';
+                deviceSerial = device[config?.serialField] || device.SerialNumber || device.MonitorSerial || '-';
+            }
+        }
+        const catName = config ? config.displayName : log.deviceCollection;
+
+        container.innerHTML += `
+            <div class="bg-white dark:bg-gray-800 p-5 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700 mb-3 hover:shadow-md transition relative">
+                <button onclick="window.deleteMaintenanceLogFromGlobal('${log._id || log.id}')" class="absolute top-4 right-4 text-red-400 hover:text-red-600 transition" title="Delete Log"><i class="fas fa-trash-alt"></i></button>
+                <div class="flex justify-between items-start mb-2 pr-6">
+                    <div>
+                        <span class="px-2 py-0.5 bg-indigo-100 dark:bg-indigo-900/50 text-indigo-700 dark:text-indigo-400 text-[10px] font-bold rounded uppercase tracking-wider mb-1 inline-block">${catName}</span>
+                        <h3 class="font-bold text-gray-800 dark:text-white text-lg">${deviceName} <span class="text-xs text-gray-500 font-normal ml-2">SN: ${deviceSerial}</span></h3>
+                    </div>
+                </div>
+                <span class="text-sm font-semibold text-gray-500 bg-gray-100 dark:bg-gray-700 px-3 py-1 rounded-lg inline-block mb-3"><i class="far fa-calendar-alt mr-1"></i> ${new Date(log.logDate).toLocaleDateString('th-TH')}</span>
+                <p class="text-gray-600 dark:text-gray-300 bg-gray-50 dark:bg-gray-900/50 p-3 rounded-lg border border-gray-100 dark:border-gray-700 text-sm">${log.description}</p>
+                <div class="mt-3 flex items-center justify-between">
+                    <div class="flex items-center space-x-4">
+                        <span class="text-xs text-gray-500 font-medium flex items-center"><i class="fas fa-user-cog mr-1.5 text-indigo-400"></i> ${log.technician || 'ไม่ระบุช่าง'}</span>
+                    </div>
+                    <span class="text-sm font-bold text-green-600 dark:text-green-400 bg-green-50 dark:bg-green-900/20 px-3 py-1 rounded-lg">฿ ${log.cost ? parseFloat(log.cost).toLocaleString() : '0'}</span>
+                </div>
+            </div>`;
+    });
+};
+
+// 🌟 ฟังก์ชันลบ Log จากหน้า Global
+window.deleteMaintenanceLogFromGlobal = async function(logId) {
+    if(!confirm("Are you sure you want to delete this maintenance log?")) return;
+    try {
+        await apiRequest(`/api/inventory/Maintenance%20Log/${logId}`, 'DELETE');
+        window.showNotificationModal('success', 'Deleted', 'Maintenance log deleted.');
+        await refreshAllData();
+        window.buildMaintenancePage();
+    } catch(e) { window.showNotificationModal('warning', 'Error', e.message); }
 };
 
 window.buildDeviceHistoryInModal = function(item, collectionName) {
@@ -1187,78 +1325,69 @@ window.deleteAdmin = async function(id) { if(confirm("Delete admin?")) { await a
 
 window.buildMaintenanceLogInModal = function(item) {
     const list = document.getElementById('maintenanceLogList'); if(!list) return; list.innerHTML = '';
-    
-    // Ensure we have a valid ID to filter with
     const itemId = String(item._id || item.id || '');
-    if (!itemId) {
-        list.innerHTML = `<p class="text-xs text-gray-500">${t('no_data')}</p>`;
-        return;
-    }
-
-    const logs = (allData['Maintenance Log'] || [])
-        .filter(l => String(l.deviceId) === itemId)
-        .sort((a, b) => new Date(b.logDate) - new Date(a.logDate));
-    
-    if(logs.length === 0) {
-        list.innerHTML = `<div class="p-8 text-center text-gray-500"><i class="fas fa-tools mb-2 text-2xl opacity-20"></i><p class="text-xs">${t('no_data')}</p></div>`;
-        return;
-    }
+    if (!itemId) { list.innerHTML = `<p class="text-xs text-gray-500">${t('no_data')}</p>`; return; }
+    const logs = (allData['Maintenance Log'] || []).filter(l => String(l.deviceId) === itemId).sort((a, b) => new Date(b.logDate) - new Date(a.logDate));
+    if(logs.length === 0) { list.innerHTML = `<div class="p-8 text-center text-gray-500"><i class="fas fa-tools mb-2 text-2xl opacity-20"></i><p class="text-xs">${t('no_data')}</p></div>`; return; }
     
     logs.forEach(l => { 
+        const logId = l._id || l.id;
         const formattedDate = new Date(l.logDate).toLocaleDateString('th-TH', { year: 'numeric', month: 'short', day: 'numeric' });
         const costStr = l.cost ? ` • <span class="text-indigo-600 dark:text-indigo-400 font-bold">฿${parseFloat(l.cost).toLocaleString()}</span>` : '';
         const techStr = l.technician ? `<p class="text-[10px] text-gray-500 mt-1"><i class="fas fa-user-cog mr-1"></i> ${l.technician}</p>` : '';
-        
-        list.innerHTML += `
-            <div class="border-b last:border-0 py-3 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700/30 transition-colors px-1">
-                <div class="flex justify-between items-start mb-1">
-                    <p class="text-xs font-bold text-gray-900 dark:text-gray-100">${formattedDate}${costStr}</p>
-                </div>
-                <p class="text-sm text-gray-600 dark:text-gray-400 leading-relaxed">${l.description}</p>
-                ${techStr}
-            </div>`; 
+        list.innerHTML += `<div class="border-b last:border-0 py-3 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700/30 transition-colors px-1"><div class="flex justify-between items-start mb-1"><p class="text-xs font-bold text-gray-900 dark:text-gray-100">${formattedDate}${costStr}</p><button type="button" onclick="window.deleteMaintenanceLog('${logId}')" class="text-red-400 hover:text-red-600 transition" title="Delete Log"><i class="fas fa-trash-alt text-xs"></i></button></div><p class="text-sm text-gray-600 dark:text-gray-400 leading-relaxed">${l.description}</p>${techStr}</div>`; 
     });
 };
 
 window.addMaintenanceLog = async function() {
-    const { collection, id } = currentEdit; 
-    const desc = document.getElementById('newLogDescription').value; 
-    const date = document.getElementById('newLogDate').value; 
-    const cost = document.getElementById('newLogCost').value; 
-    const tech = document.getElementById('newLogTechnician').value;
-    
+    const { collection, id } = currentEdit; const desc = document.getElementById('newLogDescription').value; const date = document.getElementById('newLogDate').value; const cost = document.getElementById('newLogCost').value; const tech = document.getElementById('newLogTechnician').value;
     if(!desc || !date) return window.showNotificationModal('warning', 'Missing Info', "Date and Description are required");
-    
-    // Use the string version of ID for consistency
     const itemId = String(id);
-    
+    const item = (allData[collection] || []).find(i => String(i._id || i.id) === itemId) || {};
+    const config = collectionConfigs[collection] || {};
+    const deviceName = item[config.nameField] || item.ComputerName || item.DeviceName || item.ItemName || item.Model || 'Unknown Device';
+    const deviceSerial = item[config.serialField] || item.SerialNumber || item.MonitorSerial || '-';
     try {
-        await apiRequest('/api/inventory/maintenance', 'POST', { 
-            deviceId: itemId, 
-            deviceCollection: collection, 
-            description: desc, 
-            logDate: date, 
-            cost: cost, 
-            technician: tech 
-        });
-        
+        await apiRequest('/api/inventory/maintenance', 'POST', { deviceId: itemId, deviceCollection: collection, deviceName: deviceName, deviceSerial: deviceSerial, description: desc, logDate: date, cost: cost, technician: tech });
         window.showNotificationModal('success', 'Log Added', "Maintenance record saved successfully.");
-        const form = document.getElementById('maintenanceLogForm');
-        if(form) form.reset();
-        
-        // Refresh and re-build list
+        const form = document.getElementById('maintenanceLogForm'); if(form) form.reset();
         await refreshAllData();
         const updatedItem = (allData[collection] || []).find(i => String(i._id || i.id) === itemId);
-        if(updatedItem) {
-            window.buildMaintenanceLogInModal(updatedItem);
-        } else {
-            // Fallback if item not found in its collection (e.g. if it's a custom collection)
-            window.buildMaintenanceLogInModal({ _id: itemId });
+        window.buildMaintenanceLogInModal(updatedItem || { _id: itemId });
+    } catch (error) { window.showNotificationModal('warning', 'Error', error.message); }
+};
+
+window.deleteMaintenanceLog = async function(logId) {
+    if(!confirm("Are you sure you want to delete this maintenance log?")) return;
+    try {
+        await apiRequest(`/api/inventory/Maintenance%20Log/${logId}`, 'DELETE');
+        window.showNotificationModal('success', 'Deleted', 'Maintenance log deleted.');
+        await refreshAllData();
+        const { collection, id } = currentEdit;
+        const updatedItem = (allData[collection] || []).find(i => String(i._id || i.id) === String(id));
+        window.buildMaintenanceLogInModal(updatedItem || { _id: id });
+        if(document.getElementById('maintenance-page').classList.contains('active')) window.buildMaintenancePage();
+    } catch(e) { window.showNotificationModal('warning', 'Error', e.message); }
+};
+
+window.buildMaintenancePage = function() {
+    const container = document.getElementById('MaintenanceContainer'); if(!container) return; container.innerHTML = '';
+    const logs = allData['Maintenance Log'] || [];
+    if (logs.length === 0) { container.innerHTML = `<div class="text-center text-gray-500 py-10"><i class="fas fa-tools text-4xl mb-3 opacity-20"></i><p>${t('no_data')}</p></div>`; return; }
+    logs.sort((a,b) => new Date(b.logDate) - new Date(a.logDate)).forEach(log => {
+        let deviceName = log.deviceName || 'Unknown Device'; let deviceSerial = log.deviceSerial || '-'; let config = collectionConfigs[log.deviceCollection];
+        if (!log.deviceName && allData[log.deviceCollection]) {
+            const device = allData[log.deviceCollection].find(d => String(d._id || d.id) === String(log.deviceId));
+            if (device) { deviceName = device[config?.nameField] || device.ComputerName || device.DeviceName || device.ItemName || device.Model || 'Unknown Device'; deviceSerial = device[config?.serialField] || device.SerialNumber || device.MonitorSerial || '-'; }
         }
-        
-    } catch (error) {
-        window.showNotificationModal('warning', 'Error', error.message);
-    }
+        const catName = config ? config.displayName : log.deviceCollection;
+        container.innerHTML += `<div class="bg-white dark:bg-gray-800 p-5 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700 mb-3 hover:shadow-md transition relative"><button onclick="window.deleteMaintenanceLogFromGlobal('${log._id || log.id}')" class="absolute top-4 right-4 text-red-400 hover:text-red-600 transition" title="Delete Log"><i class="fas fa-trash-alt"></i></button><div class="flex justify-between items-start mb-2 pr-6"><div><span class="px-2 py-0.5 bg-indigo-100 dark:bg-indigo-900/50 text-indigo-700 dark:text-indigo-400 text-[10px] font-bold rounded uppercase tracking-wider mb-1 inline-block">${catName}</span><h3 class="font-bold text-gray-800 dark:text-white text-lg">${deviceName} <span class="text-xs text-gray-500 font-normal ml-2">SN: ${deviceSerial}</span></h3></div></div><span class="text-sm font-semibold text-gray-500 bg-gray-100 dark:bg-gray-700 px-3 py-1 rounded-lg inline-block mb-3"><i class="far fa-calendar-alt mr-1"></i> ${new Date(log.logDate).toLocaleDateString('th-TH')}</span><p class="text-gray-600 dark:text-gray-300 bg-gray-50 dark:bg-gray-900/50 p-3 rounded-lg border border-gray-100 dark:border-gray-700 text-sm">${log.description}</p><div class="mt-3 flex items-center justify-between"><div class="flex items-center space-x-4"><span class="text-xs text-gray-500 font-medium flex items-center"><i class="fas fa-user-cog mr-1.5 text-indigo-400"></i> ${log.technician || 'ไม่ระบุช่าง'}</span></div><span class="text-sm font-bold text-green-600 dark:text-green-400 bg-green-50 dark:bg-green-900/20 px-3 py-1 rounded-lg">฿ ${log.cost ? parseFloat(log.cost).toLocaleString() : '0'}</span></div></div>`;
+    });
+};
+
+window.deleteMaintenanceLogFromGlobal = async function(logId) {
+    if(!confirm("Are you sure you want to delete this maintenance log?")) return;
+    try { await apiRequest(`/api/inventory/Maintenance%20Log/${logId}`, 'DELETE'); window.showNotificationModal('success', 'Deleted', 'Maintenance log deleted.'); await refreshAllData(); window.buildMaintenancePage(); } catch(e) { window.showNotificationModal('warning', 'Error', e.message); }
 };
 
 window.openImportModal = function(collectionName) {
@@ -1313,11 +1442,6 @@ window.downloadLoanQR = function(loanId, borrowerName, loanDate) {
     }
 };
 
-window.buildMaintenancePage = function() {
-    const container = document.getElementById('MaintenanceContainer'); if(!container) return; container.innerHTML = ''; const logs = allData['Maintenance Log'] || [];
-    logs.sort((a,b) => new Date(b.logDate) - new Date(a.logDate)).forEach(log => { container.innerHTML += `<div class="bg-white dark:bg-gray-800 p-4 rounded-lg shadow mb-3"><div class="flex justify-between"><span class="font-bold text-gray-800 dark:text-white">${log.deviceCollection} (ID: ${log.deviceId})</span><span class="text-sm text-gray-500">${new Date(log.logDate).toLocaleDateString()}</span></div><p class="text-gray-600 dark:text-gray-300 mt-1">${log.description}</p><div class="mt-2 text-xs text-gray-400 flex justify-between"><span>Tech: ${log.technician || '-'}</span><span>Cost: ${log.cost || 0}</span></div></div>`; });
-};
-
 window.filterLoanHistory = function(val) { const term=val.toUpperCase(); document.querySelectorAll('#LoanHistoryContainer > div').forEach(el => el.style.display = el.textContent.toUpperCase().includes(term)?'':'none'); };
 window.filterMaintenanceHistory = function(val) { const term=val.toUpperCase(); document.querySelectorAll('#MaintenanceContainer > div').forEach(el => el.style.display = el.textContent.toUpperCase().includes(term)?'':'none'); };
 window.filterAssetsByUser = function(val) { const term=val.toUpperCase(); document.querySelectorAll('#AssetsByUserContainer > details').forEach(el => el.style.display = el.textContent.toUpperCase().includes(term)?'':'none'); };
@@ -1364,94 +1488,6 @@ window.processRapidEntry = async function(serial) {
     try { await apiRequest(`/api/inventory/${col}`, 'POST', payload); document.getElementById(logId).innerHTML = `<span class="font-mono text-gray-800 dark:text-gray-200">${serial}</span><span class="text-green-500 font-bold"><i class="fas fa-check-circle"></i> Success</span>`; } catch (error) { document.getElementById(logId).innerHTML = `<span class="font-mono text-red-500">${serial}</span><span class="text-red-500 font-bold" title="${error.message}"><i class="fas fa-times-circle"></i> Failed</span>`; }
 };
 
-window.buildLabelPrinterPage = function() {
-    const pageId = 'labelprinter-page'; let pageDiv = document.getElementById(pageId); if (!pageDiv) return;
-    pageDiv.innerHTML = `<div class="flex justify-between items-center mb-6"><h2 class="text-2xl md:text-3xl font-bold text-gray-900 dark:text-white">${t('label_printer')}</h2><button onclick="window.printLabel()" class="bg-indigo-600 text-white font-bold py-2 px-6 rounded-lg hover:bg-indigo-700 shadow-md flex items-center"><i class="fas fa-print mr-2"></i> Print Label</button></div><div class="grid grid-cols-1 lg:grid-cols-12 gap-6"><div class="lg:col-span-4 space-y-6"><div class="bg-white dark:bg-gray-800 p-5 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700"><h3 class="font-semibold text-lg border-b dark:border-gray-700 pb-2 mb-4 text-gray-800 dark:text-white">1. Select Assets</h3><div class="space-y-4"><div><label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Category</label><select id="labelCategorySelect" onchange="window.updateLabelItemDropdown()" class="w-full px-3 py-2 border rounded-md dark:bg-gray-700 dark:border-gray-600 dark:text-white focus:ring-indigo-500"><option value="">-- Select Category --</option></select></div><div><label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1 flex justify-between"><span>Items to Print</span><span class="text-indigo-600 dark:text-indigo-400 text-xs font-bold" id="selectedLabelCount">0 selected</span></label><div class="mb-2 px-1"><label class="inline-flex items-center cursor-pointer"><input type="checkbox" id="selectAllLabelItemsCb" onchange="window.toggleAllLabelItems(this.checked)" class="rounded text-indigo-600 focus:ring-indigo-500" disabled><span class="ml-2 text-sm font-medium text-gray-600 dark:text-gray-400">Select All</span></label></div><div id="labelItemList" class="max-h-48 overflow-y-auto space-y-1 border rounded-md p-2 dark:border-gray-600 bg-gray-50 dark:bg-gray-700/50"><p class="text-sm text-gray-500 text-center py-2">Select category first</p></div></div></div></div><div class="bg-white dark:bg-gray-800 p-5 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700"><h3 class="font-semibold text-lg border-b dark:border-gray-700 pb-2 mb-4 text-gray-800 dark:text-white">2. Label Dimensions</h3><div class="grid grid-cols-2 gap-4 mb-4"><div><label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Width (mm)</label><input type="number" id="labelWidth" value="50" onchange="window.updateLabelPreview()" class="w-full px-3 py-2 border rounded-md dark:bg-gray-700 dark:border-gray-600 dark:text-white focus:ring-indigo-500"></div><div><label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Height (mm)</label><input type="number" id="labelHeight" value="30" onchange="window.updateLabelPreview()" class="w-full px-3 py-2 border rounded-md dark:bg-gray-700 dark:border-gray-600 dark:text-white focus:ring-indigo-500"></div></div><label class="flex items-center space-x-2 cursor-pointer bg-indigo-50 dark:bg-indigo-900/30 p-3 rounded-lg border border-indigo-100 dark:border-indigo-800"><input type="checkbox" id="labelSplitMode" onchange="window.updateLabelPreview()" class="rounded text-indigo-600 focus:ring-indigo-500 w-4 h-4"><span class="text-sm font-bold text-indigo-800 dark:text-indigo-200">Split Label (Top/Bottom - 2 items)</span></label></div><div class="bg-white dark:bg-gray-800 p-5 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700"><h3 class="font-semibold text-lg border-b dark:border-gray-700 pb-2 mb-4 text-gray-800 dark:text-white">3. Data to Print</h3><div id="labelFieldsContainer" class="space-y-2 max-h-48 overflow-y-auto pr-2 custom-scrollbar"><p class="text-sm text-gray-500 text-center">Select category first</p></div></div></div><div class="lg:col-span-8"><div class="bg-white dark:bg-gray-800 p-6 rounded-xl shadow-sm flex flex-col items-center justify-center min-h-[500px] border-2 border-dashed border-gray-300 dark:border-gray-600"><h3 class="text-gray-400 dark:text-gray-500 mb-6 font-bold tracking-widest uppercase">Live Preview</h3><div class="bg-gray-100 dark:bg-gray-900 p-6 rounded-lg overflow-auto max-w-full max-h-[600px] custom-scrollbar"><div id="print-area" class="flex flex-col gap-4 items-center"><div class="text-[10px] text-gray-400 text-center py-10 font-medium">No Items Selected</div></div></div><p class="text-xs text-gray-500 mt-6 max-w-md text-center"><i class="fas fa-info-circle mr-1 text-indigo-500"></i> When printing, make sure to set <strong>Margins to "None"</strong> and disable headers/footers in your browser's print dialog.</p></div></div></div>`;
-    const catSelect = document.getElementById('labelCategorySelect');
-    const skipKeys = ['Staff', 'CustomMenus', 'TransactionHistory', 'LoanHistory', 'Maintenance Log', 'admins', 'Software'];
-    Object.keys(allData).forEach(cat => { if (!skipKeys.includes(cat) && Array.isArray(allData[cat])) { const displayName = collectionConfigs[cat].isCustom ? collectionConfigs[cat].displayName : t(cat.toLowerCase()) || cat; catSelect.innerHTML += `<option value="${cat}">${displayName}</option>`; } });
-};
-
-window.updateLabelItemDropdown = function() {
-    const cat = document.getElementById('labelCategorySelect').value;
-    currentLabelCategory = cat; currentLabelItems = []; document.getElementById('selectedLabelCount').textContent = `0 selected`; window.updateLabelPreview(); 
-    if (!cat) return;
-    const items = allData[cat] || []; const config = collectionConfigs[cat] || { nameField: 'SerialNumber', serialField: 'SerialNumber', formFields: ['SerialNumber', 'Status'] }; 
-    document.getElementById('selectAllLabelItemsCb').disabled = false; document.getElementById('selectAllLabelItemsCb').checked = false;
-    document.getElementById('labelItemList').innerHTML = items.length === 0 ? '<p class="text-sm text-gray-500 text-center py-2">No items found</p>' : items.map(item => {
-        const name = item[config.nameField] || item.ComputerName || item.DeviceName || item.ItemName || item.Model || 'Unnamed'; const serial = item[config.serialField] || item.SerialNumber || item._id; const id = item._id || item.id;
-        return `<label class="flex items-center space-x-2 cursor-pointer p-1.5 hover:bg-white dark:hover:bg-gray-600 rounded border border-transparent hover:border-gray-200 dark:hover:border-gray-500 transition-colors"><input type="checkbox" class="label-item-cb rounded text-indigo-600 focus:ring-indigo-500" value="${id}" onchange="window.toggleLabelItem('${id}', this.checked)"><span class="text-sm text-gray-700 dark:text-gray-300 truncate w-full" title="${name} (${serial})"><span class="font-medium">${name}</span> <span class="text-xs text-gray-500 ml-1">(${serial})</span></span></label>`;
-    }).join('');
-    document.getElementById('labelFieldsContainer').innerHTML = '';
-    config.formFields.forEach(field => { const isChecked = field === config.nameField || field === config.serialField ? 'checked' : ''; document.getElementById('labelFieldsContainer').innerHTML += `<label class="flex items-center space-x-2 cursor-pointer p-1.5 hover:bg-gray-50 dark:hover:bg-gray-700 rounded transition-colors"><input type="checkbox" class="label-field-cb rounded text-indigo-600 focus:ring-indigo-500" value="${field}" ${isChecked} onchange="window.updateLabelPreview()"><span class="text-sm font-medium text-gray-700 dark:text-gray-300 truncate">${field}</span></label>`; });
-};
-
-window.toggleLabelItem = function(id, isChecked) {
-    if (isChecked) { if (!currentLabelItems.includes(id)) currentLabelItems.push(id); } else { currentLabelItems = currentLabelItems.filter(i => i !== id); document.getElementById('selectAllLabelItemsCb').checked = false; }
-    document.getElementById('selectedLabelCount').textContent = `${currentLabelItems.length} selected`; window.updateLabelPreview();
-};
-
-window.toggleAllLabelItems = function(isChecked) {
-    currentLabelItems = []; document.querySelectorAll('.label-item-cb').forEach(cb => { cb.checked = isChecked; if (isChecked) currentLabelItems.push(cb.value); });
-    document.getElementById('selectedLabelCount').textContent = `${currentLabelItems.length} selected`; window.updateLabelPreview();
-};
-
-function generateLabelHTML(item, isSplit) {
-    if (!item) return `<div class="w-full ${isSplit ? 'h-1/2' : 'h-full'} bg-white"></div>`; 
-    const checkedFields = Array.from(document.querySelectorAll('.label-field-cb:checked')).map(cb => cb.value);
-    let textHtml = ''; let fontSizeClass = isSplit ? 'text-[6pt] leading-[7pt]' : 'text-[7pt] leading-[8pt]';
-    if(checkedFields.length <= 2) fontSizeClass = isSplit ? 'text-[8pt] leading-[9pt] font-bold' : 'text-[10pt] leading-[11pt] font-bold'; else if(checkedFields.length <= 4) fontSizeClass = isSplit ? 'text-[7pt] leading-[8pt]' : 'text-[8pt] leading-[9pt]';
-    checkedFields.forEach((field, index) => { const val = item[field] || '-'; const extraClass = index === 0 ? 'font-bold' : ''; textHtml += `<div class="${fontSizeClass} ${extraClass} truncate text-black font-sans" style="max-width: 100%;">${val}</div>`; });
-    const config = collectionConfigs[currentLabelCategory] || {}; const serial = item[config.serialField] || item.SerialNumber || item._id;
-    return `<div class="w-full flex p-1 box-border bg-white ${isSplit ? 'h-1/2' : 'h-full'}"><div class="h-full flex flex-col items-center justify-center pr-1 shrink-0" style="width: 35%;"><canvas data-serial="${serial}" class="qr-render-target max-w-full max-h-full"></canvas></div><div class="h-full w-full pl-1 flex flex-col justify-center overflow-hidden border-l border-gray-300 bg-white">${textHtml}</div></div>`;
-}
-
-window.updateLabelPreview = function() {
-    const printArea = document.getElementById('print-area'); const w = document.getElementById('labelWidth').value || 50; const h = document.getElementById('labelHeight').value || 30; const isSplit = document.getElementById('labelSplitMode').checked;
-    if (currentLabelItems.length === 0) { printArea.innerHTML = '<div class="text-[10px] text-gray-400 text-center py-10 font-medium">No Items Selected</div>'; return; }
-    let previewHtml = ''; const itemsData = currentLabelItems.map(id => allData[currentLabelCategory].find(i => i._id === id || i.id === id)).filter(Boolean);
-    if (isSplit) { for (let i = 0; i < itemsData.length; i += 2) { previewHtml += `<div class="label-page preview-border relative box-border bg-white text-black flex flex-col overflow-hidden" style="width: ${w}mm; height: ${h}mm; border: 1px solid #ccc; box-shadow: 0 1px 3px rgba(0,0,0,0.1);">${generateLabelHTML(itemsData[i], true)}${itemsData[i+1] ? `<div style="border-top: 1px dashed #999; width: 100%;"></div>` : ''}${generateLabelHTML(itemsData[i+1], true)}</div>`; } } else { itemsData.forEach(item => { previewHtml += `<div class="label-page preview-border relative box-border bg-white text-black flex overflow-hidden" style="width: ${w}mm; height: ${h}mm; border: 1px solid #ccc; box-shadow: 0 1px 3px rgba(0,0,0,0.1);">${generateLabelHTML(item, false)}</div>`; }); }
-    printArea.innerHTML = previewHtml;
-    printArea.querySelectorAll('.qr-render-target').forEach(canvas => { QRCode.toCanvas(canvas, `${window.location.origin.replace(/\/$/, '')}/details.html?sn=${canvas.dataset.serial}`, { width: 256, margin: 0, color: { dark: '#000000', light: '#ffffff' } }); });
-};
-
-window.printLabel = function() {
-    if (currentLabelItems.length === 0) return showNotificationModal('warning', 'No Items Selected', 'Please select at least one item to print.');
-    const w = document.getElementById('labelWidth').value || 50; const h = document.getElementById('labelHeight').value || 30;
-    let dynamicStyle = document.getElementById('dynamic-print-style'); if (!dynamicStyle) { dynamicStyle = document.createElement('style'); dynamicStyle.id = 'dynamic-print-style'; document.head.appendChild(dynamicStyle); }
-    dynamicStyle.innerHTML = `@media print { @page { size: ${w}mm ${h}mm; margin: 0mm; } }`;
-    window.print();
-};
-
-window.openCloneModal = function(collectionName, id) {
-    const item = allData[collectionName].find(i => i._id === id || i.id === id); if (!item) return;
-    const config = collectionConfigs[collectionName]; const name = item[config.nameField] || item.ComputerName || item.ItemName || item.DeviceName || 'Unknown Device'; const serial = item[config.serialField] || item.SerialNumber || id;
-    document.getElementById('cloneSourceInfo').textContent = `${name} (${serial})`; document.getElementById('cloneCollection').value = collectionName; document.getElementById('cloneSourceId').value = id; document.getElementById('cloneSerialNumbers').value = '';
-    window.openModalWindow('cloneModal');
-};
-
-window.processClone = async function() {
-    const collectionName = document.getElementById('cloneCollection').value; const sourceId = document.getElementById('cloneSourceId').value; const serialsText = document.getElementById('cloneSerialNumbers').value;
-    const serialNumbers = serialsText.split('\n').map(s => s.trim()).filter(s => s !== '');
-    if (serialNumbers.length === 0) return showNotificationModal('warning', 'ไม่มีข้อมูล', 'กรุณาระบุ Serial Number อย่างน้อย 1 รายการ');
-    try { await apiRequest(`/api/inventory/${collectionName}/clone-bulk`, 'POST', { sourceId: sourceId, serialNumbers: serialNumbers, overrides: { lastSeenOnline: null, IPAddress: '', MacAddress: '' } }); showNotificationModal('success', 'โคลนสำเร็จ', `โคลนอุปกรณ์เสร็จสิ้นจำนวน ${serialNumbers.length} รายการ ระบบบันทึกเข้า Storage แล้ว`); window.hideModal('cloneModal'); await refreshAllData(); window.buildTable(collectionName); window.updateDashboard(currentDashboardFolder); } catch (error) { showNotificationModal('warning', 'การโคลนล้มเหลว', error.message); }
-};
-
-window.openMoveModal = function(collectionName, id) {
-    const item = allData[collectionName].find(i => i._id === id || i.id === id); if (!item) return;
-    const config = collectionConfigs[collectionName]; const name = item[config.nameField] || item.ComputerName || item.ItemName || item.DeviceName || 'Unknown Device'; const serial = item[config.serialField] || item.SerialNumber || id;
-    document.getElementById('moveSourceInfo').textContent = `${name} (${serial}) จากหมวด ${config.displayName || collectionName}`; document.getElementById('moveSourceCollection').value = collectionName; document.getElementById('moveSourceId').value = id;
-    const targetSelect = document.getElementById('moveTargetCollection'); targetSelect.innerHTML = '<option value="">-- เลือกหมวดหมู่ปลายทาง --</option>';
-    Object.keys(collectionConfigs).forEach(cat => { const skipKeys = ['Software', 'Staff', 'CustomMenus', 'TransactionHistory', 'LoanHistory', 'Maintenance Log', 'admins']; if (cat !== collectionName && !skipKeys.includes(cat)) { const displayName = collectionConfigs[cat].isCustom ? collectionConfigs[cat].displayName : t(cat.toLowerCase()) || cat; targetSelect.innerHTML += `<option value="${cat}">${displayName}</option>`; } });
-    window.openModalWindow('moveModal');
-};
-
-window.processMove = async function() {
-    const sourceCollection = document.getElementById('moveSourceCollection').value; const sourceId = document.getElementById('moveSourceId').value; const targetCollection = document.getElementById('moveTargetCollection').value;
-    if (!targetCollection) return showNotificationModal('warning', 'ข้อมูลไม่ครบ', 'กรุณาเลือกหมวดหมู่ปลายทาง');
-    if (confirm(`คุณแน่ใจหรือไม่ที่จะย้ายอุปกรณ์นี้ไปยังหมวดหมู่ ${collectionConfigs[targetCollection]?.displayName || targetCollection} ?`)) { try { await apiRequest(`/api/inventory/${sourceCollection}/move`, 'POST', { targetCollection: targetCollection, id: sourceId }); showNotificationModal('success', 'ย้ายสำเร็จ', `ย้ายอุปกรณ์ไปยังหมวดหมู่ ${collectionConfigs[targetCollection]?.displayName || targetCollection} เรียบร้อยแล้ว`); window.hideModal('moveModal'); await refreshAllData(); window.buildTable(sourceCollection); window.updateDashboard(currentDashboardFolder); } catch (error) { showNotificationModal('warning', 'การย้ายล้มเหลว', error.message); } }
-};
-
 window.buildSearchScanPage = function() {
     const pageId = 'searchscan-page'; let pageDiv = document.getElementById(pageId);
     if (!pageDiv) {
@@ -1466,7 +1502,6 @@ window.buildSearchScanPage = function() {
             </div>
 
             <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
-                <!-- Manual Search -->
                 <div class="bg-white dark:bg-gray-800 p-6 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700">
                     <div class="w-12 h-12 bg-indigo-100 dark:bg-indigo-900/50 rounded-xl flex items-center justify-center text-indigo-600 dark:text-indigo-400 mb-4">
                         <i class="fas fa-search text-xl"></i>
@@ -1480,7 +1515,6 @@ window.buildSearchScanPage = function() {
                     </div>
                 </div>
 
-                <!-- Image Search -->
                 <div class="bg-white dark:bg-gray-800 p-6 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700">
                     <div class="w-12 h-12 bg-emerald-100 dark:bg-emerald-900/50 rounded-xl flex items-center justify-center text-emerald-600 dark:text-emerald-400 mb-4">
                         <i class="fas fa-camera text-xl"></i>
@@ -1502,7 +1536,6 @@ window.buildSearchScanPage = function() {
                 </div>
             </div>
 
-            <!-- Results Area -->
             <div id="searchResultsArea" class="hidden space-y-4">
                 <h4 class="text-xs font-bold text-gray-500 uppercase tracking-widest px-2">${t('search_results')}</h4>
                 <div id="searchResultsList"></div>
@@ -1516,25 +1549,10 @@ window.buildSearchScanPage = function() {
     `;
 };
 
-// Override original loadPage to handle SearchScan
-const originalLoadPage = window.loadPage;
-window.loadPage = function(pageName, navElement) {
-    if (pageName === 'SearchScan') {
-        window.buildSearchScanPage();
-    }
-    originalLoadPage(pageName, navElement);
-    if (pageName === 'SearchScan') {
-        document.getElementById('searchscan-page').classList.remove('hidden');
-        document.getElementById('searchscan-page').classList.add('active');
-        document.getElementById('searchscan-page').style.display = 'block';
-    }
-};
-
 window.handleManualQuickSearch = async function() {
     const input = document.getElementById('quickSearchInput');
     const term = input.value.trim();
     if (!term) return;
-
     window.performDeviceSearch(term);
 };
 
@@ -1542,7 +1560,6 @@ window.handleImageSearch = async function(inputElement) {
     if (!inputElement.files || inputElement.files.length === 0) return;
     const file = inputElement.files[0];
 
-    // Show loading UI
     const resultsList = document.getElementById('searchResultsList');
     const resultsArea = document.getElementById('searchResultsArea');
     const emptyState = document.getElementById('searchEmptyState');
@@ -1562,12 +1579,7 @@ window.handleImageSearch = async function(inputElement) {
         const extractedText = ret.data.text;
         await worker.terminate();
 
-        console.log("Image Search OCR Result:\n", extractedText);
-
-        // 1. Try to find SN pattern first (Highest Priority)
         const snMatch = extractedText.match(/(?:S\/?N|Serial\s*Number)\s*:?\s*([A-Z0-9-]+)/i);
-        
-        // 2. Extract potential keywords (Words with letters and numbers, length >= 4)
         const words = extractedText.split(/[\s\n,]+/)
             .map(w => w.replace(/[^A-Z0-9-]/gi, '').trim())
             .filter(w => w.length >= 4 && !/^(SERIAL|NUMBER|MODEL|NAME|BRAND|PROPERTY|ASSET|WARRANTY|VOID|MADE|CHINA|VIETNAM)$/i.test(w));
@@ -1576,18 +1588,13 @@ window.handleImageSearch = async function(inputElement) {
         if (snMatch && snMatch[1]) {
             searchCandidate = snMatch[1].trim();
         } else if (words.length > 0) {
-            // Pick the longest word as the best candidate for keyword search
             searchCandidate = words.sort((a, b) => b.length - a.length)[0];
         }
 
         if (searchCandidate) {
-            console.log("Auto-searching with candidate:", searchCandidate);
             window.performDeviceSearch(searchCandidate);
-            
-            // If there are other words, show them as suggested keywords below the result
             if (words.length > 1) {
                 setTimeout(() => {
-                    const resultsArea = document.getElementById('searchResultsArea');
                     const suggestions = words.filter(w => w !== searchCandidate).slice(0, 5);
                     if (suggestions.length > 0) {
                         const sugHtml = `
@@ -1612,9 +1619,7 @@ window.handleImageSearch = async function(inputElement) {
                 </div>
             `;
         }
-
     } catch (error) {
-        console.error("Image Search Error:", error);
         resultsList.innerHTML = `<div class="p-8 text-center text-red-500">Error: ${error.message}</div>`;
     }
     inputElement.value = '';
@@ -1630,9 +1635,7 @@ window.performDeviceSearch = async function(term) {
     resultsList.innerHTML = `<div class="text-center py-10"><i class="fas fa-spinner fa-spin text-indigo-500"></i> Searching...</div>`;
 
     try {
-        // Try partial keyword search first
         const res = await fetch(`${API_BASE_URL}/api/inventory/search/all?q=${encodeURIComponent(term)}`);
-        
         if (res.ok) {
             const results = await res.json();
             if (results && results.length > 0) {
@@ -1653,7 +1656,6 @@ window.performDeviceSearch = async function(term) {
             throw new Error("Search failed");
         }
     } catch (error) {
-        console.error("Search Error:", error);
         resultsList.innerHTML = `<div class="p-8 text-center text-red-500">Error: ${error.message}</div>`;
     }
 };
@@ -1718,8 +1720,4 @@ window.generateSearchResultCard = function(item, collectionName) {
             </div>
         </div>
     `;
-};
-
-window.renderSearchResult = function(item, collectionName) {
-    // This function is now deprecated in favor of generateSearchResultCard used in performDeviceSearch
 };
