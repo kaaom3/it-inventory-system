@@ -1187,8 +1187,16 @@ window.deleteAdmin = async function(id) { if(confirm("Delete admin?")) { await a
 
 window.buildMaintenanceLogInModal = function(item) {
     const list = document.getElementById('maintenanceLogList'); if(!list) return; list.innerHTML = '';
+    
+    // Ensure we have a valid ID to filter with
+    const itemId = String(item._id || item.id || '');
+    if (!itemId) {
+        list.innerHTML = `<p class="text-xs text-gray-500">${t('no_data')}</p>`;
+        return;
+    }
+
     const logs = (allData['Maintenance Log'] || [])
-        .filter(l => l.deviceId === item._id || l.deviceId === item.id)
+        .filter(l => String(l.deviceId) === itemId)
         .sort((a, b) => new Date(b.logDate) - new Date(a.logDate));
     
     if(logs.length === 0) {
@@ -1221,9 +1229,12 @@ window.addMaintenanceLog = async function() {
     
     if(!desc || !date) return window.showNotificationModal('warning', 'Missing Info', "Date and Description are required");
     
+    // Use the string version of ID for consistency
+    const itemId = String(id);
+    
     try {
         await apiRequest('/api/inventory/maintenance', 'POST', { 
-            deviceId: id, 
+            deviceId: itemId, 
             deviceCollection: collection, 
             description: desc, 
             logDate: date, 
@@ -1235,9 +1246,15 @@ window.addMaintenanceLog = async function() {
         const form = document.getElementById('maintenanceLogForm');
         if(form) form.reset();
         
+        // Refresh and re-build list
         await refreshAllData();
-        const item = (allData[collection] || []).find(i => i._id === id || i.id === id);
-        if(item) window.buildMaintenanceLogInModal(item);
+        const updatedItem = (allData[collection] || []).find(i => String(i._id || i.id) === itemId);
+        if(updatedItem) {
+            window.buildMaintenanceLogInModal(updatedItem);
+        } else {
+            // Fallback if item not found in its collection (e.g. if it's a custom collection)
+            window.buildMaintenanceLogInModal({ _id: itemId });
+        }
         
     } catch (error) {
         window.showNotificationModal('warning', 'Error', error.message);
