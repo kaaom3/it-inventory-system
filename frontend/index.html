@@ -356,6 +356,57 @@
                         </div>
                     </div>
                 </div>
+
+                <!-- Tab 2: Maintenance (Upgraded) -->
+                <div id="maintenance-tab" class="tab-content">
+                    <div class="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm overflow-hidden mb-6">
+                        <div class="bg-gray-50 dark:bg-gray-900/50 px-5 py-3 border-b border-gray-200 dark:border-gray-700 flex items-center">
+                            <i class="fas fa-plus-circle text-indigo-500 mr-2"></i>
+                            <h4 class="text-sm font-bold text-gray-700 dark:text-gray-200 uppercase tracking-wider" data-i18n="add_new_log">Add New Log</h4>
+                        </div>
+                        <form id="maintenanceLogForm" class="p-5 grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div class="md:col-span-2">
+                                <label class="block text-xs font-semibold text-gray-600 dark:text-gray-400 mb-1" data-i18n="description">Description*</label>
+                                <textarea id="newLogDescription" class="w-full px-4 py-2 bg-gray-50 border border-gray-300 rounded-lg focus:ring-indigo-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white" rows="2" placeholder="Describe the issue or work performed..." required></textarea>
+                            </div>
+                            <div>
+                                <label class="block text-xs font-semibold text-gray-600 dark:text-gray-400 mb-1" data-i18n="date_log">Date*</label>
+                                <input type="date" id="newLogDate" class="w-full px-4 py-2 bg-gray-50 border border-gray-300 rounded-lg focus:ring-indigo-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white" required>
+                            </div>
+                            <div>
+                                <label class="block text-xs font-semibold text-gray-600 dark:text-gray-400 mb-1" data-i18n="status">Status</label>
+                                <select id="newLogStatus" class="w-full px-4 py-2 bg-gray-50 border border-gray-300 rounded-lg focus:ring-indigo-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white">
+                                    <option value="Completed">Completed</option>
+                                    <option value="In Progress">In Progress</option>
+                                    <option value="Waiting for Parts">Waiting for Parts</option>
+                                    <option value="Scheduled">Scheduled</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label class="block text-xs font-semibold text-gray-600 dark:text-gray-400 mb-1" data-i18n="cost">Cost</label>
+                                <input type="number" id="newLogCost" class="w-full px-4 py-2 bg-gray-50 border border-gray-300 rounded-lg focus:ring-indigo-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white" placeholder="0.00">
+                            </div>
+                            <div>
+                                <label class="block text-xs font-semibold text-gray-600 dark:text-gray-400 mb-1" data-i18n="technician">Technician</label>
+                                <input type="text" id="newLogTechnician" class="w-full px-4 py-2 bg-gray-50 border border-gray-300 rounded-lg focus:ring-indigo-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white" placeholder="Name of person/vendor">
+                            </div>
+                            <div class="md:col-span-2 flex justify-end">
+                                <button type="button" onclick="window.addMaintenanceLog()" class="bg-indigo-600 hover:bg-indigo-700 text-white font-bold px-6 py-2 rounded-lg shadow-md transition-colors flex items-center">
+                                    <i class="fas fa-save mr-2"></i> <span data-i18n="save_log">Save Log</span>
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                    <div class="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm overflow-hidden">
+                        <div class="bg-gray-50 dark:bg-gray-900/50 px-5 py-3 border-b border-gray-200 dark:border-gray-700 flex items-center">
+                            <i class="fas fa-history text-gray-400 mr-2"></i>
+                            <h4 class="text-sm font-bold text-gray-700 dark:text-gray-200 uppercase tracking-wider" data-i18n="past_records">Past Records</h4>
+                        </div>
+                        <div id="maintenanceLogList" class="p-5 space-y-3">
+                            <!-- Maintenance logs will be injected here -->
+                        </div>
+                    </div>
+                </div>
                 
                 <!-- Tab 3: History (Injected dynamically) -->
                 <div id="history-tab" class="tab-content">
