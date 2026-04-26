@@ -573,7 +573,7 @@ app.get('/api/inventory/search/all', async (req, res) => {
         const regex = new RegExp(query, 'i'); // Case-insensitive partial match
 
         for (let col of collections) {
-            const skipKeys = ['admins', 'CustomMenus', 'Staff', 'TransactionHistory', 'LoanHistory'];
+            const skipKeys = ['admins', 'CustomMenus', 'Staff', 'TransactionHistory', 'LoanHistory', 'Maintenance Log'];
             if (skipKeys.includes(col.name)) continue;
 
             const items = await db.collection(col.name).find({
@@ -607,7 +607,7 @@ app.get('/api/inventory/find/:sn', async (req, res) => {
         const sn = req.params.sn;
         const collections = await db.listCollections().toArray();
         for (let col of collections) {
-            const skipKeys = ['admins', 'CustomMenus', 'Staff', 'TransactionHistory', 'LoanHistory'];
+            const skipKeys = ['admins', 'CustomMenus', 'Staff', 'TransactionHistory', 'LoanHistory', 'Maintenance Log'];
             if (skipKeys.includes(col.name)) continue;
 
             const searchIds = [sn];
@@ -680,7 +680,7 @@ app.get('/api/public/loanable-items', async (req, res) => {
         const collections = await db.listCollections().toArray();
         const allData = {};
         for (let col of collections) {
-            const skipKeys = ['admins', 'CustomMenus', 'Staff', 'TransactionHistory', 'LoanHistory'];
+            const skipKeys = ['admins', 'CustomMenus', 'Staff', 'TransactionHistory', 'LoanHistory', 'Maintenance Log'];
             if (!skipKeys.includes(col.name)) allData[col.name] = await db.collection(col.name).find({ Status: 'Storage' }).toArray();
         }
         res.json(allData);
