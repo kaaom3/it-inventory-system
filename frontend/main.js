@@ -1,6 +1,6 @@
 // ===================================================================
 // Frontend Logic for IT Inventory System (Full Complete Version)
-// FEATURES: Bilingual (TH/EN), Auto-fill OCR, Dashboard, Labels, Custom Menus, Search
+// FEATURES: Bilingual (TH/EN), Auto-fill OCR, Dashboard, Labels, Custom Menus, Search, Advanced Maintenance
 // ===================================================================
 
 const API_BASE_URL = 'https://it-inventory-system-ncd9.onrender.com';
@@ -371,8 +371,6 @@ window.processOCR = async function(inputElement) {
         const extractedText = ret.data.text;
         await worker.terminate();
 
-        console.log("OCR Result:\n", extractedText);
-
         let foundFields = 0;
 
         const snMatch = extractedText.match(/(?:S\/?N|Serial\s*Number)\s*:?\s*([A-Z0-9]+)/i);
@@ -484,6 +482,7 @@ let currentRapidCollection = null;
 let currentLabelItems = []; 
 let currentLabelCategory = null;
 let currentDashboardFolder = null;
+let currentLogEditId = null; // 🌟 Tracking current editing log ID
 
 document.addEventListener('DOMContentLoaded', () => {
     const token = localStorage.getItem('authToken');
@@ -493,6 +492,7 @@ document.addEventListener('DOMContentLoaded', () => {
         initTheme();
         initPrintStyles(); 
         injectRapidEntryModal(); 
+        injectMaintenanceModals(); // 🌟 Inject Global Edit Maintenance Modal
         initializeAppLogic();
         bindGlobalEventListeners();
         updateUI();
@@ -960,13 +960,63 @@ window.renderPaginationControls = function(collectionName, totalRows) {
     container.innerHTML = `<div class="text-sm">${t('showing')} <span class="font-semibold">${startItem}</span> ${t('to')} <span class="font-semibold">${endItem}</span> ${t('of')} <span class="font-semibold">${totalRows}</span> ${t('results')}</div><div class="flex items-center space-x-2"><label class="text-sm font-medium">${t('rows')}</label><select onchange="window.changeRowsPerPage('${collectionName}', this)" class="rounded-md border-gray-300 dark:bg-gray-700 dark:border-gray-600 text-sm"><option value="10" ${state.rowsPerPage == 10 ? 'selected' : ''}>10</option><option value="25" ${state.rowsPerPage == 25 ? 'selected' : ''}>25</option><option value="50" ${state.rowsPerPage == 50 ? 'selected' : ''}>50</option></select><button onclick="window.changePage('${collectionName}', -1)" ${state.currentPage===1?'disabled':''} class="px-2 py-1 border rounded disabled:opacity-50 bg-white dark:bg-gray-700"><i class="fas fa-chevron-left"></i></button><span class="text-sm">${t('page')} ${state.currentPage} / ${totalPages || 1}</span><button onclick="window.changePage('${collectionName}', 1)" ${state.currentPage>=totalPages?'disabled':''} class="px-2 py-1 border rounded disabled:opacity-50 bg-white dark:bg-gray-700"><i class="fas fa-chevron-right"></i></button></div>`;
 };
 
-// 🌟 ปรับปรุงการแสดงผลประวัติใน Modal
+// 🌟 ระบบ Maintenance Log ฉบับปรับปรุงใหม่หมด
+function injectMaintenanceModals() {
+    if(document.getElementById('globalEditLogModal')) return;
+    const modalHtml = `
+    <div id="globalEditLogModal" class="modal opacity-0 pointer-events-none fixed inset-0 z-[70] flex items-center justify-center p-4 backdrop-blur-sm bg-gray-900/60 transition-opacity duration-300">
+        <div class="modal-content bg-white dark:bg-gray-800 rounded-2xl shadow-2xl w-full max-w-md overflow-hidden flex flex-col border border-gray-200 dark:border-gray-700 transition-all transform scale-95">
+            <div class="px-6 py-5 flex justify-between items-center border-b border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900/50">
+                <h3 class="text-lg font-bold text-gray-900 dark:text-white"><i class="fas fa-edit text-indigo-500 mr-2"></i>Edit Maintenance Log</h3>
+                <button onclick="window.hideModal('globalEditLogModal')" class="text-gray-400 hover:text-red-500 transition-colors"><i class="fas fa-times text-lg"></i></button>
+            </div>
+            <form id="globalEditLogForm" class="p-6 space-y-4">
+                <input type="hidden" id="gEditLogId">
+                <input type="hidden" id="gEditLogCollection">
+                <div>
+                    <label class="block text-xs font-semibold text-gray-600 dark:text-gray-400 mb-1">Date*</label>
+                    <input type="date" id="gEditLogDate" class="w-full px-4 py-2 bg-gray-50 border border-gray-300 rounded-lg dark:bg-gray-700 dark:border-gray-600 dark:text-white focus:ring-2 focus:ring-indigo-500" required>
+                </div>
+                <div>
+                    <label class="block text-xs font-semibold text-gray-600 dark:text-gray-400 mb-1">Description*</label>
+                    <textarea id="gEditLogDesc" class="w-full px-4 py-2 bg-gray-50 border border-gray-300 rounded-lg dark:bg-gray-700 dark:border-gray-600 dark:text-white focus:ring-2 focus:ring-indigo-500" rows="3" required></textarea>
+                </div>
+                <div class="grid grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-xs font-semibold text-gray-600 dark:text-gray-400 mb-1">Cost</label>
+                        <input type="number" id="gEditLogCost" class="w-full px-4 py-2 bg-gray-50 border border-gray-300 rounded-lg dark:bg-gray-700 dark:border-gray-600 dark:text-white focus:ring-2 focus:ring-indigo-500">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-semibold text-gray-600 dark:text-gray-400 mb-1">Technician</label>
+                        <input type="text" id="gEditLogTech" class="w-full px-4 py-2 bg-gray-50 border border-gray-300 rounded-lg dark:bg-gray-700 dark:border-gray-600 dark:text-white focus:ring-2 focus:ring-indigo-500">
+                    </div>
+                </div>
+            </form>
+            <div class="p-4 border-t border-gray-200 dark:border-gray-700 flex justify-end gap-3 bg-gray-50 dark:bg-gray-900/50">
+                <button type="button" onclick="window.hideModal('globalEditLogModal')" class="px-5 py-2 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-200 rounded-lg font-bold hover:bg-gray-50 dark:hover:bg-gray-600 transition-colors">Cancel</button>
+                <button type="button" onclick="window.saveGlobalEditLog()" class="px-5 py-2 bg-orange-500 hover:bg-orange-600 text-white rounded-lg font-bold shadow-md transition-colors"><i class="fas fa-save mr-2"></i>Update Log</button>
+            </div>
+        </div>
+    </div>`;
+    document.body.insertAdjacentHTML('beforeend', modalHtml);
+}
+
 window.buildMaintenanceLogInModal = function(item) {
     const list = document.getElementById('maintenanceLogList'); if(!list) return; list.innerHTML = '';
     const itemId = String(item._id || item.id || '');
-    if (!itemId) { list.innerHTML = `<p class="text-xs text-gray-500">${t('no_data')}</p>`; return; }
-    const logs = (allData['Maintenance Log'] || []).filter(l => String(l.deviceId) === itemId).sort((a, b) => new Date(b.logDate) - new Date(a.logDate));
-    if(logs.length === 0) { list.innerHTML = `<div class="p-8 text-center text-gray-500"><i class="fas fa-tools mb-2 text-2xl opacity-20"></i><p class="text-xs">${t('no_data')}</p></div>`; return; }
+    if (!itemId) {
+        list.innerHTML = `<p class="text-xs text-gray-500">${t('no_data')}</p>`;
+        return;
+    }
+
+    const logs = (allData['Maintenance Log'] || [])
+        .filter(l => String(l.deviceId) === itemId)
+        .sort((a, b) => new Date(b.logDate) - new Date(a.logDate));
+    
+    if(logs.length === 0) {
+        list.innerHTML = `<div class="p-8 text-center text-gray-500"><i class="fas fa-tools mb-2 text-2xl opacity-20"></i><p class="text-xs">${t('no_data')}</p></div>`;
+        return;
+    }
     
     logs.forEach(l => { 
         const logId = l._id || l.id;
@@ -975,19 +1025,60 @@ window.buildMaintenanceLogInModal = function(item) {
         const techStr = l.technician ? `<p class="text-[10px] text-gray-500 mt-1"><i class="fas fa-user-cog mr-1"></i> ${l.technician}</p>` : '';
         
         list.innerHTML += `
-            <div class="border-b last:border-0 py-3 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700/30 transition-colors px-1">
+            <div class="border-b last:border-0 py-3 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700/30 transition-colors px-2 rounded-lg">
                 <div class="flex justify-between items-start mb-1">
                     <p class="text-xs font-bold text-gray-900 dark:text-gray-100">${formattedDate}${costStr}</p>
-                    <button type="button" onclick="window.deleteMaintenanceLog('${logId}')" class="text-red-400 hover:text-red-600 transition" title="Delete Log"><i class="fas fa-trash-alt text-xs"></i></button>
+                    <div class="flex space-x-3">
+                        <button type="button" onclick="window.editMaintenanceLog('${logId}')" class="text-blue-500 hover:text-blue-700 transition" title="Edit Log"><i class="fas fa-edit text-xs"></i></button>
+                        <button type="button" onclick="window.deleteMaintenanceLog('${logId}')" class="text-red-400 hover:text-red-600 transition" title="Delete Log"><i class="fas fa-trash-alt text-xs"></i></button>
+                    </div>
                 </div>
-                <p class="text-sm text-gray-600 dark:text-gray-400 leading-relaxed">${l.description}</p>
+                <p class="text-sm text-gray-600 dark:text-gray-400 leading-relaxed mt-1">${l.description}</p>
                 ${techStr}
             </div>`; 
     });
 };
 
-// 🌟 ปรับปรุงการเพิ่ม Log ให้เซฟ Name และ S/N ไปด้วย
-window.addMaintenanceLog = async function() {
+window.editMaintenanceLog = function(logId) {
+    const log = (allData['Maintenance Log'] || []).find(l => String(l._id || l.id) === String(logId));
+    if(!log) return;
+    
+    window.currentLogEditId = logId;
+    document.getElementById('newLogDescription').value = log.description || '';
+    document.getElementById('newLogDate').value = log.logDate ? new Date(log.logDate).toISOString().split('T')[0] : '';
+    document.getElementById('newLogCost').value = log.cost || '';
+    document.getElementById('newLogTechnician').value = log.technician || '';
+
+    const saveBtn = document.getElementById('saveLogBtn');
+    const cancelBtn = document.getElementById('cancelEditLogBtn');
+    
+    saveBtn.innerHTML = '<i class="fas fa-save mr-2"></i> Update Log';
+    saveBtn.classList.replace('bg-indigo-600', 'bg-orange-500');
+    saveBtn.classList.replace('hover:bg-indigo-700', 'hover:bg-orange-600');
+    saveBtn.classList.remove('w-full');
+    saveBtn.classList.add('w-2/3');
+    cancelBtn.classList.remove('hidden');
+};
+
+window.cancelEditLog = function() {
+    window.currentLogEditId = null;
+    const form = document.getElementById('maintenanceLogForm');
+    if(form) form.reset();
+
+    const saveBtn = document.getElementById('saveLogBtn');
+    const cancelBtn = document.getElementById('cancelEditLogBtn');
+    
+    if(saveBtn) {
+        saveBtn.innerHTML = '<i class="fas fa-plus mr-2"></i> Save Log';
+        saveBtn.classList.replace('bg-orange-500', 'bg-indigo-600');
+        saveBtn.classList.replace('hover:bg-orange-600', 'hover:bg-indigo-700');
+        saveBtn.classList.remove('w-2/3');
+        saveBtn.classList.add('w-full');
+    }
+    if(cancelBtn) cancelBtn.classList.add('hidden');
+};
+
+window.saveMaintenanceLog = async function() {
     const { collection, id } = currentEdit; 
     const desc = document.getElementById('newLogDescription').value; 
     const date = document.getElementById('newLogDate').value; 
@@ -997,36 +1088,48 @@ window.addMaintenanceLog = async function() {
     if(!desc || !date) return window.showNotificationModal('warning', 'Missing Info', "Date and Description are required");
     const itemId = String(id);
     
-    // ดึงชื่อและ S/N มาใส่ไว้ใน Log เลย
-    const item = (allData[collection] || []).find(i => String(i._id || i.id) === itemId) || {};
-    const config = collectionConfigs[collection] || {};
-    const deviceName = item[config.nameField] || item.ComputerName || item.DeviceName || item.ItemName || item.Model || 'Unknown Device';
-    const deviceSerial = item[config.serialField] || item.SerialNumber || item.MonitorSerial || '-';
-    
     try {
-        // แก้ไข Endpoint ให้ส่งไปที่ Maintenance Log ตรงๆ เพื่อหลีกเลี่ยงการถูก Route อื่นดักจับ
-        await apiRequest('/api/inventory/Maintenance%20Log', 'POST', { 
-            deviceId: itemId, 
-            deviceCollection: collection, 
-            deviceName: deviceName,
-            deviceSerial: deviceSerial,
-            description: desc, 
-            logDate: date, 
-            cost: cost, 
-            technician: tech 
-        });
+        if (window.currentLogEditId) {
+            // Update Mode
+            const existingLog = (allData['Maintenance Log'] || []).find(l => String(l._id || l.id) === String(window.currentLogEditId)) || {};
+            await apiRequest(`/api/inventory/Maintenance%20Log/${window.currentLogEditId}`, 'PUT', { 
+                deviceId: existingLog.deviceId || itemId, 
+                deviceCollection: existingLog.deviceCollection || collection, 
+                deviceName: existingLog.deviceName || 'Unknown Device',
+                deviceSerial: existingLog.deviceSerial || '-',
+                description: desc, 
+                logDate: date, 
+                cost: cost, 
+                technician: tech 
+            });
+            window.showNotificationModal('success', 'Log Updated', "Maintenance record updated successfully.");
+        } else {
+            // Add Mode
+            const item = (allData[collection] || []).find(i => String(i._id || i.id) === itemId) || {};
+            const config = collectionConfigs[collection] || {};
+            const deviceName = item[config.nameField] || item.ComputerName || item.DeviceName || item.ItemName || item.Model || 'Unknown Device';
+            const deviceSerial = item[config.serialField] || item.SerialNumber || item.MonitorSerial || '-';
+            
+            await apiRequest('/api/inventory/Maintenance%20Log', 'POST', { 
+                deviceId: itemId, 
+                deviceCollection: collection, 
+                deviceName: deviceName,
+                deviceSerial: deviceSerial,
+                description: desc, 
+                logDate: date, 
+                cost: cost, 
+                technician: tech 
+            });
+            window.showNotificationModal('success', 'Log Added', "Maintenance record saved successfully.");
+        }
         
-        window.showNotificationModal('success', 'Log Added', "Maintenance record saved successfully.");
-        const form = document.getElementById('maintenanceLogForm');
-        if(form) form.reset();
-        
+        window.cancelEditLog();
         await refreshAllData();
         const updatedItem = (allData[collection] || []).find(i => String(i._id || i.id) === itemId);
         window.buildMaintenanceLogInModal(updatedItem || { _id: itemId });
     } catch (error) { window.showNotificationModal('warning', 'Error', error.message); }
 };
 
-// 🌟 เพิ่มฟังก์ชันลบ Log ใน Modal
 window.deleteMaintenanceLog = async function(logId) {
     if(!confirm("Are you sure you want to delete this maintenance log?")) return;
     try {
@@ -1040,7 +1143,6 @@ window.deleteMaintenanceLog = async function(logId) {
     } catch(e) { window.showNotificationModal('warning', 'Error', e.message); }
 };
 
-// 🌟 ปรับปรุงหน้าประวัติรวม (Global View) ให้แสดงรายละเอียดชัดเจน
 window.buildMaintenancePage = function() {
     const container = document.getElementById('MaintenanceContainer'); if(!container) return; container.innerHTML = '';
     const logs = allData['Maintenance Log'] || [];
@@ -1050,12 +1152,27 @@ window.buildMaintenancePage = function() {
         return;
     }
     
+    let html = `
+    <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700 overflow-hidden">
+        <div class="overflow-x-auto">
+            <table class="min-w-full text-left border-collapse">
+                <thead class="bg-gray-50 dark:bg-gray-900/50">
+                    <tr>
+                        <th class="px-6 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider border-b dark:border-gray-700">Date</th>
+                        <th class="px-6 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider border-b dark:border-gray-700">Device Info</th>
+                        <th class="px-6 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider border-b dark:border-gray-700">Description</th>
+                        <th class="px-6 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider border-b dark:border-gray-700">Tech / Cost</th>
+                        <th class="px-6 py-4 text-right text-xs font-bold text-gray-500 uppercase tracking-wider border-b dark:border-gray-700">Actions</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-gray-200 dark:divide-gray-700">
+    `;
+    
     logs.sort((a,b) => new Date(b.logDate) - new Date(a.logDate)).forEach(log => {
         let deviceName = log.deviceName || 'Unknown Device';
         let deviceSerial = log.deviceSerial || '-';
         let config = collectionConfigs[log.deviceCollection];
         
-        // ถ้าเป็น log เก่าที่ไม่ได้เซฟชื่อไว้ ให้ลองพยายามค้นหาจาก allData
         if (!log.deviceName && allData[log.deviceCollection]) {
             const device = allData[log.deviceCollection].find(d => String(d._id || d.id) === String(log.deviceId));
             if (device) {
@@ -1063,30 +1180,84 @@ window.buildMaintenancePage = function() {
                 deviceSerial = device[config?.serialField] || device.SerialNumber || device.MonitorSerial || '-';
             }
         }
+        
         const catName = config ? config.displayName : log.deviceCollection;
+        const formattedDate = new Date(log.logDate).toLocaleDateString('th-TH', { year: 'numeric', month: 'short', day: 'numeric' });
+        const costVal = log.cost ? `฿${parseFloat(log.cost).toLocaleString()}` : '-';
 
-        container.innerHTML += `
-            <div class="bg-white dark:bg-gray-800 p-5 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700 mb-3 hover:shadow-md transition relative">
-                <button onclick="window.deleteMaintenanceLogFromGlobal('${log._id || log.id}')" class="absolute top-4 right-4 text-red-400 hover:text-red-600 transition" title="Delete Log"><i class="fas fa-trash-alt"></i></button>
-                <div class="flex justify-between items-start mb-2 pr-6">
-                    <div>
-                        <span class="px-2 py-0.5 bg-indigo-100 dark:bg-indigo-900/50 text-indigo-700 dark:text-indigo-400 text-[10px] font-bold rounded uppercase tracking-wider mb-1 inline-block">${catName}</span>
-                        <h3 class="font-bold text-gray-800 dark:text-white text-lg">${deviceName} <span class="text-xs text-gray-500 font-normal ml-2">SN: ${deviceSerial}</span></h3>
-                    </div>
-                </div>
-                <span class="text-sm font-semibold text-gray-500 bg-gray-100 dark:bg-gray-700 px-3 py-1 rounded-lg inline-block mb-3"><i class="far fa-calendar-alt mr-1"></i> ${new Date(log.logDate).toLocaleDateString('th-TH')}</span>
-                <p class="text-gray-600 dark:text-gray-300 bg-gray-50 dark:bg-gray-900/50 p-3 rounded-lg border border-gray-100 dark:border-gray-700 text-sm">${log.description}</p>
-                <div class="mt-3 flex items-center justify-between">
-                    <div class="flex items-center space-x-4">
-                        <span class="text-xs text-gray-500 font-medium flex items-center"><i class="fas fa-user-cog mr-1.5 text-indigo-400"></i> ${log.technician || 'ไม่ระบุช่าง'}</span>
-                    </div>
-                    <span class="text-sm font-bold text-green-600 dark:text-green-400 bg-green-50 dark:bg-green-900/20 px-3 py-1 rounded-lg">฿ ${log.cost ? parseFloat(log.cost).toLocaleString() : '0'}</span>
-                </div>
-            </div>`;
+        html += `
+            <tr class="hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors">
+                <td class="px-6 py-4 whitespace-nowrap text-sm font-semibold text-gray-900 dark:text-gray-100">${formattedDate}</td>
+                <td class="px-6 py-4">
+                    <span class="px-2 py-0.5 bg-indigo-100 dark:bg-indigo-900/50 text-indigo-700 dark:text-indigo-400 text-[9px] font-bold rounded uppercase tracking-wider mb-1 inline-block">${catName}</span>
+                    <div class="font-bold text-sm text-gray-800 dark:text-white">${deviceName}</div>
+                    <div class="text-xs text-gray-500 dark:text-gray-400 font-mono mt-0.5">SN: ${deviceSerial}</div>
+                </td>
+                <td class="px-6 py-4 text-sm text-gray-600 dark:text-gray-300 max-w-md">
+                    <p class="whitespace-pre-wrap">${log.description}</p>
+                </td>
+                <td class="px-6 py-4 text-sm whitespace-nowrap">
+                    <div class="font-semibold text-gray-800 dark:text-gray-200 flex items-center"><i class="fas fa-user-cog text-gray-400 mr-2"></i> ${log.technician || '-'}</div>
+                    <div class="text-green-600 dark:text-green-400 font-bold mt-1 text-xs px-2 py-0.5 bg-green-50 dark:bg-green-900/20 rounded inline-block">${costVal}</div>
+                </td>
+                <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium space-x-2">
+                    <button onclick="window.openGlobalEditLogModal('${log._id || log.id}')" class="text-blue-500 hover:text-blue-700 dark:text-blue-400 p-2 bg-blue-50 dark:bg-blue-900/30 hover:bg-blue-100 rounded-lg transition" title="Edit"><i class="fas fa-edit"></i></button>
+                    <button onclick="window.deleteMaintenanceLogFromGlobal('${log._id || log.id}')" class="text-red-500 hover:text-red-700 dark:text-red-400 p-2 bg-red-50 dark:bg-red-900/30 hover:bg-red-100 rounded-lg transition" title="Delete"><i class="fas fa-trash-alt"></i></button>
+                </td>
+            </tr>
+        `;
     });
+    
+    html += `</tbody></table></div></div>`;
+    container.innerHTML = html;
 };
 
-// 🌟 ฟังก์ชันลบ Log จากหน้า Global
+window.openGlobalEditLogModal = function(logId) {
+    const log = (allData['Maintenance Log'] || []).find(l => String(l._id || l.id) === String(logId));
+    if(!log) return;
+    document.getElementById('gEditLogId').value = logId;
+    document.getElementById('gEditLogCollection').value = log.deviceCollection;
+    document.getElementById('gEditLogDate').value = log.logDate ? new Date(log.logDate).toISOString().split('T')[0] : '';
+    document.getElementById('gEditLogDesc').value = log.description || '';
+    document.getElementById('gEditLogCost').value = log.cost || '';
+    document.getElementById('gEditLogTech').value = log.technician || '';
+    window.openModalWindow('globalEditLogModal');
+};
+
+window.saveGlobalEditLog = async function() {
+    const id = document.getElementById('gEditLogId').value;
+    const collection = document.getElementById('gEditLogCollection').value;
+    const date = document.getElementById('gEditLogDate').value;
+    const desc = document.getElementById('gEditLogDesc').value;
+    const cost = document.getElementById('gEditLogCost').value;
+    const tech = document.getElementById('gEditLogTech').value;
+
+    if(!date || !desc) return window.showNotificationModal('warning', 'Missing Info', 'Date and Description are required');
+
+    const existingLog = (allData['Maintenance Log'] || []).find(l => String(l._id || l.id) === id) || {};
+
+    const updateData = {
+        deviceId: existingLog.deviceId,
+        deviceCollection: existingLog.deviceCollection,
+        deviceName: existingLog.deviceName,
+        deviceSerial: existingLog.deviceSerial,
+        logDate: date,
+        description: desc,
+        cost: cost,
+        technician: tech
+    };
+
+    try {
+        await apiRequest(`/api/inventory/Maintenance%20Log/${id}`, 'PUT', updateData);
+        window.hideModal('globalEditLogModal');
+        window.showNotificationModal('success', 'Updated', 'Maintenance log updated successfully.');
+        await refreshAllData();
+        window.buildMaintenancePage();
+    } catch(e) {
+        window.showNotificationModal('warning', 'Error', e.message);
+    }
+};
+
 window.deleteMaintenanceLogFromGlobal = async function(logId) {
     if(!confirm("Are you sure you want to delete this maintenance log?")) return;
     try {
@@ -1095,21 +1266,6 @@ window.deleteMaintenanceLogFromGlobal = async function(logId) {
         await refreshAllData();
         window.buildMaintenancePage();
     } catch(e) { window.showNotificationModal('warning', 'Error', e.message); }
-};
-
-window.buildDeviceHistoryInModal = function(item, collectionName) {
-    const container = document.getElementById('deviceHistoryList'); if(!container) return; let historyEvents = []; const idStr = String(item._id || item.id);
-    const txs = allData['TransactionHistory'] || []; txs.forEach(tx => { const isMatch = tx.devices && tx.devices.some(d => String(d.id) === idStr); if (isMatch) { historyEvents.push({ date: new Date(tx.timestamp), type: tx.type, user: tx.staffUserName, details: tx.type === 'Handover' ? `ส่งมอบอุปกรณ์ให้แก่ ${tx.staffUserName}` : tx.type === 'Auto-Sync' ? `ตรวจพบการใช้งานโดย ${tx.staffUserName} (อัปเดตอัตโนมัติ)` : `รับคืนอุปกรณ์จาก ${tx.staffUserName || 'System'}` }); } });
-    const loans = allData['LoanHistory'] || []; loans.forEach(loan => { if (String(loan.DeviceId) === idStr) { historyEvents.push({ date: new Date(loan.LoanDate), type: 'Loan', user: loan.BorrowerName, details: `ยืมอุปกรณ์ชั่วคราวโดย ${loan.BorrowerName} (กำหนดคืน: ${new Date(loan.DueDate).toLocaleDateString('th-TH')})` }); if (loan.Status === 'Returned' && loan.ReturnDate) { historyEvents.push({ date: new Date(loan.ReturnDate), type: 'Loan Return', user: loan.BorrowerName, details: `รับคืนอุปกรณ์ที่ถูกยืมไปโดย ${loan.BorrowerName}` }); } } });
-    if (item.Timestamp) { let createdDetails = 'ลงทะเบียนเพิ่มอุปกรณ์เข้าสู่ระบบ'; if (item.UserName && item.UserName.trim() !== '') { createdDetails += ` (ระบุผู้ครอบครองเริ่มต้น: ${item.UserName})`; } else { createdDetails += ` (จัดเก็บเข้าคลัง / Storage)`; } historyEvents.push({ date: new Date(item.Timestamp), type: 'Created', user: 'System', details: createdDetails }); }
-    historyEvents.sort((a, b) => b.date - a.date);
-    if (historyEvents.length === 0) { container.innerHTML = `<div class="flex flex-col items-center justify-center text-gray-400 py-10"><i class="fas fa-history text-4xl mb-3 opacity-50"></i><p>${t('no_data')}</p></div>`; return; }
-    let html = '<div class="relative border-l-2 border-indigo-200 dark:border-indigo-800/50 ml-4 space-y-6">';
-    historyEvents.forEach(ev => {
-        let icon = 'fa-info'; let color = 'bg-gray-500'; let badgeColor = 'bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-300';
-        if (ev.type === 'Handover') { icon = 'fa-arrow-right'; color = 'bg-blue-500'; badgeColor = 'bg-blue-100 text-blue-700 dark:bg-blue-900/50 dark:text-blue-400'; } else if (ev.type === 'Return') { icon = 'fa-arrow-left'; color = 'bg-green-500'; badgeColor = 'bg-green-100 text-green-700 dark:bg-green-900/50 dark:text-green-400'; } else if (ev.type === 'Loan') { icon = 'fa-hand-holding'; color = 'bg-yellow-500'; badgeColor = 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/50 dark:text-yellow-400'; } else if (ev.type === 'Loan Return') { icon = 'fa-undo'; color = 'bg-teal-500'; badgeColor = 'bg-teal-100 text-teal-700 dark:bg-teal-900/50 dark:text-teal-400'; } else if (ev.type === 'Created') { icon = 'fa-plus'; color = 'bg-indigo-500'; badgeColor = 'bg-indigo-100 text-indigo-700 dark:bg-indigo-900/50 dark:text-indigo-400'; } else if (ev.type === 'Auto-Sync') { icon = 'fa-sync-alt'; color = 'bg-purple-500'; badgeColor = 'bg-purple-100 text-purple-700 dark:bg-purple-900/50 dark:text-purple-400'; }
-        html += `<div class="relative pl-6"><div class="absolute -left-[17px] top-0 w-8 h-8 rounded-full ${color} text-white flex items-center justify-center shadow-md border-4 border-white dark:border-gray-800"><i class="fas ${icon} text-xs"></i></div><div class="bg-white dark:bg-gray-800/50 p-4 rounded-xl border border-gray-100 dark:border-gray-700 shadow-sm hover:shadow transition-shadow"><div class="flex justify-between items-start mb-1"><span class="px-2 py-0.5 text-[10px] font-bold rounded uppercase tracking-wider ${badgeColor}">${ev.type}</span><p class="text-xs text-gray-500 dark:text-gray-400 font-mono"><i class="far fa-clock mr-1"></i> ${ev.date.toLocaleString('th-TH')}</p></div><p class="text-sm font-semibold text-gray-800 dark:text-gray-200 mt-2">${ev.details}</p></div></div>`;
-    }); html += '</div>'; container.innerHTML = html;
 };
 
 window.openModal = function(mode, collectionName, id = null) {
@@ -1133,9 +1289,27 @@ window.openModal = function(mode, collectionName, id = null) {
         }); formHtml += `</div></div>`;
     }
     form.innerHTML = formHtml;
+    
     const disposalSection = document.getElementById('disposal-evidence-section'); const existingEvidenceBox = document.getElementById('existingEvidenceBox'); const fileInput = document.getElementById('disposalFileInput'); const hiddenBase64 = document.getElementById('hiddenEvidenceBase64');
     if (fileInput) fileInput.value = ''; if (hiddenBase64) hiddenBase64.value = '';
     if (itemData.Status === 'Disposed') { if(disposalSection) disposalSection.classList.remove('hidden'); if (itemData.DisposalEvidence && existingEvidenceBox && hiddenBase64) { existingEvidenceBox.classList.remove('hidden'); hiddenBase64.value = itemData.DisposalEvidence; } else if (existingEvidenceBox) existingEvidenceBox.classList.add('hidden'); } else { if(disposalSection) disposalSection.classList.add('hidden'); if(existingEvidenceBox) existingEvidenceBox.classList.add('hidden'); }
+    
+    // 🌟 รีเซ็ตปุ่มในหน้าต่าง Maintenance Log ให้เป็นโหมด Add New เสมอเมื่อเปิดหน้าจอ
+    window.currentLogEditId = null;
+    const logForm = document.getElementById('maintenanceLogForm');
+    if (logForm) {
+        logForm.reset();
+        let actionContainer = logForm.querySelector('.flex.items-end');
+        if (actionContainer) {
+            actionContainer.innerHTML = `
+                <div class="flex space-x-2 w-full">
+                    <button type="button" id="cancelEditLogBtn" onclick="window.cancelEditLog()" class="hidden w-1/3 bg-gray-200 hover:bg-gray-300 text-gray-700 dark:bg-gray-700 dark:text-gray-300 dark:hover:bg-gray-600 font-bold py-2 rounded-lg shadow-sm transition">Cancel</button>
+                    <button type="button" id="saveLogBtn" onclick="window.saveMaintenanceLog()" class="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2 rounded-lg shadow-sm transition"><i class="fas fa-plus mr-2"></i>Save Log</button>
+                </div>
+            `;
+        }
+    }
+
     const tabBtn = document.querySelector('#modal-tabs .tab-button'); if (tabBtn) window.switchModalTab('details', tabBtn);
     window.buildMaintenanceLogInModal(itemData); window.buildDeviceHistoryInModal(itemData, collectionName); window.openModalWindow('editModal');
 };
@@ -1291,7 +1465,7 @@ window.renderStaffTable = function() {
         const id = s._id || s.id; const autoBadge = s.isAuto ? `<span class="ml-2 px-2 py-0.5 text-[10px] bg-yellow-100 text-yellow-800 rounded-full border border-yellow-200 shadow-sm"><i class="fas fa-magic mr-1"></i>${t('auto_detected')}</span>` : '';
         const actionBtns = s.isAuto ? `<button onclick="window.openStaffModal('auto','${id}')" class="text-green-600 hover:text-green-800 text-xs font-bold px-3 py-1.5 bg-green-50 rounded border border-green-200 shadow-sm transition"><i class="fas fa-plus mr-1"></i> ${t('add_to_system')}</button>` : `<button onclick="window.openStaffModal('edit','${id}')" class="text-indigo-600 mr-4 text-lg hover:text-indigo-800"><i class="fas fa-edit"></i></button><button onclick="window.deleteStaff('${id}')" class="text-red-600 text-lg hover:text-red-800"><i class="fas fa-trash"></i></button>`;
         const fName = s.FirstName === 'Auto' ? '' : (s.FirstName||''); const lName = s.LastName === 'Detected' ? '' : (s.LastName||''); const dept = s.Department === 'N/A' ? '' : (s.Department||'');
-        return `<tr class="hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"><td class="px-6 py-4 font-medium">${s.UserName} ${autoBadge}</td><td class="px-6 py-4 text-gray-600 dark:text-gray-300">${fName} ${lName}</td><td class="px-6 py-4 text-gray-600 dark:text-gray-300">${dept}</td><td class="px-6 py-4 text-right">${actionBtns}</td></tr>`;
+        return `<tr class="hover:bg-gray-50 dark:bg-gray-700 transition-colors"><td class="px-6 py-4 font-medium">${s.UserName} ${autoBadge}</td><td class="px-6 py-4 text-gray-600 dark:text-gray-300">${fName} ${lName}</td><td class="px-6 py-4 text-gray-600 dark:text-gray-300">${dept}</td><td class="px-6 py-4 text-right">${actionBtns}</td></tr>`;
     }).join('');
 };
 
@@ -1320,132 +1494,8 @@ window.buildAdminManagementPage = function() {
 window.renderAdminTable = async function() { const res = await apiRequest('/api/admins/list'); const tbody = document.getElementById('adminTableBody'); if(!res || !res.users) return; tbody.innerHTML = res.users.map(u => `<tr><td class="px-6 py-4 font-medium">${u.email}</td><td class="px-6 py-4 text-xs text-gray-500">${u._id}</td><td class="px-6 py-4 text-right"><button onclick="window.deleteAdmin('${u._id}')" class="text-red-600"><i class="fas fa-trash"></i></button></td></tr>`).join(''); };
 window.deleteAdmin = async function(id) { if(confirm("Delete admin?")) { await apiRequest('/api/admins/delete', 'DELETE', { uid: id }); window.renderAdminTable(); } };
 
-window.buildMaintenanceLogInModal = function(item) {
-    const list = document.getElementById('maintenanceLogList'); if(!list) return; list.innerHTML = '';
-    
-    const itemId = String(item._id || item.id || '');
-    if (!itemId) {
-        list.innerHTML = `<p class="text-xs text-gray-500">${t('no_data')}</p>`;
-        return;
-    }
-
-    const logs = (allData['Maintenance Log'] || [])
-        .filter(l => String(l.deviceId) === itemId)
-        .sort((a, b) => new Date(b.logDate) - new Date(a.logDate));
-    
-    if(logs.length === 0) {
-        list.innerHTML = `<div class="p-8 text-center text-gray-500"><i class="fas fa-tools mb-2 text-2xl opacity-20"></i><p class="text-xs">${t('no_data')}</p></div>`;
-        return;
-    }
-    
-    logs.forEach(l => { 
-        const formattedDate = new Date(l.logDate).toLocaleDateString('th-TH', { year: 'numeric', month: 'short', day: 'numeric' });
-        const costStr = l.cost ? ` • <span class="text-indigo-600 dark:text-indigo-400 font-bold">฿${parseFloat(l.cost).toLocaleString()}</span>` : '';
-        const techStr = l.technician ? `<p class="text-[10px] text-gray-500 mt-1"><i class="fas fa-user-cog mr-1"></i> ${l.technician}</p>` : '';
-        
-        list.innerHTML += `
-            <div class="border-b last:border-0 py-3 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700/30 transition-colors px-1">
-                <div class="flex justify-between items-start mb-1">
-                    <p class="text-xs font-bold text-gray-900 dark:text-gray-100">${formattedDate}${costStr}</p>
-                </div>
-                <p class="text-sm text-gray-600 dark:text-gray-400 leading-relaxed">${l.description}</p>
-                ${techStr}
-            </div>`; 
-    });
-};
-
-window.addMaintenanceLog = async function() {
-    const { collection, id } = currentEdit; 
-    const desc = document.getElementById('newLogDescription').value; 
-    const date = document.getElementById('newLogDate').value; 
-    const cost = document.getElementById('newLogCost').value; 
-    const tech = document.getElementById('newLogTechnician').value;
-    
-    if(!desc || !date) return window.showNotificationModal('warning', 'Missing Info', "Date and Description are required");
-    
-    const itemId = String(id);
-    
-    try {
-        await apiRequest('/api/inventory/maintenance', 'POST', { 
-            deviceId: itemId, 
-            deviceCollection: collection, 
-            description: desc, 
-            logDate: date, 
-            cost: cost, 
-            technician: tech 
-        });
-        
-        window.showNotificationModal('success', 'Log Added', "Maintenance record saved successfully.");
-        const form = document.getElementById('maintenanceLogForm');
-        if(form) form.reset();
-        
-        await refreshAllData();
-        const updatedItem = (allData[collection] || []).find(i => String(i._id || i.id) === itemId);
-        if(updatedItem) {
-            window.buildMaintenanceLogInModal(updatedItem);
-        } else {
-            window.buildMaintenanceLogInModal({ _id: itemId });
-        }
-        
-    } catch (error) {
-        window.showNotificationModal('warning', 'Error', error.message);
-    }
-};
-
-window.openImportModal = function(collectionName) {
-    currentImportCollection = collectionName; const dispName = collectionConfigs[collectionName].isCustom ? collectionConfigs[collectionName].displayName : t(collectionName.toLowerCase()) || collectionName;
-    document.getElementById('importModalTitle').innerHTML = `<i class="fas fa-file-import text-green-500 mr-2"></i> ${t('import_csv')} -> ${dispName}`;
-    const config = collectionConfigs[collectionName]; if (config) document.getElementById('importHeadersExample').textContent = config.formFields.join(', ');
-    window.openModalWindow('importModal');
-};
-
-window.downloadCsvTemplate = function() {
-    if(!currentImportCollection) return; const config = collectionConfigs[currentImportCollection]; const headers = config.formFields.join(',');
-    const blob = new Blob(["\uFEFF" + headers], { type: 'text/csv;charset=utf-8;' }); const url = URL.createObjectURL(blob); const link = document.createElement("a"); link.href = url; link.download = `${currentImportCollection}_template.csv`; link.click();
-};
-
-window.processCsvImport = function() {
-    const file = document.getElementById('csvFileInput').files[0]; if (!file) { showNotificationModal('warning', 'No File', 'Please select a file.'); return; }
-    Papa.parse(file, { header: true, skipEmptyLines: true, encoding: document.getElementById('csvEncoding').value, complete: async (results) => { try { if(results.data.length === 0) throw new Error("Empty CSV"); await apiRequest(`/api/inventory/${currentImportCollection}/bulk`, 'POST', results.data); showNotificationModal('success', 'Imported', `Imported ${results.data.length} items.`); window.hideModal('importModal'); refreshAllData(); } catch (e) { showNotificationModal('warning', 'Error', e.message); } }});
-};
-
-window.showQrModal = function(sn, name) { document.getElementById('qrModalTitle').innerText = name; QRCode.toCanvas(document.getElementById('qrCanvas'), `${window.location.origin}/details.html?sn=${sn}`, { width: 200 }); window.openModalWindow('qrModal'); };
-
-window.buildLoanHistoryCards = function() {
-    const container = document.getElementById('LoanHistoryContainer'); if(!container) return; container.innerHTML = ''; const loans = allData.LoanHistory || [];
-    if(loans.length === 0) { container.innerHTML = `<p class="text-center text-gray-500">${t('no_data')}</p>`; return; }
-    const grouped = {}; loans.forEach(l => { if(!grouped[l.LoanGroupID]) grouped[l.LoanGroupID] = { ...l, items: [] }; grouped[l.LoanGroupID].items.push(l); });
-    let html = ''; const groupsArray = Object.values(grouped).sort((a,b) => new Date(b.LoanDate) - new Date(a.LoanDate));
-    groupsArray.forEach(g => {
-        html += `<div class="bg-white dark:bg-gray-800 rounded-lg shadow p-4 mb-3 border-l-4 ${g.Status==='Returned'?'border-green-500':'border-yellow-500'}"><div class="flex justify-between items-center cursor-pointer" onclick="this.nextElementSibling.classList.toggle('hidden')"><div><h4 class="font-bold text-gray-800 dark:text-white">${g.BorrowerName}</h4><p class="text-xs text-gray-500">${new Date(g.LoanDate).toLocaleDateString('th-TH')} - ${g.LoanGroupID}</p></div><span class="px-2 py-1 rounded text-xs font-semibold ${g.Status==='Returned'?'bg-green-100 text-green-800':'bg-yellow-100 text-yellow-800'}">${t(g.Status.toLowerCase().replace(' ', '_')) || g.Status}</span></div><div class="hidden mt-3 pt-3 border-t dark:border-gray-700"><ul class="text-sm space-y-2 mb-4">${g.items.map(i => `<li class="flex justify-between border-b dark:border-gray-700 pb-1 border-dashed"><span>${i.DeviceSerial} <span class="text-xs text-gray-500 ml-1">(${t(i.DeviceType.toLowerCase()) || i.DeviceType})</span></span><span class="${i.Status==='Returned'?'text-green-500':'text-yellow-500'} font-medium">${t(i.Status.toLowerCase().replace(' ', '_')) || i.Status}</span></li>`).join('')}</ul><div class="bg-gray-50 dark:bg-gray-900/50 p-4 rounded-xl flex flex-col items-center border border-gray-100 dark:border-gray-700"><p class="text-sm font-bold mb-3 text-gray-700 dark:text-gray-300"><i class="fas fa-qrcode mr-2 text-indigo-500"></i>QR Code คืนอุปกรณ์</p><div class="bg-white p-2 rounded-lg shadow-sm border border-gray-200 mb-4 inline-block"><canvas id="qr-loan-${g.LoanGroupID}"></canvas></div><div class="flex space-x-3 w-full justify-center"><button onclick="window.copyLoanLink('${g.LoanGroupID}')" class="flex-1 max-w-[140px] text-xs bg-indigo-100 text-indigo-700 hover:bg-indigo-200 dark:bg-indigo-900/40 dark:text-indigo-400 py-2 rounded-lg font-bold transition shadow-sm border border-indigo-200 dark:border-indigo-800 flex items-center justify-center"><i class="fas fa-link mr-1"></i> คัดลอกลิงก์</button><button onclick="window.downloadLoanQR('${g.LoanGroupID}', '${g.BorrowerName}', '${new Date(g.LoanDate).toLocaleDateString('th-TH')}')" class="flex-1 max-w-[140px] text-xs bg-green-100 text-green-700 hover:bg-green-200 dark:bg-green-900/40 dark:text-green-400 py-2 rounded-lg font-bold transition shadow-sm border border-green-200 dark:border-green-800 flex items-center justify-center"><i class="fas fa-download mr-1"></i> โหลดภาพ</button></div></div></div></div>`;
-    });
-    container.innerHTML = html;
-    groupsArray.forEach(g => { const canvas = document.getElementById(`qr-loan-${g.LoanGroupID}`); if (canvas) { const returnUrl = `${window.location.origin}/return.html?id=${g.LoanGroupID}`; QRCode.toCanvas(canvas, returnUrl, { width: 140, margin: 1, color: { dark: '#000000', light: '#ffffff' } }); } });
-};
-
-window.copyLoanLink = function(loanId) {
-    const url = `${window.location.origin}/return.html?id=${loanId}`; const textArea = document.createElement("textarea"); textArea.value = url; document.body.appendChild(textArea); textArea.select();
-    try { document.execCommand("copy"); showNotificationModal('success', 'คัดลอกลิงก์แล้ว', 'สามารถนำลิงก์นี้ไปส่งให้ผู้ยืมผ่าน Line/Chat เพื่อกดทำรายการคืนได้ทันที'); } catch (err) { showNotificationModal('warning', 'ผิดพลาด', 'ไม่สามารถคัดลอกลิงก์ได้'); } document.body.removeChild(textArea);
-};
-
-window.downloadLoanQR = function(loanId, borrowerName, loanDate) {
-    const qrCanvas = document.getElementById(`qr-loan-${loanId}`);
-    if(qrCanvas) {
-        const compositeCanvas = document.createElement('canvas'); const ctx = compositeCanvas.getContext('2d');
-        const qrSize = qrCanvas.width; const textHeight = 80; 
-        compositeCanvas.width = qrSize; compositeCanvas.height = qrSize + textHeight;
-        ctx.fillStyle = '#ffffff'; ctx.fillRect(0, 0, compositeCanvas.width, compositeCanvas.height);
-        ctx.drawImage(qrCanvas, 0, 0);
-        ctx.fillStyle = '#1f2937'; ctx.textAlign = 'center';
-        ctx.font = 'bold 13px sans-serif'; ctx.fillText(`รหัสยืม: ${loanId}`, qrSize / 2, qrSize + 20);
-        ctx.font = '12px sans-serif'; ctx.fillText(`ผู้ยืม: ${borrowerName}`, qrSize / 2, qrSize + 40);
-        ctx.fillStyle = '#6b7280'; ctx.fillText(`วันที่ยืม: ${loanDate}`, qrSize / 2, qrSize + 60);
-        const link = document.createElement('a'); link.download = `Return_QRCode_${loanId}.png`; link.href = compositeCanvas.toDataURL("image/png"); link.click();
-    }
-};
-
 window.filterLoanHistory = function(val) { const term=val.toUpperCase(); document.querySelectorAll('#LoanHistoryContainer > div').forEach(el => el.style.display = el.textContent.toUpperCase().includes(term)?'':'none'); };
-window.filterMaintenanceHistory = function(val) { const term=val.toUpperCase(); document.querySelectorAll('#MaintenanceContainer > div').forEach(el => el.style.display = el.textContent.toUpperCase().includes(term)?'':'none'); };
+window.filterMaintenanceHistory = function(val) { const term=val.toUpperCase(); document.querySelectorAll('#MaintenanceContainer tbody tr').forEach(el => el.style.display = el.textContent.toUpperCase().includes(term)?'':'none'); };
 window.filterAssetsByUser = function(val) { const term=val.toUpperCase(); document.querySelectorAll('#AssetsByUserContainer > details').forEach(el => el.style.display = el.textContent.toUpperCase().includes(term)?'':'none'); };
 
 window.buildAssetsByUserPage = function() {
