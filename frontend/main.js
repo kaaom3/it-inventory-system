@@ -975,10 +975,33 @@ window.buildDeviceHistoryInModal = function(item, collectionName) {
 };
 
 window.openModal = function(mode, collectionName, id = null) {
-    currentEdit = { mode, collection: collectionName, id }; const form = document.getElementById('editForm'); if (!form) return; form.innerHTML = ''; const config = collectionConfigs[collectionName]; const itemData = (mode === 'edit' && allData[collectionName]) ? allData[collectionName].find(i => i._id === id || i.id === id) || {} : {};
-    const modalHeaderTabsHTML = `<div class="flex space-x-1 bg-gray-100/80 dark:bg-gray-900/80 p-1.5 rounded-xl border border-gray-200/50 dark:border-gray-700/50" id="modal-tabs"><button onclick="window.switchModalTab('details', this)" class="tab-button active px-6 py-2 rounded-lg font-bold text-sm transition-all duration-200 bg-white dark:bg-gray-700 text-indigo-600 dark:text-indigo-400 shadow-sm"><i class="fas fa-layer-group mr-2"></i> Specification</button><button onclick="window.switchModalTab('history', this)" class="tab-button px-6 py-2 rounded-lg font-bold text-sm transition-all duration-200 text-gray-500 hover:text-gray-700 dark:hover:text-gray-300"><i class="fas fa-history mr-2"></i> ${t('device_history')}</button></div>`;
-    const tabsContainer = document.querySelector('#editModal .bg-white.border-b.flex.justify-center.z-0'); if (tabsContainer) { tabsContainer.innerHTML = modalHeaderTabsHTML; }
-    let historyTabContent = document.getElementById('history-tab'); if (!historyTabContent) { const modalBody = document.querySelector('#editModal .flex-1.overflow-y-auto.p-4'); historyTabContent = document.createElement('div'); historyTabContent.id = 'history-tab'; historyTabContent.className = 'tab-content'; historyTabContent.innerHTML = `<div class="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm overflow-hidden"><div class="bg-gray-50 dark:bg-gray-900/50 px-5 py-3 border-b border-gray-200 dark:border-gray-700"><h4 class="text-sm font-bold text-gray-700 dark:text-gray-200 uppercase tracking-wider">${t('device_history')}</h4></div><div id="deviceHistoryList" class="p-6"></div></div>`; modalBody.appendChild(historyTabContent); }
+    currentEdit = { mode, collection: collectionName, id }; 
+    const form = document.getElementById('editForm'); if (!form) return; form.innerHTML = ''; 
+    const config = collectionConfigs[collectionName]; 
+    const itemData = (mode === 'edit' && allData[collectionName]) ? allData[collectionName].find(i => i._id === id || i.id === id) || {} : {};
+    
+    const actionText = mode === 'edit' ? 'Edit' : t('add_new'); 
+    const actionIcon = mode === 'edit' ? 'fa-edit' : 'fa-plus-circle';
+
+    const modalHeaderTabsHTML = `<div class="flex space-x-1 bg-gray-100/80 dark:bg-gray-900/80 p-1.5 rounded-xl border border-gray-200/50 dark:border-gray-700/50" id="modal-tabs">
+        <button onclick="window.switchModalTab('details', this)" class="tab-button active px-6 py-2 rounded-lg font-bold text-sm transition-all duration-200 bg-white dark:bg-gray-700 text-indigo-600 dark:text-indigo-400 shadow-sm"><i class="fas fa-layer-group mr-2"></i> Specification</button>
+        <button onclick="window.switchModalTab('maintenance', this)" class="tab-button px-6 py-2 rounded-lg font-bold text-sm transition-all duration-200 text-gray-500 hover:text-gray-700 dark:hover:text-gray-300"><i class="fas fa-tools mr-2"></i> ${t('maintenance_history')}</button>
+        <button onclick="window.switchModalTab('history', this)" class="tab-button px-6 py-2 rounded-lg font-bold text-sm transition-all duration-200 text-gray-500 hover:text-gray-700 dark:hover:text-gray-300"><i class="fas fa-history mr-2"></i> ${t('device_history')}</button>
+    </div>`;
+    
+    const tabsContainer = document.querySelector('#editModal .bg-white.border-b.flex.justify-center.z-0'); 
+    if (tabsContainer) { tabsContainer.innerHTML = modalHeaderTabsHTML; }
+    
+    let historyTabContent = document.getElementById('history-tab'); 
+    if (!historyTabContent) { 
+        const modalBody = document.querySelector('#editModal .flex-1.overflow-y-auto.p-4'); 
+        historyTabContent = document.createElement('div'); 
+        historyTabContent.id = 'history-tab'; 
+        historyTabContent.className = 'tab-content'; 
+        historyTabContent.innerHTML = `<div class="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm overflow-hidden"><div class="bg-gray-50 dark:bg-gray-900/50 px-5 py-3 border-b border-gray-200 dark:border-gray-700"><h4 class="text-sm font-bold text-gray-700 dark:text-gray-200 uppercase tracking-wider">${t('device_history')}</h4></div><div id="deviceHistoryList" class="p-6"></div></div>`; 
+        modalBody.appendChild(historyTabContent); 
+    }
+
     document.getElementById('editModalTitle').innerHTML = `<div class="flex items-center"><div class="w-12 h-12 rounded-full bg-indigo-100 dark:bg-indigo-900/50 flex items-center justify-center mr-4 shadow-inner"><i class="fas ${actionIcon} text-indigo-600 dark:text-indigo-400 text-xl"></i></div><div><h3 class="text-2xl font-bold text-gray-900 dark:text-white leading-tight">${actionText} <span class="text-indigo-600 dark:text-indigo-400">${config.isCustom ? config.displayName : t(collectionName.toLowerCase()) || config.displayName}</span></h3><p class="text-xs text-gray-500 font-medium mt-1 uppercase tracking-widest">${mode === 'edit' ? 'System ID: ' + (itemData[config.serialField] || id) : 'Fill in the specification details'}</p></div></div>`;
     const groups = { 'Core Identity': [], 'Hardware & Specs': [], 'Network & Connectivity': [], 'Assignment & Location': [], 'Purchase & Warranty': [], 'Inventory & Notes': [], 'Other': [] }; config.formFields.forEach(fieldId => { const fieldDef = AVAILABLE_FIELDS.find(f => f.id === fieldId) || { label: fieldId, type: 'text', group: 'Other' }; const grp = fieldDef.group || 'Other'; if(!groups[grp]) groups[grp] = []; groups[grp].push({ id: fieldId, def: fieldDef }); });
     const groupIcons = { 'Core Identity': 'fa-id-badge text-blue-500', 'Hardware & Specs': 'fa-microchip text-purple-500', 'Network & Connectivity': 'fa-network-wired text-green-500', 'Assignment & Location': 'fa-map-marker-alt text-red-500', 'Purchase & Warranty': 'fa-file-invoice-dollar text-yellow-500', 'Inventory & Notes': 'fa-clipboard-list text-teal-500', 'Other': 'fa-layer-group text-gray-500' };
