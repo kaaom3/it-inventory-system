@@ -1187,15 +1187,61 @@ window.deleteAdmin = async function(id) { if(confirm("Delete admin?")) { await a
 
 window.buildMaintenanceLogInModal = function(item) {
     const list = document.getElementById('maintenanceLogList'); if(!list) return; list.innerHTML = '';
-    const logs = (allData['Maintenance Log'] || []).filter(l => l.deviceId === item._id || l.deviceId === item.id);
-    if(logs.length === 0) list.innerHTML = `<p class="text-xs text-gray-500">${t('no_data')}</p>`;
-    logs.forEach(l => { list.innerHTML += `<div class="border-b py-2 dark:border-gray-700"><p class="text-sm font-semibold dark:text-gray-200">${new Date(l.logDate).toLocaleDateString()}</p><p class="text-sm dark:text-gray-400">${l.description}</p></div>`; });
+    const logs = (allData['Maintenance Log'] || [])
+        .filter(l => l.deviceId === item._id || l.deviceId === item.id)
+        .sort((a, b) => new Date(b.logDate) - new Date(a.logDate));
+    
+    if(logs.length === 0) {
+        list.innerHTML = `<div class="p-8 text-center text-gray-500"><i class="fas fa-tools mb-2 text-2xl opacity-20"></i><p class="text-xs">${t('no_data')}</p></div>`;
+        return;
+    }
+    
+    logs.forEach(l => { 
+        const formattedDate = new Date(l.logDate).toLocaleDateString('th-TH', { year: 'numeric', month: 'short', day: 'numeric' });
+        const costStr = l.cost ? ` • <span class="text-indigo-600 dark:text-indigo-400 font-bold">฿${parseFloat(l.cost).toLocaleString()}</span>` : '';
+        const techStr = l.technician ? `<p class="text-[10px] text-gray-500 mt-1"><i class="fas fa-user-cog mr-1"></i> ${l.technician}</p>` : '';
+        
+        list.innerHTML += `
+            <div class="border-b last:border-0 py-3 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700/30 transition-colors px-1">
+                <div class="flex justify-between items-start mb-1">
+                    <p class="text-xs font-bold text-gray-900 dark:text-gray-100">${formattedDate}${costStr}</p>
+                </div>
+                <p class="text-sm text-gray-600 dark:text-gray-400 leading-relaxed">${l.description}</p>
+                ${techStr}
+            </div>`; 
+    });
 };
 
-window.addMaintenanceLog = function() {
-    const { collection, id } = currentEdit; const desc = document.getElementById('newLogDescription').value; const date = document.getElementById('newLogDate').value; const cost = document.getElementById('newLogCost').value; const tech = document.getElementById('newLogTechnician').value;
-    if(!desc || !date) return alert("Date and Description required");
-    apiRequest('/api/inventory/maintenance', 'POST', { deviceId: id, deviceCollection: collection, description: desc, logDate: date, cost: cost, technician: tech }).then(() => { alert("Log added"); document.getElementById('maintenanceLogForm').reset(); refreshAllData(); });
+window.addMaintenanceLog = async function() {
+    const { collection, id } = currentEdit; 
+    const desc = document.getElementById('newLogDescription').value; 
+    const date = document.getElementById('newLogDate').value; 
+    const cost = document.getElementById('newLogCost').value; 
+    const tech = document.getElementById('newLogTechnician').value;
+    
+    if(!desc || !date) return window.showNotificationModal('warning', 'Missing Info', "Date and Description are required");
+    
+    try {
+        await apiRequest('/api/inventory/maintenance', 'POST', { 
+            deviceId: id, 
+            deviceCollection: collection, 
+            description: desc, 
+            logDate: date, 
+            cost: cost, 
+            technician: tech 
+        });
+        
+        window.showNotificationModal('success', 'Log Added', "Maintenance record saved successfully.");
+        const form = document.getElementById('maintenanceLogForm');
+        if(form) form.reset();
+        
+        await refreshAllData();
+        const item = (allData[collection] || []).find(i => i._id === id || i.id === id);
+        if(item) window.buildMaintenanceLogInModal(item);
+        
+    } catch (error) {
+        window.showNotificationModal('warning', 'Error', error.message);
+    }
 };
 
 window.openImportModal = function(collectionName) {
