@@ -1003,6 +1003,8 @@ function injectMaintenanceModals() {
 
 window.buildMaintenanceLogInModal = function(item) {
     const list = document.getElementById('maintenanceLogList'); if(!list) return; list.innerHTML = '';
+    
+    // Ensure we have a valid ID to filter with
     const itemId = String(item._id || item.id || '');
     if (!itemId) {
         list.innerHTML = `<p class="text-xs text-gray-500">${t('no_data')}</p>`;
@@ -1025,7 +1027,7 @@ window.buildMaintenanceLogInModal = function(item) {
         const techStr = l.technician ? `<p class="text-[10px] text-gray-500 mt-1"><i class="fas fa-user-cog mr-1"></i> ${l.technician}</p>` : '';
         
         list.innerHTML += `
-            <div class="border-b last:border-0 py-3 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700/30 transition-colors px-2 rounded-lg">
+            <div class="border-b last:border-0 py-3 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700/30 transition-colors px-1">
                 <div class="flex justify-between items-start mb-1">
                     <p class="text-xs font-bold text-gray-900 dark:text-gray-100">${formattedDate}${costStr}</p>
                     <div class="flex space-x-3">
@@ -1086,6 +1088,7 @@ window.saveMaintenanceLog = async function() {
     const tech = document.getElementById('newLogTechnician').value;
     
     if(!desc || !date) return window.showNotificationModal('warning', 'Missing Info', "Date and Description are required");
+    
     const itemId = String(id);
     
     try {
@@ -1126,8 +1129,15 @@ window.saveMaintenanceLog = async function() {
         window.cancelEditLog();
         await refreshAllData();
         const updatedItem = (allData[collection] || []).find(i => String(i._id || i.id) === itemId);
-        window.buildMaintenanceLogInModal(updatedItem || { _id: itemId });
-    } catch (error) { window.showNotificationModal('warning', 'Error', error.message); }
+        if(updatedItem) {
+            window.buildMaintenanceLogInModal(updatedItem);
+        } else {
+            window.buildMaintenanceLogInModal({ _id: itemId });
+        }
+        
+    } catch (error) {
+        window.showNotificationModal('warning', 'Error', error.message);
+    }
 };
 
 window.deleteMaintenanceLog = async function(logId) {
@@ -1268,6 +1278,22 @@ window.deleteMaintenanceLogFromGlobal = async function(logId) {
     } catch(e) { window.showNotificationModal('warning', 'Error', e.message); }
 };
 
+// --- RE-ADDED MISSING FUNCTION ---
+window.buildDeviceHistoryInModal = function(item, collectionName) {
+    const container = document.getElementById('deviceHistoryList'); if(!container) return; let historyEvents = []; const idStr = String(item._id || item.id);
+    const txs = allData['TransactionHistory'] || []; txs.forEach(tx => { const isMatch = tx.devices && tx.devices.some(d => String(d.id) === idStr); if (isMatch) { historyEvents.push({ date: new Date(tx.timestamp), type: tx.type, user: tx.staffUserName, details: tx.type === 'Handover' ? `ส่งมอบอุปกรณ์ให้แก่ ${tx.staffUserName}` : tx.type === 'Auto-Sync' ? `ตรวจพบการใช้งานโดย ${tx.staffUserName} (อัปเดตอัตโนมัติ)` : `รับคืนอุปกรณ์จาก ${tx.staffUserName || 'System'}` }); } });
+    const loans = allData['LoanHistory'] || []; loans.forEach(loan => { if (String(loan.DeviceId) === idStr) { historyEvents.push({ date: new Date(loan.LoanDate), type: 'Loan', user: loan.BorrowerName, details: `ยืมอุปกรณ์ชั่วคราวโดย ${loan.BorrowerName} (กำหนดคืน: ${new Date(loan.DueDate).toLocaleDateString('th-TH')})` }); if (loan.Status === 'Returned' && loan.ReturnDate) { historyEvents.push({ date: new Date(loan.ReturnDate), type: 'Loan Return', user: loan.BorrowerName, details: `รับคืนอุปกรณ์ที่ถูกยืมไปโดย ${loan.BorrowerName}` }); } } });
+    if (item.Timestamp) { let createdDetails = 'ลงทะเบียนเพิ่มอุปกรณ์เข้าสู่ระบบ'; if (item.UserName && item.UserName.trim() !== '') { createdDetails += ` (ระบุผู้ครอบครองเริ่มต้น: ${item.UserName})`; } else { createdDetails += ` (จัดเก็บเข้าคลัง / Storage)`; } historyEvents.push({ date: new Date(item.Timestamp), type: 'Created', user: 'System', details: createdDetails }); }
+    historyEvents.sort((a, b) => b.date - a.date);
+    if (historyEvents.length === 0) { container.innerHTML = `<div class="flex flex-col items-center justify-center text-gray-400 py-10"><i class="fas fa-history text-4xl mb-3 opacity-50"></i><p>${t('no_data')}</p></div>`; return; }
+    let html = '<div class="relative border-l-2 border-indigo-200 dark:border-indigo-800/50 ml-4 space-y-6">';
+    historyEvents.forEach(ev => {
+        let icon = 'fa-info'; let color = 'bg-gray-500'; let badgeColor = 'bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-300';
+        if (ev.type === 'Handover') { icon = 'fa-arrow-right'; color = 'bg-blue-500'; badgeColor = 'bg-blue-100 text-blue-700 dark:bg-blue-900/50 dark:text-blue-400'; } else if (ev.type === 'Return') { icon = 'fa-arrow-left'; color = 'bg-green-500'; badgeColor = 'bg-green-100 text-green-700 dark:bg-green-900/50 dark:text-green-400'; } else if (ev.type === 'Loan') { icon = 'fa-hand-holding'; color = 'bg-yellow-500'; badgeColor = 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/50 dark:text-yellow-400'; } else if (ev.type === 'Loan Return') { icon = 'fa-undo'; color = 'bg-teal-500'; badgeColor = 'bg-teal-100 text-teal-700 dark:bg-teal-900/50 dark:text-teal-400'; } else if (ev.type === 'Created') { icon = 'fa-plus'; color = 'bg-indigo-500'; badgeColor = 'bg-indigo-100 text-indigo-700 dark:bg-indigo-900/50 dark:text-indigo-400'; } else if (ev.type === 'Auto-Sync') { icon = 'fa-sync-alt'; color = 'bg-purple-500'; badgeColor = 'bg-purple-100 text-purple-700 dark:bg-purple-900/50 dark:text-purple-400'; }
+        html += `<div class="relative pl-6"><div class="absolute -left-[17px] top-0 w-8 h-8 rounded-full ${color} text-white flex items-center justify-center shadow-md border-4 border-white dark:border-gray-800"><i class="fas ${icon} text-xs"></i></div><div class="bg-white dark:bg-gray-800/50 p-4 rounded-xl border border-gray-100 dark:border-gray-700 shadow-sm hover:shadow transition-shadow"><div class="flex justify-between items-start mb-1"><span class="px-2 py-0.5 text-[10px] font-bold rounded uppercase tracking-wider ${badgeColor}">${ev.type}</span><p class="text-xs text-gray-500 dark:text-gray-400 font-mono"><i class="far fa-clock mr-1"></i> ${ev.date.toLocaleString('th-TH')}</p></div><p class="text-sm font-semibold text-gray-800 dark:text-gray-200 mt-2">${ev.details}</p></div></div>`;
+    }); html += '</div>'; container.innerHTML = html;
+};
+
 window.openModal = function(mode, collectionName, id = null) {
     currentEdit = { mode, collection: collectionName, id }; const form = document.getElementById('editForm'); if (!form) return; form.innerHTML = ''; const config = collectionConfigs[collectionName]; const itemData = (mode === 'edit' && allData[collectionName]) ? allData[collectionName].find(i => i._id === id || i.id === id) || {} : {};
     const actionText = mode === 'edit' ? 'Edit' : t('add_new'); const actionIcon = mode === 'edit' ? 'fa-edit' : 'fa-plus-circle';
@@ -1294,7 +1320,6 @@ window.openModal = function(mode, collectionName, id = null) {
     if (fileInput) fileInput.value = ''; if (hiddenBase64) hiddenBase64.value = '';
     if (itemData.Status === 'Disposed') { if(disposalSection) disposalSection.classList.remove('hidden'); if (itemData.DisposalEvidence && existingEvidenceBox && hiddenBase64) { existingEvidenceBox.classList.remove('hidden'); hiddenBase64.value = itemData.DisposalEvidence; } else if (existingEvidenceBox) existingEvidenceBox.classList.add('hidden'); } else { if(disposalSection) disposalSection.classList.add('hidden'); if(existingEvidenceBox) existingEvidenceBox.classList.add('hidden'); }
     
-    // 🌟 รีเซ็ตปุ่มในหน้าต่าง Maintenance Log ให้เป็นโหมด Add New เสมอเมื่อเปิดหน้าจอ
     window.currentLogEditId = null;
     const logForm = document.getElementById('maintenanceLogForm');
     if (logForm) {
@@ -1773,3 +1798,128 @@ window.generateSearchResultCard = function(item, collectionName) {
         </div>
     `;
 };
+
+// --- RE-ADDED MISSING FUNCTION ---
+window.buildDeviceHistoryInModal = function(item, collectionName) {
+    const container = document.getElementById('deviceHistoryList'); if(!container) return; let historyEvents = []; const idStr = String(item._id || item.id);
+    const txs = allData['TransactionHistory'] || []; txs.forEach(tx => { const isMatch = tx.devices && tx.devices.some(d => String(d.id) === idStr); if (isMatch) { historyEvents.push({ date: new Date(tx.timestamp), type: tx.type, user: tx.staffUserName, details: tx.type === 'Handover' ? `ส่งมอบอุปกรณ์ให้แก่ ${tx.staffUserName}` : tx.type === 'Auto-Sync' ? `ตรวจพบการใช้งานโดย ${tx.staffUserName} (อัปเดตอัตโนมัติ)` : `รับคืนอุปกรณ์จาก ${tx.staffUserName || 'System'}` }); } });
+    const loans = allData['LoanHistory'] || []; loans.forEach(loan => { if (String(loan.DeviceId) === idStr) { historyEvents.push({ date: new Date(loan.LoanDate), type: 'Loan', user: loan.BorrowerName, details: `ยืมอุปกรณ์ชั่วคราวโดย ${loan.BorrowerName} (กำหนดคืน: ${new Date(loan.DueDate).toLocaleDateString('th-TH')})` }); if (loan.Status === 'Returned' && loan.ReturnDate) { historyEvents.push({ date: new Date(loan.ReturnDate), type: 'Loan Return', user: loan.BorrowerName, details: `รับคืนอุปกรณ์ที่ถูกยืมไปโดย ${loan.BorrowerName}` }); } } });
+    if (item.Timestamp) { let createdDetails = 'ลงทะเบียนเพิ่มอุปกรณ์เข้าสู่ระบบ'; if (item.UserName && item.UserName.trim() !== '') { createdDetails += ` (ระบุผู้ครอบครองเริ่มต้น: ${item.UserName})`; } else { createdDetails += ` (จัดเก็บเข้าคลัง / Storage)`; } historyEvents.push({ date: new Date(item.Timestamp), type: 'Created', user: 'System', details: createdDetails }); }
+    historyEvents.sort((a, b) => b.date - a.date);
+    if (historyEvents.length === 0) { container.innerHTML = `<div class="flex flex-col items-center justify-center text-gray-400 py-10"><i class="fas fa-history text-4xl mb-3 opacity-50"></i><p>${t('no_data')}</p></div>`; return; }
+    let html = '<div class="relative border-l-2 border-indigo-200 dark:border-indigo-800/50 ml-4 space-y-6">';
+    historyEvents.forEach(ev => {
+        let icon = 'fa-info'; let color = 'bg-gray-500'; let badgeColor = 'bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-300';
+        if (ev.type === 'Handover') { icon = 'fa-arrow-right'; color = 'bg-blue-500'; badgeColor = 'bg-blue-100 text-blue-700 dark:bg-blue-900/50 dark:text-blue-400'; } else if (ev.type === 'Return') { icon = 'fa-arrow-left'; color = 'bg-green-500'; badgeColor = 'bg-green-100 text-green-700 dark:bg-green-900/50 dark:text-green-400'; } else if (ev.type === 'Loan') { icon = 'fa-hand-holding'; color = 'bg-yellow-500'; badgeColor = 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/50 dark:text-yellow-400'; } else if (ev.type === 'Loan Return') { icon = 'fa-undo'; color = 'bg-teal-500'; badgeColor = 'bg-teal-100 text-teal-700 dark:bg-teal-900/50 dark:text-teal-400'; } else if (ev.type === 'Created') { icon = 'fa-plus'; color = 'bg-indigo-500'; badgeColor = 'bg-indigo-100 text-indigo-700 dark:bg-indigo-900/50 dark:text-indigo-400'; } else if (ev.type === 'Auto-Sync') { icon = 'fa-sync-alt'; color = 'bg-purple-500'; badgeColor = 'bg-purple-100 text-purple-700 dark:bg-purple-900/50 dark:text-purple-400'; }
+        html += `<div class="relative pl-6"><div class="absolute -left-[17px] top-0 w-8 h-8 rounded-full ${color} text-white flex items-center justify-center shadow-md border-4 border-white dark:border-gray-800"><i class="fas ${icon} text-xs"></i></div><div class="bg-white dark:bg-gray-800/50 p-4 rounded-xl border border-gray-100 dark:border-gray-700 shadow-sm hover:shadow transition-shadow"><div class="flex justify-between items-start mb-1"><span class="px-2 py-0.5 text-[10px] font-bold rounded uppercase tracking-wider ${badgeColor}">${ev.type}</span><p class="text-xs text-gray-500 dark:text-gray-400 font-mono"><i class="far fa-clock mr-1"></i> ${ev.date.toLocaleString('th-TH')}</p></div><p class="text-sm font-semibold text-gray-800 dark:text-gray-200 mt-2">${ev.details}</p></div></div>`;
+    }); html += '</div>'; container.innerHTML = html;
+};
+
+window.openModal = function(mode, collectionName, id = null) {
+    currentEdit = { mode, collection: collectionName, id }; const form = document.getElementById('editForm'); if (!form) return; form.innerHTML = ''; const config = collectionConfigs[collectionName]; const itemData = (mode === 'edit' && allData[collectionName]) ? allData[collectionName].find(i => i._id === id || i.id === id) || {} : {};
+    const actionText = mode === 'edit' ? 'Edit' : t('add_new'); const actionIcon = mode === 'edit' ? 'fa-edit' : 'fa-plus-circle';
+    const modalHeaderTabsHTML = `<div class="flex space-x-1 bg-gray-100/80 dark:bg-gray-900/80 p-1.5 rounded-xl border border-gray-200/50 dark:border-gray-700/50" id="modal-tabs"><button onclick="window.switchModalTab('details', this)" class="tab-button active px-6 py-2 rounded-lg font-bold text-sm transition-all duration-200 bg-white dark:bg-gray-700 text-indigo-600 dark:text-indigo-400 shadow-sm"><i class="fas fa-layer-group mr-2"></i> Specification</button><button onclick="window.switchModalTab('maintenance', this)" class="tab-button px-6 py-2 rounded-lg font-bold text-sm transition-all duration-200 text-gray-500 hover:text-gray-700 dark:hover:text-gray-300"><i class="fas fa-tools mr-2"></i> ${t('maintenance_history')}</button><button onclick="window.switchModalTab('history', this)" class="tab-button px-6 py-2 rounded-lg font-bold text-sm transition-all duration-200 text-gray-500 hover:text-gray-700 dark:hover:text-gray-300"><i class="fas fa-history mr-2"></i> ${t('device_history')}</button></div>`;
+    const tabsContainer = document.querySelector('#editModal .bg-white.border-b.flex.justify-center.z-0'); if (tabsContainer) { tabsContainer.innerHTML = modalHeaderTabsHTML; }
+    let historyTabContent = document.getElementById('history-tab'); if (!historyTabContent) { const modalBody = document.querySelector('#editModal .flex-1.overflow-y-auto.p-4'); historyTabContent = document.createElement('div'); historyTabContent.id = 'history-tab'; historyTabContent.className = 'tab-content'; historyTabContent.innerHTML = `<div class="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm overflow-hidden"><div class="bg-gray-50 dark:bg-gray-900/50 px-5 py-3 border-b border-gray-200 dark:border-gray-700"><h4 class="text-sm font-bold text-gray-700 dark:text-gray-200 uppercase tracking-wider">${t('device_history')}</h4></div><div id="deviceHistoryList" class="p-6"></div></div>`; modalBody.appendChild(historyTabContent); }
+    document.getElementById('editModalTitle').innerHTML = `<div class="flex items-center"><div class="w-12 h-12 rounded-full bg-indigo-100 dark:bg-indigo-900/50 flex items-center justify-center mr-4 shadow-inner"><i class="fas ${actionIcon} text-indigo-600 dark:text-indigo-400 text-xl"></i></div><div><h3 class="text-2xl font-bold text-gray-900 dark:text-white leading-tight">${actionText} <span class="text-indigo-600 dark:text-indigo-400">${config.isCustom ? config.displayName : t(collectionName.toLowerCase()) || config.displayName}</span></h3><p class="text-xs text-gray-500 font-medium mt-1 uppercase tracking-widest">${mode === 'edit' ? 'System ID: ' + (itemData[config.serialField] || id) : 'Fill in the specification details'}</p></div></div>`;
+    const groups = { 'Core Identity': [], 'Hardware & Specs': [], 'Network & Connectivity': [], 'Assignment & Location': [], 'Purchase & Warranty': [], 'Inventory & Notes': [], 'Other': [] }; config.formFields.forEach(fieldId => { const fieldDef = AVAILABLE_FIELDS.find(f => f.id === fieldId) || { label: fieldId, type: 'text', group: 'Other' }; const grp = fieldDef.group || 'Other'; if(!groups[grp]) groups[grp] = []; groups[grp].push({ id: fieldId, def: fieldDef }); });
+    const groupIcons = { 'Core Identity': 'fa-id-badge text-blue-500', 'Hardware & Specs': 'fa-microchip text-purple-500', 'Network & Connectivity': 'fa-network-wired text-green-500', 'Assignment & Location': 'fa-map-marker-alt text-red-500', 'Purchase & Warranty': 'fa-file-invoice-dollar text-yellow-500', 'Inventory & Notes': 'fa-clipboard-list text-teal-500', 'Other': 'fa-layer-group text-gray-500' };
+    let formHtml = '';
+    for (const [groupName, fields] of Object.entries(groups)) {
+        if (fields.length === 0) continue; const iconClass = groupIcons[groupName] || 'fa-folder';
+        formHtml += `<div class="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm overflow-hidden mb-4"><div class="px-5 py-3 bg-gray-50 dark:bg-gray-900/50 border-b border-gray-200 dark:border-gray-700 flex items-center"><i class="fas ${iconClass} mr-2"></i><h4 class="text-sm font-bold text-gray-700 dark:text-gray-200 uppercase tracking-wider">${groupName}</h4></div><div class="p-5 grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-5">`;
+        fields.forEach(f => {
+            const fieldId = f.id; const fieldDef = f.def; let val = itemData[fieldId] !== undefined ? itemData[fieldId] : ''; const dropdown = config.dropdowns && config.dropdowns[fieldId];
+            formHtml += `<div class="col-span-1 relative">`; const requiredHtml = (fieldDef.required || ['SerialNumber', 'ItemName', 'Status'].includes(fieldId)) ? `<span class="text-red-500 ml-1">*</span>` : ''; formHtml += `<label class="block text-xs font-semibold text-gray-600 dark:text-gray-400 mb-1.5">${fieldDef.label}${requiredHtml}</label>`;
+            const inputClasses = `w-full px-4 py-2.5 bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 block dark:bg-gray-700/50 dark:border-gray-600 dark:placeholder-gray-400 dark:text-white transition-all duration-200 hover:border-indigo-300`;
+            if (dropdown) { formHtml += `<select name="${fieldId}" id="edit-${fieldId}" class="${inputClasses} appearance-none"><option value="">-- Select --</option>${dropdown.map(opt => `<option value="${opt}" ${val === opt ? 'selected' : ''}>${t(opt.toLowerCase().replace(' ', '_')) || opt}</option>`).join('')}</select><div class="pointer-events-none absolute inset-y-0 right-0 top-6 flex items-center px-4 text-gray-500"><i class="fas fa-chevron-down text-xs"></i></div>`; } else if (fieldDef.type === 'date') { const d = new Date(val); if(!isNaN(d) && val) val = d.toISOString().split('T')[0]; formHtml += `<input type="date" name="${fieldId}" id="edit-${fieldId}" value="${val}" class="${inputClasses}">`; } else if (fieldDef.type === 'number') { formHtml += `<input type="number" name="${fieldId}" id="edit-${fieldId}" value="${val}" class="${inputClasses}">`; } else if (fieldDef.type === 'textarea') { formHtml += `<textarea name="${fieldId}" id="edit-${fieldId}" rows="2" class="${inputClasses}">${val}</textarea>`; } else { formHtml += `<input type="text" name="${fieldId}" id="edit-${fieldId}" value="${val}" class="${inputClasses}">`; } formHtml += `</div>`;
+        }); formHtml += `</div></div>`;
+    }
+    form.innerHTML = formHtml;
+    
+    const disposalSection = document.getElementById('disposal-evidence-section'); const existingEvidenceBox = document.getElementById('existingEvidenceBox'); const fileInput = document.getElementById('disposalFileInput'); const hiddenBase64 = document.getElementById('hiddenEvidenceBase64');
+    if (fileInput) fileInput.value = ''; if (hiddenBase64) hiddenBase64.value = '';
+    if (itemData.Status === 'Disposed') { if(disposalSection) disposalSection.classList.remove('hidden'); if (itemData.DisposalEvidence && existingEvidenceBox && hiddenBase64) { existingEvidenceBox.classList.remove('hidden'); hiddenBase64.value = itemData.DisposalEvidence; } else if (existingEvidenceBox) existingEvidenceBox.classList.add('hidden'); } else { if(disposalSection) disposalSection.classList.add('hidden'); if(existingEvidenceBox) existingEvidenceBox.classList.add('hidden'); }
+    
+    window.currentLogEditId = null;
+    const logForm = document.getElementById('maintenanceLogForm');
+    if (logForm) {
+        logForm.reset();
+        let actionContainer = logForm.querySelector('.flex.items-end');
+        if (actionContainer) {
+            actionContainer.innerHTML = `
+                <div class="flex space-x-2 w-full">
+                    <button type="button" id="cancelEditLogBtn" onclick="window.cancelEditLog()" class="hidden w-1/3 bg-gray-200 hover:bg-gray-300 text-gray-700 dark:bg-gray-700 dark:text-gray-300 dark:hover:bg-gray-600 font-bold py-2 rounded-lg shadow-sm transition">Cancel</button>
+                    <button type="button" id="saveLogBtn" onclick="window.saveMaintenanceLog()" class="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2 rounded-lg shadow-sm transition"><i class="fas fa-plus mr-2"></i>Save Log</button>
+                </div>
+            `;
+        }
+    }
+
+    const tabBtn = document.querySelector('#modal-tabs .tab-button'); if (tabBtn) window.switchModalTab('details', tabBtn);
+    window.buildMaintenanceLogInModal(itemData); window.buildDeviceHistoryInModal(itemData, collectionName); window.openModalWindow('editModal');
+};
+
+document.addEventListener('change', (e) => { if (e.target && e.target.id === 'edit-Status') { const disposalSection = document.getElementById('disposal-evidence-section'); if (!disposalSection) return; if (e.target.value === 'Disposed') { disposalSection.classList.remove('hidden'); disposalSection.classList.add('animate-pulse'); setTimeout(() => disposalSection.classList.remove('animate-pulse'), 1000); } else disposalSection.classList.add('hidden'); } });
+
+window.saveData = async function() {
+    const formData = new FormData(document.getElementById('editForm')); const data = Object.fromEntries(formData.entries()); const { mode, collection, id } = currentEdit;
+    const statusInput = document.getElementById('edit-Status'); const fileInput = document.getElementById('disposalFileInput'); const hiddenBase64 = document.getElementById('hiddenEvidenceBase64');
+    if (statusInput && statusInput.value === 'Disposed') {
+        if (fileInput && fileInput.files.length > 0) { const file = fileInput.files[0]; if (file.size > 2 * 1024 * 1024) return alert("ไฟล์เอกสารต้องมีขนาดไม่เกิน 2MB"); try { data.DisposalEvidence = await convertFileToBase64(file); data.DisposalDate = new Date().toISOString(); } catch (err) { return alert("เกิดข้อผิดพลาดในการอ่านไฟล์"); } } else if (hiddenBase64 && hiddenBase64.value) data.DisposalEvidence = hiddenBase64.value; else { if (!confirm("คุณกำลังเปลี่ยนสถานะเป็น 'Disposed' แต่ไม่ได้แนบเอกสาร ต้องการดำเนินการต่อหรือไม่?")) return; data.DisposalDate = new Date().toISOString(); }
+    } else if (statusInput && statusInput.value !== 'Disposed') { data.DisposalEvidence = null; data.DisposalDate = null; }
+    try { if (mode === 'edit') await apiRequest(`/api/inventory/${collection}/${id}`, 'PUT', data); else await apiRequest(`/api/inventory/${collection}`, 'POST', data); showNotificationModal('success', 'Success', `Data saved successfully.`); window.hideModal('editModal'); await refreshAllData(); window.buildTable(collection); window.updateDashboard(currentDashboardFolder); } catch (error) { showNotificationModal('warning', 'Save Failed', error.message); }
+};
+
+window.deleteItem = async function(collectionName, id) { if (confirm(`Are you sure you want to delete this item?`)) { try { await apiRequest(`/api/inventory/${collectionName}/${id}`, 'DELETE'); showNotificationModal('success', 'Deleted', 'The item has been deleted.'); await refreshAllData(); window.buildTable(collectionName); window.updateDashboard(currentDashboardFolder); } catch (error) {} } };
+
+window.updateDashboard = function(folderId) {
+    if (folderId !== undefined) currentDashboardFolder = folderId;
+    let total = 0, active = 0, storage = 0, issues = 0, disposed = 0; let online = 0, offline = 0; let warrantySoon = 0, warrantyExpired = 0;
+    const skipKeys = ['Staff', 'CustomMenus', 'TransactionHistory', 'LoanHistory', 'Maintenance Log', 'admins', 'Software']; const allItems = []; const locationCounts = {};
+    const now = new Date(); const thirtyDaysFromNow = new Date(); thirtyDaysFromNow.setDate(now.getDate() + 30);
+    for (const [key, items] of Object.entries(allData)) { if (skipKeys.includes(key)) continue; if (Array.isArray(items)) { allItems.push(...items); } }
+    allItems.forEach(i => {
+        if (i.Status === 'Disposed') { disposed++; } else {
+            total++; if (i.Status === 'Active' || i.Status === 'On Loan') active++; else if (i.Status === 'Storage') storage++; else if (i.Status === 'Repair' || i.Status === 'Damaged') issues++;
+            if (i.IPAddress || i.lastSeenOnline) { const lastSeen = i.lastSeenOnline; if (lastSeen && (new Date() - new Date(lastSeen)) / 60000 <= 15) { online++; } else { offline++; } }
+            if (i.WarrantyEndDate) { const wDate = new Date(i.WarrantyEndDate); if (wDate < now) { warrantyExpired++; } else if (wDate <= thirtyDaysFromNow) { warrantySoon++; } }
+            const loc = i.Location || 'Unassigned'; locationCounts[loc] = (locationCounts[loc] || 0) + 1;
+        }
+    });
+    if(document.getElementById('stat-total')) { document.getElementById('stat-total').innerText = total; document.getElementById('stat-active').innerText = active; document.getElementById('stat-storage').innerText = storage; document.getElementById('stat-issues').innerText = issues; document.getElementById('stat-disposed').innerText = disposed; document.getElementById('stat-online').innerText = online; document.getElementById('stat-offline').innerText = offline; document.getElementById('stat-warranty-soon').innerText = warrantySoon; document.getElementById('stat-warranty-expired').innerText = warrantyExpired; }
+    let overviewGrid = document.getElementById('category-overview-grid');
+    if (overviewGrid) {
+        overviewGrid.innerHTML = '';
+        const getChildren = (pid) => { return (allData.CustomMenus || []).filter(m => m.parentId === pid).map(m => m.name); };
+        const getFolderStats = (folderName) => { let stats = { total: 0, active: 0, storage: 0, issues: 0 }; (allData[folderName] || []).forEach(item => { if (item.Status !== 'Disposed') { stats.total++; if (item.Status === 'Active' || item.Status === 'On Loan') stats.active++; else if (item.Status === 'Storage') stats.storage++; else if (item.Status === 'Repair' || item.Status === 'Damaged') stats.issues++; } }); const children = getChildren(folderName); children.forEach(child => { const childStats = getFolderStats(child); stats.total += childStats.total; stats.active += childStats.active; stats.storage += childStats.storage; stats.issues += childStats.issues; }); return stats; };
+        const generateFolderCardHTML = (colName, config, displayName, children, isBackBtn = false) => {
+            if (isBackBtn) { let mDef = (allData.CustomMenus || []).find(m => m.name === currentDashboardFolder); const goBackId = mDef && mDef.parentId ? `'${mDef.parentId}'` : `null`; return `<div class="bg-gray-100 dark:bg-gray-700 p-4 rounded-xl shadow-sm border border-gray-200 dark:border-gray-600 flex items-center space-x-3 cursor-pointer hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors transform hover:-translate-y-1" onclick="window.updateDashboard(${goBackId})"><div class="bg-gray-200 dark:bg-gray-600 w-10 h-10 rounded-full flex items-center justify-center shrink-0"><i class="fas fa-arrow-left text-gray-600 dark:text-gray-300"></i></div><div class="overflow-hidden"><p class="text-xs text-gray-500 dark:text-gray-400 truncate">${t('go_back')}</p><p class="text-sm font-bold text-gray-800 dark:text-white truncate">${t('back')}</p></div></div>`; }
+            const action = children.length > 0 ? `window.updateDashboard('${colName}')` : `window.loadPage('${colName}')`; const iconMarker = children.length > 0 ? `<div class="absolute top-2 right-2 text-xs text-indigo-400"><i class="fas fa-folder"></i></div>` : ''; const stats = getFolderStats(colName); const finalDisplayName = config.isCustom ? displayName : t(colName.toLowerCase()) || displayName;
+            return `<div class="relative bg-white dark:bg-gray-800 p-4 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700 flex flex-col justify-center cursor-pointer hover:bg-indigo-50 dark:hover:bg-gray-700 transition-colors transform hover:-translate-y-1" onclick="${action}">${iconMarker}<div class="flex items-center space-x-3 w-full"><div class="bg-indigo-100 dark:bg-indigo-900/50 w-10 h-10 rounded-full flex items-center justify-center shrink-0"><i class="fas ${config.icon || 'fa-box'} text-indigo-600 dark:text-indigo-400"></i></div><div class="flex-1 min-w-0"><p class="text-sm font-bold text-gray-800 dark:text-white truncate">${finalDisplayName}</p><p class="text-xs text-gray-500 dark:text-gray-400">${stats.total} ${t('items_count')}</p></div></div><div class="mt-3 flex items-center gap-1.5 flex-wrap"><span class="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold bg-green-100 text-green-800 dark:bg-green-900/40 dark:text-green-400" title="Active / On Loan"><i class="fas fa-check-circle mr-1"></i>${stats.active}</span><span class="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold bg-blue-100 text-blue-800 dark:bg-blue-900/40 dark:text-blue-400" title="Storage"><i class="fas fa-box mr-1"></i>${stats.storage}</span><span class="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold bg-orange-100 text-orange-800 dark:bg-orange-900/40 dark:text-orange-400" title="Issues / Repair"><i class="fas fa-tools mr-1"></i>${stats.issues}</span></div></div>`;
+        };
+        if (currentDashboardFolder === null) { const rootCollections = []; Object.keys(collectionConfigs).forEach(colName => { if (colName === 'Software') return; const menuDef = (allData.CustomMenus || []).find(m => m.name === colName); const isDefaultRoot = ['Computers', 'Monitors', 'Printers', 'Network'].includes(colName); const isCustomRoot = menuDef && !menuDef.parentId; if (isDefaultRoot || isCustomRoot) { rootCollections.push(colName); } }); rootCollections.forEach(colName => { const config = collectionConfigs[colName]; const displayName = config.displayName || colName; const children = getChildren(colName); overviewGrid.innerHTML += generateFolderCardHTML(colName, config, displayName, children, false); }); } else { const parentConfig = collectionConfigs[currentDashboardFolder]; const parentDisplayName = parentConfig.isCustom ? parentConfig.displayName : t(currentDashboardFolder.toLowerCase()) || currentDashboardFolder; overviewGrid.innerHTML += generateFolderCardHTML(null, null, null, null, true); overviewGrid.innerHTML += `<div class="bg-indigo-50 dark:bg-indigo-900/30 p-4 rounded-xl shadow-sm border border-indigo-200 dark:border-indigo-700 flex flex-col justify-center cursor-pointer hover:bg-indigo-100 dark:hover:bg-indigo-800/50 transition-colors transform hover:-translate-y-1" onclick="window.loadPage('${currentDashboardFolder}')"><div class="flex items-center space-x-3 w-full"><div class="bg-indigo-200 dark:bg-indigo-800 w-10 h-10 rounded-full flex items-center justify-center shrink-0"><i class="fas fa-list text-indigo-700 dark:text-indigo-300"></i></div><div class="flex-1 min-w-0"><p class="text-xs text-indigo-500 dark:text-indigo-400 truncate">${t('view_items')}</p><p class="text-sm font-bold text-indigo-900 dark:text-indigo-100 truncate">${parentDisplayName}</p></div></div></div>`; const children = getChildren(currentDashboardFolder); children.forEach(colName => { const config = collectionConfigs[colName]; const displayName = config.displayName || colName; const subChildren = getChildren(colName); overviewGrid.innerHTML += generateFolderCardHTML(colName, config, displayName, subChildren, false); }); }
+    }
+    const statusCounts = {}; allItems.filter(i => i.Status !== 'Disposed').forEach(i => { statusCounts[i.Status] = (statusCounts[i.Status] || 0) + 1; }); window.renderStatusChart(statusCounts);
+    const categoryCounts = {}; for (const [key, items] of Object.entries(allData)) { if (skipKeys.includes(key)) continue; if (Array.isArray(items)) { const activeItems = items.filter(i => i.Status !== 'Disposed'); if (activeItems.length > 0) { const displayName = collectionConfigs[key] ? collectionConfigs[key].displayName : key; const translatedDisplayName = collectionConfigs[key].isCustom ? displayName : t(key.toLowerCase()) || displayName; categoryCounts[translatedDisplayName] = activeItems.length; } } } window.renderCategoryChart(categoryCounts);
+    window.renderLocationChart(locationCounts);
+    const activityContainer = document.getElementById('recent-activity-list');
+    if (activityContainer) { const transactions = allData['TransactionHistory'] || []; if (transactions.length === 0) { activityContainer.innerHTML = `<p class="text-gray-500 text-sm">${t('no_data')}</p>`; } else { const sorted = transactions.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp)).slice(0, 5); let html = ''; sorted.forEach(tx => { const date = new Date(tx.timestamp).toLocaleString('th-TH'); const color = tx.type === 'Handover' ? 'text-blue-500' : 'text-green-500'; const icon = tx.type === 'Handover' ? 'fa-arrow-right' : 'fa-arrow-left'; html += `<div class="flex items-start space-x-3 p-3 bg-gray-50 dark:bg-gray-700/50 rounded-lg"><div class="mt-1 ${color}"><i class="fas ${icon}"></i></div><div><p class="text-sm font-semibold text-gray-800 dark:text-gray-200">${t(tx.type.toLowerCase()) || tx.type}: <span class="font-normal text-gray-600 dark:text-gray-400">${tx.staffUserName || 'Unknown'}</span></p><p class="text-xs text-gray-500">${tx.devices ? tx.devices.length : 0} ${t('items')} • ${date}</p></div></div>`; }); activityContainer.innerHTML = html; } }
+};
+
+window.renderStatusChart = function(data) { const ctx = document.getElementById('statusChart'); if(!ctx) return; const translatedLabels = Object.keys(data).map(key => t(key.toLowerCase().replace(' ', '_')) || key); if(window.statusChartInstance) { window.statusChartInstance.data.labels = translatedLabels; window.statusChartInstance.data.datasets[0].data = Object.values(data); window.statusChartInstance.update(); } else { window.statusChartInstance = new Chart(ctx, { type: 'doughnut', data: { labels: translatedLabels, datasets: [{ data: Object.values(data), backgroundColor: ['#22c55e', '#eab308', '#f97316', '#3b82f6', '#9ca3af'] }] }, options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'right' } } } }); } };
+window.renderCategoryChart = function(data) { const ctx = document.getElementById('categoryChart'); if(!ctx) return; if(window.categoryChartInstance) { window.categoryChartInstance.data.labels = Object.keys(data); window.categoryChartInstance.data.datasets[0].data = Object.values(data); window.categoryChartInstance.update(); } else { window.categoryChartInstance = new Chart(ctx, { type: 'bar', data: { labels: Object.keys(data), datasets: [{ label: 'Assets', data: Object.values(data), backgroundColor: '#6366f1', borderRadius: 4 }] }, options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } } } }); } };
+window.renderLocationChart = function(data) { const ctx = document.getElementById('locationChart'); if(!ctx) return; const sortedLocations = Object.entries(data).sort((a, b) => b[1] - a[1]).slice(0, 5); const labels = sortedLocations.map(item => item[0]); const values = sortedLocations.map(item => item[1]); if(window.locationChartInstance) { window.locationChartInstance.data.labels = labels; window.locationChartInstance.data.datasets[0].data = values; window.locationChartInstance.update(); } else { window.locationChartInstance = new Chart(ctx, { type: 'bar', data: { labels: labels, datasets: [{ label: 'Assets', data: values, backgroundColor: '#14b8a6', borderRadius: 4 }] }, options: { responsive: true, maintainAspectRatio: false, indexAxis: 'y', plugins: { legend: { display: false } } } }); } };
+
+window.showNotificationModal = function(type, title, msg) { document.getElementById('modalTitle').textContent = title; document.getElementById('modalMessage').textContent = msg; const icon = document.getElementById('modalIcon'); if(type === 'success') icon.innerHTML = '<i class="fas fa-check-circle text-4xl text-green-500"></i>'; else if(type === 'warning') icon.innerHTML = '<i class="fas fa-exclamation-triangle text-4xl text-yellow-500"></i>'; else icon.innerHTML = '<i class="fas fa-info-circle text-4xl text-blue-500"></i>'; window.openModalWindow('notificationModal'); };
+window.hideModal = function(id) { const modal = document.getElementById(id); if (!modal) return; modal.classList.add('opacity-0', 'pointer-events-none'); if (modal.querySelector('.modal-content')) { modal.querySelector('.modal-content').classList.remove('scale-100'); modal.querySelector('.modal-content').classList.add('scale-95'); } };
+window.switchModalTab = function(tab, btn) { document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active')); document.getElementById(tab+'-tab').classList.add('active'); document.querySelectorAll('.tab-button').forEach(b => { b.classList.remove('active', 'bg-white', 'dark:bg-gray-700', 'text-indigo-600', 'dark:text-indigo-400', 'shadow-sm'); b.classList.add('text-gray-500'); }); btn.classList.remove('text-gray-500'); btn.classList.add('active', 'bg-white', 'dark:bg-gray-700', 'text-indigo-600', 'dark:text-indigo-400', 'shadow-sm'); };
+window.changeRowsPerPage = function(col, el) { paginationState[col].rowsPerPage = parseInt(el.value); paginationState[col].currentPage=1; window.buildTable(col); };
+window.changePage = function(col, dir) { paginationState[col].currentPage += dir; window.buildTable(col); };
+window.handleSearch = function(col, val) { paginationState[col].filterText = val; paginationState[col].currentPage=1; window.buildTable(col); };
+window.handleStatusFilter = function(col, val) { paginationState[col].statusFilter = val; paginationState[col].currentPage=1; window.buildTable(col); };
+
+window.buildHandoverReturnPage = function() {
+    const handoverTab = document.getElementById('handover-tab-content');
+    if(handoverTab) {
+        handoverTab.innerHTML = `<div class="grid grid-cols-1 xl:grid-cols-2 gap-8"><div class="space-y-4"><div class="bg-gray-50 dark:bg-gray-800/50 p-4 rounded-xl border border-gray-100 dark:border-gray-700"><h3 class="font-bold mb-3 text-gray-800 dark:text-white flex items-center"><span class="bg-indigo-600 text-white w-6 h-6 rounded-full flex items-center justify-center text-xs mr-2">1</span> Select Staff</h3><input type="text" onkeyup="window.filterStaffList(this, 'handoverStaffList')" placeholder="${t('search')}" class="w-full px-4 py-2.5 border border-gray-300 rounded-lg mb-3 dark:bg-gray-700 dark:border-gray-600 dark:text-white focus:ring-2 focus:ring-indigo-500 shadow-sm"><div id="handoverStaffList" class="max-h-48 overflow-y-auto border border-gray-200 rounded-lg p-2 dark:border-gray-600 bg-white dark:bg-gray-800 custom-scrollbar space-y-1"></div></div><div class="bg-gray-50 dark:bg-gray-800/50 p-4 rounded-xl border border-gray-100 dark:border-gray-700"><h3 class="font-bold mb-3 text-gray-800 dark:text-white flex items-center"><span class="bg-indigo-600 text-white w-6 h-6 rounded-full flex items-center justify-center text-xs mr-2">2</span> Select Device (From Storage)</h3><input type="text" on
