@@ -35,6 +35,7 @@ const translations = {
         assets_by_category: "Assets by Category",
         top_locations: "Top Locations",
         recent_transactions: "Recent Transactions",
+        active_maintenance: "Active Maintenance Tasks",
         settings: "Settings",
         disposed_assets: "Disposed Assets",
         disposed_assets_desc: "List of disposed assets (with evidence)",
@@ -194,6 +195,7 @@ const translations = {
         assets_by_category: "อุปกรณ์แยกตามหมวดหมู่",
         top_locations: "สถานที่ใช้งานสูงสุด",
         recent_transactions: "ประวัติทำรายการล่าสุด",
+        active_maintenance: "งานซ่อมบำรุงที่กำลังดำเนินการ",
         settings: "ตั้งค่าระบบ",
         disposed_assets: "อุปกรณ์ที่จำหน่ายออก",
         disposed_assets_desc: "รายการอุปกรณ์ที่ถูกแทงจำหน่าย (มีเอกสารแนบ)",
@@ -1096,6 +1098,67 @@ window.updateDashboard = function(folderId) {
     window.renderLocationChart(locationCounts);
     const activityContainer = document.getElementById('recent-activity-list');
     if (activityContainer) { const transactions = allData['TransactionHistory'] || []; if (transactions.length === 0) { activityContainer.innerHTML = `<p class="text-gray-500 text-sm">${t('no_data')}</p>`; } else { const sorted = transactions.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp)).slice(0, 5); let html = ''; sorted.forEach(tx => { const date = new Date(tx.timestamp).toLocaleString('th-TH'); const color = tx.type === 'Handover' ? 'text-blue-500' : 'text-green-500'; const icon = tx.type === 'Handover' ? 'fa-arrow-right' : 'fa-arrow-left'; html += `<div class="flex items-start space-x-3 p-3 bg-gray-50 dark:bg-gray-700/50 rounded-lg"><div class="mt-1 ${color}"><i class="fas ${icon}"></i></div><div><p class="text-sm font-semibold text-gray-800 dark:text-gray-200">${t(tx.type.toLowerCase()) || tx.type}: <span class="font-normal text-gray-600 dark:text-gray-400">${tx.staffUserName || 'Unknown'}</span></p><p class="text-xs text-gray-500">${tx.devices ? tx.devices.length : 0} ${t('items')} • ${date}</p></div></div>`; }); activityContainer.innerHTML = html; } }
+    
+    // 🌟 Render Active Maintenance Tasks on Dashboard
+    window.renderDashboardMaintenanceTasks();
+};
+
+// 🌟 สร้างฟังก์ชันแสดงตารางงานซ่อมที่ Dashboard
+window.renderDashboardMaintenanceTasks = function() {
+    let dashboardPage = document.getElementById('dashboard-page');
+    if (!dashboardPage) return;
+
+    let maintenanceSection = document.getElementById('dashboard-maintenance-section');
+    if (!maintenanceSection) {
+        maintenanceSection = document.createElement('div');
+        maintenanceSection.id = 'dashboard-maintenance-section';
+        maintenanceSection.className = 'bg-white dark:bg-gray-800 p-4 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700 mt-6 mb-6';
+        dashboardPage.appendChild(maintenanceSection);
+    }
+
+    const tasks = allData['Maintenance Log'] || [];
+    const activeTasks = tasks.filter(t => t.Status !== 'Completed' && t.Status !== 'Cancelled')
+                             .sort((a, b) => new Date(b.logDate || b.Timestamp) - new Date(a.logDate || a.Timestamp))
+                             .slice(0, 5);
+
+    let html = `<div class="flex justify-between items-center mb-4">
+                    <h3 class="font-bold flex items-center text-gray-800 dark:text-white">
+                        <i class="fas fa-tools mr-2 text-orange-500"></i>
+                        <span>${t('active_maintenance') || 'Active Maintenance Tasks'}</span>
+                    </h3>
+                    <button onclick="window.loadPage('Maintenance')" class="text-sm text-indigo-600 hover:underline dark:text-indigo-400 font-medium">View All</button>
+                </div>`;
+
+    if (activeTasks.length === 0) {
+        html += `<p class="text-gray-500 text-sm text-center py-6 border-2 border-dashed border-gray-200 dark:border-gray-700 rounded-lg">${t('no_data') || 'No active maintenance tasks.'}</p>`;
+    } else {
+        html += `<div class="overflow-x-auto border border-gray-100 dark:border-gray-700 rounded-lg"><table class="min-w-full text-sm text-left"><thead class="text-xs text-gray-500 uppercase bg-gray-50 dark:bg-gray-700/50 dark:text-gray-400"><tr><th class="px-4 py-3">${t('device')}</th><th class="px-4 py-3">${t('description')}</th><th class="px-4 py-3">${t('date')}</th><th class="px-4 py-3">${t('status')}</th></tr></thead><tbody class="divide-y divide-gray-100 dark:divide-gray-700">`;
+
+        activeTasks.forEach(task => {
+            const status = task.Status || 'In Progress';
+            let statusColor = 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400';
+            if (status === 'Scheduled') statusColor = 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400';
+            else if (status === 'Waiting for Parts') statusColor = 'bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400';
+            else if (status === 'Repair' || status === 'Damaged') statusColor = 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400';
+
+            const date = task.logDate || (task.Timestamp ? new Date(task.Timestamp).toISOString().split('T')[0] : '-');
+
+            html += `<tr class="hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors">
+                <td class="px-4 py-3 font-medium text-gray-900 dark:text-white">
+                    ${task.deviceName || task.deviceCollection || 'Unknown'}
+                    <div class="text-[10px] text-gray-500 font-mono mt-0.5">${task.deviceSerial || '-'}</div>
+                </td>
+                <td class="px-4 py-3 text-gray-600 dark:text-gray-300 truncate max-w-[200px]" title="${task.description}">${task.description}</td>
+                <td class="px-4 py-3 text-gray-500 dark:text-gray-400">${date}</td>
+                <td class="px-4 py-3">
+                    <span class="px-2 py-1 rounded text-[10px] font-bold uppercase tracking-wider ${statusColor}">${status}</span>
+                </td>
+            </tr>`;
+        });
+        html += `</tbody></table></div>`;
+    }
+
+    maintenanceSection.innerHTML = html;
 };
 
 window.renderStatusChart = function(data) { const ctx = document.getElementById('statusChart'); if(!ctx) return; const translatedLabels = Object.keys(data).map(key => t(key.toLowerCase().replace(' ', '_')) || key); if(window.statusChartInstance) { window.statusChartInstance.data.labels = translatedLabels; window.statusChartInstance.data.datasets[0].data = Object.values(data); window.statusChartInstance.update(); } else { window.statusChartInstance = new Chart(ctx, { type: 'doughnut', data: { labels: translatedLabels, datasets: [{ data: Object.values(data), backgroundColor: ['#22c55e', '#eab308', '#f97316', '#3b82f6', '#9ca3af'] }] }, options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'right' } } } }); } };
