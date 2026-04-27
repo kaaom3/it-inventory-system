@@ -241,7 +241,7 @@ app.post('/api/inventory/sync', verifyApiKey, async (req, res) => {
             }
         } catch (historyErr) { console.error("Error saving auto-sync history:", historyErr); }
 
-        // 🌟 Sync Monitors (อัปเดตให้เชื่อมโยง UserName ให้ด้วย และข้ามการบันทึกหากเป็น POS)
+        // 🌟 Sync Monitors
         if (targetCollection !== 'POS' && data.monitors && Array.isArray(data.monitors)) {
             for (const mon of data.monitors) {
                 if (!isInvalidSN(mon.serial)) {
@@ -262,7 +262,7 @@ app.post('/api/inventory/sync', verifyApiKey, async (req, res) => {
             }
         }
 
-        // 🌟 Sync Keyboards (แยกออกมาจาก Accessories เดิม)
+        // 🌟 Sync Keyboards
         if (data.keyboards && Array.isArray(data.keyboards)) {
             for (const kb of data.keyboards) {
                 if (!isInvalidSN(kb.SerialNumber)) {
@@ -284,7 +284,7 @@ app.post('/api/inventory/sync', verifyApiKey, async (req, res) => {
             }
         }
 
-        // 🌟 Sync Mice (แยกออกมาจาก Accessories เดิม)
+        // 🌟 Sync Mice
         if (data.mice && Array.isArray(data.mice)) {
             for (const mouse of data.mice) {
                 if (!isInvalidSN(mouse.SerialNumber)) {
@@ -306,7 +306,7 @@ app.post('/api/inventory/sync', verifyApiKey, async (req, res) => {
             }
         }
 
-        // 🌟 Sync Printers (เพิ่มการบันทึกเครื่องพิมพ์ที่ต่อพ่วงกับคอมพิวเตอร์)
+        // 🌟 Sync Printers
         if (data.printers && Array.isArray(data.printers)) {
             for (const prn of data.printers) {
                 if (!isInvalidSN(prn.SerialNumber)) {
@@ -399,7 +399,7 @@ async function startBackgroundPingService() {
 }
 
 // ===================================================================
-// 🌟 Bulk Operations & Utility (แก้ไขหลายรายการ, นำเข้า, โคลน, ย้าย)
+// 🌟 Bulk Operations & Utility
 // ===================================================================
 app.post('/api/inventory/:collection/bulk', verifyToken, async (req, res) => {
     if (!db) return res.status(500).json({ message: "Database not connected" });
@@ -533,6 +533,16 @@ app.get('/api/inventory/all', verifyToken, async (req, res) => {
             if (col.name !== 'admins') allData[col.name] = await db.collection(col.name).find().toArray();
         }
         res.json(allData);
+    } catch (error) { res.status(500).json({ message: error.message }); }
+});
+
+// 🌟 ย้าย API Maintenance มาไว้ตรงนี้ (ต้องอยู่ก่อน /:collection เพื่อไม่ให้ Express สับสน)
+app.post('/api/inventory/maintenance', verifyToken, async (req, res) => {
+    if (!db) return res.status(500).json({ message: "Database not connected" });
+    try {
+        const data = req.body; data.Timestamp = new Date();
+        await db.collection('Maintenance Log').insertOne(data);
+        res.status(201).json({ message: "Maintenance log added" });
     } catch (error) { res.status(500).json({ message: error.message }); }
 });
 
@@ -787,15 +797,6 @@ app.put('/api/staff/:id', verifyToken, async (req, res) => {
 app.delete('/api/staff/:id', verifyToken, async (req, res) => {
     if (!db) return res.status(500).json({ message: "Database not connected" });
     try { await db.collection('Staff').deleteOne(buildIdQuery(req.params.id)); res.json({ message: "Staff deleted" }); } catch (error) { res.status(500).json({ message: error.message }); }
-});
-
-app.post('/api/inventory/maintenance', verifyToken, async (req, res) => {
-    if (!db) return res.status(500).json({ message: "Database not connected" });
-    try {
-        const data = req.body; data.Timestamp = new Date();
-        await db.collection('Maintenance Log').insertOne(data);
-        res.status(201).json({ message: "Maintenance log added" });
-    } catch (error) { res.status(500).json({ message: error.message }); }
 });
 
 app.get('/api/ping/:target', verifyToken, async (req, res) => {
