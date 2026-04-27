@@ -546,6 +546,21 @@ app.post('/api/inventory/maintenance', verifyToken, async (req, res) => {
     } catch (error) { res.status(500).json({ message: error.message }); }
 });
 
+// 🌟 ส่วนที่เพิ่มใหม่: API สำหรับอัปเดตสถานะงานซ่อมเดิม (เช่น การปิดงาน เปลี่ยนเป็น Completed)
+app.put('/api/inventory/maintenance/:id', verifyToken, async (req, res) => {
+    if (!db) return res.status(500).json({ message: "Database not connected" });
+    try {
+        const data = req.body;
+        delete data._id; // ป้องกันไม่ให้เอา _id ไปทับ
+
+        await db.collection('Maintenance Log').updateOne(
+            buildIdQuery(req.params.id),
+            { $set: data }
+        );
+        res.json({ message: "Maintenance log updated successfully" });
+    } catch (error) { res.status(500).json({ message: error.message }); }
+});
+
 app.post('/api/inventory/:collection', verifyToken, async (req, res) => {
     if (!db) return res.status(500).json({ message: "Database not connected" });
     try {

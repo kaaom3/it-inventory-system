@@ -1393,16 +1393,33 @@ window.buildMaintenancePage = function() {
         const deviceDisplayName = task.deviceName || task.deviceCollection || 'Asset';
         const deviceSN = task.deviceSerial || task.deviceId || 'Unknown SN';
 
+        // 🌟 ส่วนที่เพิ่มใหม่: สร้างปุ่มลิ้งก์ไปหาอุปกรณ์
+        const col = task.deviceCollection;
+        const id = task.deviceId;
+        let linkBtn = '';
+        if (col && id) {
+            linkBtn = `<button onclick="window.loadPage('${col}'); setTimeout(() => window.openModal('edit', '${col}', '${id}'), 100)" class="ml-2 text-indigo-500 hover:text-indigo-700 dark:text-indigo-400 dark:hover:text-indigo-300 bg-indigo-50 dark:bg-indigo-900/30 px-1.5 py-0.5 rounded text-[10px] transition-colors shrink-0 border border-indigo-100 dark:border-indigo-800" title="เปิดดู/แก้ไขอุปกรณ์นี้"><i class="fas fa-external-link-alt"></i></button>`;
+        }
+
+        // 🌟 ส่วนที่เพิ่มใหม่: สร้างปุ่มปิดงาน (แสดงเฉพาะงานที่ยังไม่เสร็จ)
+        let actionBtn = '';
+        if (status !== 'Completed' && status !== 'Cancelled') {
+            actionBtn = `<button onclick="window.markMaintenanceCompleted('${task._id || task.id}', '${col}', '${id}')" class="mt-3 w-full bg-emerald-50 hover:bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:hover:bg-emerald-900/50 dark:text-emerald-400 py-2.5 rounded-xl text-xs font-bold border border-emerald-200 dark:border-emerald-800 transition flex items-center justify-center shadow-sm"><i class="fas fa-check-circle mr-1.5 text-sm"></i> Mark as Completed</button>`;
+        }
+
         // เพิ่ม data-status เพื่อให้ Filter ทำงานร่วมกันได้
         container.innerHTML += `
             <div class="maintenance-card bg-white dark:bg-gray-800 p-5 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 hover:shadow-md transition-shadow" data-status="${status}">
                 <div class="flex justify-between items-start mb-4">
-                    <div class="flex items-center">
-                        <div class="w-10 h-10 rounded-xl bg-indigo-50 dark:bg-indigo-900/30 flex items-center justify-center mr-3 text-indigo-500">
+                    <div class="flex items-center flex-1 min-w-0 pr-2">
+                        <div class="w-10 h-10 rounded-xl bg-indigo-50 dark:bg-indigo-900/30 flex items-center justify-center mr-3 text-indigo-500 shrink-0">
                             <i class="fas fa-wrench"></i>
                         </div>
                         <div class="flex-1 min-w-0">
-                            <h4 class="font-bold text-gray-900 dark:text-white leading-none truncate">${deviceDisplayName}</h4>
+                            <div class="flex items-center">
+                                <h4 class="font-bold text-gray-900 dark:text-white leading-none truncate">${deviceDisplayName}</h4>
+                                ${linkBtn}
+                            </div>
                             <p class="text-[10px] text-gray-500 mt-1 font-mono uppercase tracking-tight truncate">${deviceSN}</p>
                         </div>
                     </div>
@@ -1429,6 +1446,7 @@ window.buildMaintenancePage = function() {
                         <p class="text-xs font-bold text-emerald-600">฿${cost}</p>
                     </div>
                 </div>
+                ${actionBtn}
             </div>`;
     });
 };
@@ -1449,6 +1467,36 @@ window.applyMaintenanceFilters = function() {
             el.style.display = 'none';
         }
     });
+};
+
+// 🌟 ส่วนที่เพิ่มใหม่: ฟังก์ชันสำหรับกดปิดงานซ่อม
+window.markMaintenanceCompleted = async function(logId, collection, deviceId) {
+    if (!confirm("ยืนยันการปิดงานซ่อมนี้เป็น 'Completed' ใช่หรือไม่?\n(ระบบจะเปลี่ยนสถานะอุปกรณ์ให้กลับมาพร้อมใช้งานอัตโนมัติ)")) return;
+    
+    try {
+        // 1. อัปเดตสถานะใน Log ให้เป็น Completed
+        await apiRequest(`/api/inventory/maintenance/${logId}`, 'PUT', { 
+            Status: 'Completed', 
+            completedDate: new Date() 
+        });
+        
+        // 2. เช็คอุปกรณ์ และปรับสถานะเครื่องให้กลับมา Active หากเดิมติดสถานะ Repair
+        if (collection && deviceId && collection !== 'undefined' && deviceId !== 'undefined') {
+            const item = allData[collection]?.find(i => i._id === deviceId || i.id === deviceId);
+            if (item && (item.Status === 'Repair' || item.Status === 'Damaged' || item.Status === 'Scheduled' || item.Status === 'Waiting for Parts')) {
+                await apiRequest(`/api/inventory/${collection}/${deviceId}`, 'PUT', { Status: 'Active' });
+            }
+        }
+
+        showNotificationModal('success', 'Completed', 'งานซ่อมนี้ถูกอัปเดตเป็นเสร็จสิ้นแล้ว');
+        
+        // รีเฟรชข้อมูลและเรนเดอร์หน้าซ่อมใหม่
+        await refreshAllData();
+        window.buildMaintenancePage();
+        
+    } catch (error) {
+        showNotificationModal('warning', 'Error', error.message);
+    }
 };
 
 window.filterLoanHistory = function(val) { const term=val.toUpperCase(); document.querySelectorAll('#LoanHistoryContainer > div').forEach(el => el.style.display = el.textContent.toUpperCase().includes(term)?'':'none'); };
