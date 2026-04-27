@@ -590,7 +590,10 @@ async function refreshAllData() {
         };
         collectionConfigs = { ...defaultConfigs };
         const customMenus = allData.CustomMenus || [];
+        
         customMenus.forEach(menu => {
+            if (['Maintenance', 'Maintenance Log', 'admins', 'Staff'].includes(menu.name)) return;
+            
             if (!menu.fields || !Array.isArray(menu.fields) || menu.fields.length === 0) return;
             let headerFields = [];
             const hasIP = menu.fields.some(f => f.id === 'IPAddress');
@@ -614,6 +617,7 @@ async function refreshAllData() {
                 dropdowns: { Status: ['Active', 'On Loan', 'Repair', 'Storage', 'Damaged', 'Disposed'], Type: ['Desktop', 'Laptop', 'MacBook', 'Tablet', 'POS', 'Server', 'Other'] }, isCustom: true
             };
         });
+        
         const skipKeys = ['Staff', 'CustomMenus', 'TransactionHistory', 'LoanHistory', 'Maintenance Log', 'Maintenance', 'admins', 'Software', 'Accessory'];
         Object.keys(allData).forEach(key => {
             if (!skipKeys.includes(key) && Array.isArray(allData[key]) && !collectionConfigs[key]) {
@@ -741,8 +745,10 @@ function renderSidebarDynamic() {
         { id: 'Reports', name: t('reports'), icon: 'fa-file-alt', isSystem: true, children: [{ id: 'LoanHistory', name: t('loan_history'), icon: 'fa-history', isSystem: true, clickAction: "window.loadPage('LoanHistory', this)" }, { id: 'Maintenance', name: t('maintenance_management'), icon: 'fa-tools', isSystem: true, clickAction: "window.loadPage('Maintenance', this)" }, { id: 'AssetsByUser', name: t('assets_by_user'), icon: 'fa-user-tag', isSystem: true, clickAction: "window.loadPage('AssetsByUser', this)" }, { id: 'DisposedAssets', name: t('disposed_assets'), icon: 'fa-trash-alt', isSystem: true, clickAction: "window.loadPage('DisposedAssets', this)" }] },
         { id: 'UserSettings', name: t('system_settings'), icon: 'fa-cogs', isSystem: true, children: [{ id: 'StaffManagement', name: t('staff_management'), icon: 'fa-users', isSystem: true, clickAction: "window.loadPage('StaffManagement', this)" }, { id: 'AdminManagement', name: t('admin_management'), icon: 'fa-user-shield', isSystem: true, clickAction: "window.loadPage('AdminManagement', this)" }, { id: 'LabelPrinter', name: t('label_printer'), icon: 'fa-tags', isSystem: true, clickAction: "window.loadPage('LabelPrinter', this)" }, { id: 'Settings', name: t('custom_categories'), icon: 'fa-sliders-h', isSystem: true, clickAction: "window.loadPage('Settings', this)" }] }
     ];
+    
     const customMenus = allData.CustomMenus || [];
-    const customNodes = customMenus.filter(m => collectionConfigs[m.name] && !['Computers','Monitors','Printers','Network'].includes(m.name)).sort((a, b) => (a.order || 0) - (b.order || 0) || a.displayName.localeCompare(b.displayName)).map(m => ({ id: m.name, name: m.displayName, icon: m.icon, isSystem: false, parentId: m.parentId, clickAction: `window.loadPage('${m.name}', this)`, allowDelete: true, allowEdit: true, order: m.order }));
+    const customNodes = customMenus.filter(m => collectionConfigs[m.name] && !['Computers','Monitors','Printers','Network', 'Maintenance', 'Maintenance Log'].includes(m.name)).sort((a, b) => (a.order || 0) - (b.order || 0) || a.displayName.localeCompare(b.displayName)).map(m => ({ id: m.name, name: m.displayName, icon: m.icon, isSystem: false, parentId: m.parentId, clickAction: `window.loadPage('${m.name}', this)`, allowDelete: true, allowEdit: true, order: m.order }));
+    
     const allKnown = ['Computers', 'Monitors', 'Printers', 'Network', 'Maintenance', 'Maintenance Log', ...customNodes.map(n => n.id)];
     Object.keys(collectionConfigs).forEach(key => { if (!allKnown.includes(key)) customNodes.push({ id: key, name: collectionConfigs[key].displayName, icon: 'fa-box', isSystem: false, parentId: null, clickAction: `window.loadPage('${key}', this)`, allowDelete: false, allowEdit: true, order: 99 }); });
     const rootNodes = [dashboardNode, searchScanNode, { type: 'header', label: t('assets') }, ...assetChildren, ...customNodes.filter(n => !n.parentId), { type: 'header', label: t('management') }, ...managementChildren];
@@ -766,6 +772,8 @@ function generateDynamicPages() {
     if (!container) return; container.innerHTML = ''; 
     Object.keys(collectionConfigs).forEach(colName => {
         const config = collectionConfigs[colName]; if (!config) return;
+        if (['Maintenance', 'Maintenance Log'].includes(colName)) return;
+
         const pageId = `${colName.toLowerCase()}-page`;
         const displayName = config.isCustom ? config.displayName : t(colName.toLowerCase()) || config.displayName || colName;
         const statusOptions = config.dropdowns.Status ? config.dropdowns.Status.map(s => `<option value="${s}">${t(s.toLowerCase().replace(' ', '_')) || s}</option>`).join('') : '';
@@ -774,13 +782,18 @@ function generateDynamicPages() {
 }
 
 window.loadPage = function(pageName, navElement) {
+    if (pageName === 'SearchScan') window.buildSearchScanPage();
+
     document.querySelectorAll('.nav-link').forEach(l => { l.classList.remove('bg-indigo-50', 'text-indigo-600', 'dark:bg-gray-700', 'dark:text-white', 'font-semibold'); l.classList.add('text-gray-600', 'dark:text-gray-300'); });
     document.querySelectorAll('.page-content').forEach(p => { p.classList.remove('active'); p.classList.add('hidden'); p.style.display = 'none'; });
     let targetNav = navElement || document.getElementById(`nav-${pageName}`);
     if (targetNav) { targetNav.classList.remove('text-gray-600', 'dark:text-gray-300'); targetNav.classList.add('bg-indigo-50', 'text-indigo-600', 'dark:bg-gray-700', 'dark:text-white', 'font-semibold'); const parentDetails = targetNav.closest('details'); if (parentDetails) parentDetails.setAttribute('open', 'true'); }
+    
     const pageId = `${pageName.toLowerCase()}-page`;
     let pageDiv = document.getElementById(pageId);
+    
     if (pageName === 'LabelPrinter' && !pageDiv) { pageDiv = document.createElement('div'); pageDiv.id = pageId; pageDiv.className = 'page-content hidden'; document.getElementById('main-content').appendChild(pageDiv); }
+    
     if (pageDiv) {
         pageDiv.classList.remove('hidden'); pageDiv.classList.add('active'); pageDiv.style.display = 'block';
         if (pageName === 'Dashboard') window.updateDashboard(null); 
@@ -792,6 +805,7 @@ window.loadPage = function(pageName, navElement) {
         else if (pageName === 'DisposedAssets') window.renderDisposedAssets();
         else if (pageName === 'Settings') window.renderSettings();
         else if (pageName === 'LabelPrinter') window.buildLabelPrinterPage();
+        else if (pageName === 'Maintenance') window.buildMaintenancePage();
         else if (collectionConfigs[pageName]) { if (paginationState[pageName]) { paginationState[pageName].filterText = ''; const searchInput = document.getElementById(`${pageName.toLowerCase()}SearchInput`); if (searchInput) searchInput.value = ''; window.buildTable(pageName); } }
     }
     if (window.innerWidth < 768) { const sidebar = document.getElementById('sidebar'); const overlay = document.getElementById('sidebar-overlay'); if(sidebar) sidebar.classList.add('-translate-x-full'); if(overlay) overlay.classList.add('hidden'); }
@@ -869,6 +883,7 @@ window.toggleFieldDisplay = function(fieldId) {
 window.saveCustomMenu = async function() {
     const mode = document.getElementById('editMenuMode').value; const idInput = document.getElementById('newMenuId').value.trim(); const displayInput = document.getElementById('newMenuDisplay').value.trim(); const iconInput = document.getElementById('newMenuIcon').value; const parentInput = document.getElementById('newMenuParent').value; const orderInput = document.getElementById('newMenuOrder').value;
     if (!idInput || !displayInput) return showNotificationModal('warning', 'Missing Info', 'Please fill Menu Name and Display Name.');
+    if (['Maintenance', 'Maintenance Log', 'admins', 'Staff'].includes(idInput)) return showNotificationModal('warning', 'Reserved Name', 'ไม่สามารถใช้ชื่อนี้ได้ เนื่องจากเป็นระบบหลัก');
     if (mode === 'create' && !/^[a-zA-Z0-9]+$/.test(idInput)) return showNotificationModal('warning', 'Invalid Name', 'Menu ID must only contain letters and numbers.');
     const selectedFields = []; document.querySelectorAll('.col-checkbox').forEach(cb => { if(cb.checked || cb.disabled) selectedFields.push(AVAILABLE_FIELDS.find(f => f.id === cb.value) || { id: cb.value, label: cb.value, type: 'text' }); });
     const selectedDisplayColumns = []; document.querySelectorAll('.display-checkbox').forEach(cb => { if(cb.checked) { selectedDisplayColumns.push(cb.value); } });
@@ -995,7 +1010,7 @@ window.openModal = function(mode, collectionName, id = null) {
 
     const modalHeaderTabsHTML = `<div class="flex space-x-1 bg-gray-100/80 dark:bg-gray-900/80 p-1.5 rounded-xl border border-gray-200/50 dark:border-gray-700/50" id="modal-tabs">
         <button onclick="window.switchModalTab('details', this)" class="tab-button active px-6 py-2 rounded-lg font-bold text-sm transition-all duration-200 bg-white dark:bg-gray-700 text-indigo-600 dark:text-indigo-400 shadow-sm"><i class="fas fa-layer-group mr-2"></i> Specification</button>
-        <button onclick="window.switchModalTab('maintenance', this)" class="tab-button px-6 py-2 rounded-lg font-bold text-sm transition-all duration-200 text-gray-500 hover:text-gray-700 dark:hover:text-gray-300"><i class="fas fa-tools mr-2"></i> ${t('maintenance_history')}</button>
+        <button onclick="window.switchModalTab('maintenance', this)" class="tab-button px-6 py-2 rounded-lg font-bold text-sm transition-all duration-200 text-gray-500 hover:text-gray-700 dark:hover:text-gray-300"><i class="fas fa-tools mr-2"></i> ${t('maintenance_history') || 'Maintenance'}</button>
         <button onclick="window.switchModalTab('history', this)" class="tab-button px-6 py-2 rounded-lg font-bold text-sm transition-all duration-200 text-gray-500 hover:text-gray-700 dark:hover:text-gray-300"><i class="fas fa-history mr-2"></i> ${t('device_history')}</button>
     </div>`;
     
@@ -1031,7 +1046,9 @@ window.openModal = function(mode, collectionName, id = null) {
     if (fileInput) fileInput.value = ''; if (hiddenBase64) hiddenBase64.value = '';
     if (itemData.Status === 'Disposed') { if(disposalSection) disposalSection.classList.remove('hidden'); if (itemData.DisposalEvidence && existingEvidenceBox && hiddenBase64) { existingEvidenceBox.classList.remove('hidden'); hiddenBase64.value = itemData.DisposalEvidence; } else if (existingEvidenceBox) existingEvidenceBox.classList.add('hidden'); } else { if(disposalSection) disposalSection.classList.add('hidden'); if(existingEvidenceBox) existingEvidenceBox.classList.add('hidden'); }
     const tabBtn = document.querySelector('#modal-tabs .tab-button'); if (tabBtn) window.switchModalTab('details', tabBtn);
-    window.buildDeviceHistoryInModal(itemData, collectionName); window.openModalWindow('editModal');
+    window.buildDeviceHistoryInModal(itemData, collectionName); 
+    if (mode === 'edit') window.buildMaintenanceLogInModal(itemData); 
+    window.openModalWindow('editModal');
 };
 
 document.addEventListener('change', (e) => { if (e.target && e.target.id === 'edit-Status') { const disposalSection = document.getElementById('disposal-evidence-section'); if (!disposalSection) return; if (e.target.value === 'Disposed') { disposalSection.classList.remove('hidden'); disposalSection.classList.add('animate-pulse'); setTimeout(() => disposalSection.classList.remove('animate-pulse'), 1000); } else disposalSection.classList.add('hidden'); } });
@@ -1273,7 +1290,6 @@ window.addMaintenanceLog = async function() {
             Status: status 
         });
         
-        // Auto-update device status to Active if it was in repair and status is completed
         if (status === 'Completed' && item.Status === 'Repair') {
             await apiRequest(`/api/inventory/${collection}/${id}`, 'PUT', { Status: 'Active' });
         }
@@ -1346,7 +1362,6 @@ window.buildMaintenancePage = function() {
     if (!container) return;
     container.innerHTML = '';
     
-    // Use 'Maintenance Log' collection
     const tasks = allData['Maintenance Log'] || [];
     
     const activeTasks = tasks.filter(t => t.Status !== 'Completed' && t.Status !== 'Cancelled');
@@ -1378,8 +1393,9 @@ window.buildMaintenancePage = function() {
         const deviceDisplayName = task.deviceName || task.deviceCollection || 'Asset';
         const deviceSN = task.deviceSerial || task.deviceId || 'Unknown SN';
 
+        // เพิ่ม data-status เพื่อให้ Filter ทำงานร่วมกันได้
         container.innerHTML += `
-            <div class="maintenance-card bg-white dark:bg-gray-800 p-5 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 hover:shadow-md transition-shadow">
+            <div class="maintenance-card bg-white dark:bg-gray-800 p-5 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 hover:shadow-md transition-shadow" data-status="${status}">
                 <div class="flex justify-between items-start mb-4">
                     <div class="flex items-center">
                         <div class="w-10 h-10 rounded-xl bg-indigo-50 dark:bg-indigo-900/30 flex items-center justify-center mr-3 text-indigo-500">
@@ -1417,21 +1433,26 @@ window.buildMaintenancePage = function() {
     });
 };
 
-window.filterLoanHistory = function(val) { const term=val.toUpperCase(); document.querySelectorAll('#LoanHistoryContainer > div').forEach(el => el.style.display = el.textContent.toUpperCase().includes(term)?'':'none'); };
-window.filterMaintenanceHistory = function(val) { window.filterMaintenanceTasks(val); };
-window.filterMaintenanceTasks = function(val) {
-    const term = val.toUpperCase();
+// 🌟 ตัวกรองสำหรับหน้า Maintenance (Combined Filter)
+window.applyMaintenanceFilters = function() {
+    const term = (document.getElementById('mtSearchInput')?.value || '').toUpperCase();
+    const status = document.getElementById('mtStatusFilter')?.value || 'all';
+
     document.querySelectorAll('#MaintenanceContainer > .maintenance-card').forEach(el => {
-        el.style.display = el.textContent.toUpperCase().includes(term) ? '' : 'none';
+        const textMatch = el.textContent.toUpperCase().includes(term);
+        const statusMatch = status === 'all' || el.getAttribute('data-status') === status;
+        
+        // ต้องตรงทั้งคำค้นหา และ สถานะ (ถ้าเลือก)
+        if (textMatch && statusMatch) {
+            el.style.display = '';
+        } else {
+            el.style.display = 'none';
+        }
     });
 };
 
-window.filterMaintenanceByStatus = function(status) {
-    document.querySelectorAll('#MaintenanceContainer > .maintenance-card').forEach(el => {
-        if (status === 'all') el.style.display = '';
-        else el.style.display = el.textContent.toUpperCase().includes(status.toUpperCase()) ? '' : 'none';
-    });
-};
+window.filterLoanHistory = function(val) { const term=val.toUpperCase(); document.querySelectorAll('#LoanHistoryContainer > div').forEach(el => el.style.display = el.textContent.toUpperCase().includes(term)?'':'none'); };
+
 window.filterAssetsByUser = function(val) {
     const term = val.toUpperCase();
     document.querySelectorAll('#AssetsByUserContainer > .card-modern').forEach(el => {

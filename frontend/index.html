@@ -246,7 +246,7 @@
                 <div id="LoanHistoryContainer" class="space-y-4"></div>
             </div>
 
-            <!-- Maintenance Page (Upgraded) -->
+            <!-- Maintenance Page (Upgraded & Fixed Filters) -->
             <div id="maintenance-page" class="page-content hidden">
                 <div class="flex justify-between items-center mb-6">
                     <h2 class="text-2xl font-bold" data-i18n="maintenance_management">Maintenance Management</h2>
@@ -263,9 +263,9 @@
                         <div class="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none text-gray-400">
                             <i class="fas fa-search"></i>
                         </div>
-                        <input type="text" onkeyup="window.filterMaintenanceTasks(this.value)" placeholder="Search by Device, SN, or Technician..." class="input-modern w-full pl-12 shadow-sm">
+                        <input type="text" id="mtSearchInput" onkeyup="window.applyMaintenanceFilters()" placeholder="Search by Device, SN, or Technician..." class="input-modern w-full pl-12 shadow-sm">
                     </div>
-                    <select onchange="window.filterMaintenanceByStatus(this.value)" class="input-modern shadow-sm">
+                    <select id="mtStatusFilter" onchange="window.applyMaintenanceFilters()" class="input-modern shadow-sm">
                         <option value="all">All Statuses</option>
                         <option value="Scheduled">Scheduled</option>
                         <option value="In Progress">In Progress</option>
@@ -279,16 +279,17 @@
                 </div>
             </div>
 
-            <!-- Assets By User Page -->                <div id="assetsbyuser-page" class="page-content hidden">
-                    <h2 class="text-2xl font-bold mb-6" data-i18n="assets_by_user">Assets by User</h2>
-                    <div class="relative mb-6">
-                        <div class="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none text-gray-400">
-                            <i class="fas fa-search"></i>
-                        </div>
-                        <input type="text" onkeyup="window.filterAssetsByUser(this.value)" placeholder="Search user or device..." class="input-modern w-full pl-12 shadow-sm" data-i18n-placeholder="search_user_device">
+            <!-- Assets By User Page -->
+            <div id="assetsbyuser-page" class="page-content hidden">
+                <h2 class="text-2xl font-bold mb-6" data-i18n="assets_by_user">Assets by User</h2>
+                <div class="relative mb-6">
+                    <div class="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none text-gray-400">
+                        <i class="fas fa-search"></i>
                     </div>
-                    <div id="AssetsByUserContainer" class="space-y-4"></div>
+                    <input type="text" onkeyup="window.filterAssetsByUser(this.value)" placeholder="Search user or device..." class="input-modern w-full pl-12 shadow-sm" data-i18n-placeholder="search_user_device">
                 </div>
+                <div id="AssetsByUserContainer" class="space-y-4"></div>
+            </div>
 
             <!-- Management Pages injected by JS -->
             <div id="staffmanagement-page" class="page-content hidden"></div>
@@ -331,7 +332,6 @@
                         <button type="button" onclick="document.getElementById('ocrFileInput').click()" class="bg-indigo-100 text-indigo-700 hover:bg-indigo-200 dark:bg-indigo-900/40 dark:text-indigo-400 px-4 py-2.5 rounded-xl font-bold text-sm flex items-center transition shadow-sm border border-indigo-200 dark:border-indigo-800">
                             <i class="fas fa-camera mr-2 text-lg"></i> <span data-i18n="scan_image">สแกนภาพ (กรอกอัตโนมัติ)</span>
                         </button>
-                        <!-- input ไฟล์ ที่รองรับการถ่ายรูปบนมือถือ (capture="environment") -->
                         <input type="file" id="ocrFileInput" accept="image/*" capture="environment" class="hidden" onchange="window.processOCR(this)">
                     </div>
 
@@ -357,7 +357,7 @@
                     </div>
                 </div>
 
-                <!-- Tab 2: Maintenance (Upgraded) -->
+                <!-- Tab 2: Maintenance -->
                 <div id="maintenance-tab" class="tab-content">
                     <div class="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm overflow-hidden mb-6">
                         <div class="bg-gray-50 dark:bg-gray-900/50 px-5 py-3 border-b border-gray-200 dark:border-gray-700 flex items-center">
@@ -407,16 +407,6 @@
                         </div>
                     </div>
                 </div>
-                
-                <!-- Tab 3: History (Injected dynamically) -->
-                <div id="history-tab" class="tab-content">
-                    <div class="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm overflow-hidden">
-                        <div class="bg-gray-50 dark:bg-gray-900/50 px-5 py-3 border-b border-gray-200 dark:border-gray-700">
-                            <h4 class="text-sm font-bold text-gray-700 dark:text-gray-200 uppercase tracking-wider" data-i18n="device_history">Device Ownership & Usage History</h4>
-                        </div>
-                        <div id="deviceHistoryList" class="p-6"></div>
-                    </div>
-                </div>
 
             </div>
 
@@ -430,10 +420,7 @@
         </div>
     </div>
 
-    <!-- ======================================================= -->
-    <!-- OTHER ESSENTIAL MODALS                                  -->
-    <!-- ======================================================= -->
-
+    <!-- OTHER ESSENTIAL MODALS -->
     <!-- Clone Device Modal -->
     <div id="cloneModal" class="modal opacity-0 pointer-events-none fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
         <div class="modal-content bg-white dark:bg-gray-800 rounded-xl shadow-xl w-full max-w-md">
