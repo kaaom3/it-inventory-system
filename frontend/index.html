@@ -660,6 +660,30 @@
         </div>
     </div>
 
+    <!-- AI Chatbot UI -->
+    <div id="ai-chat-container" class="fixed bottom-6 right-6 z-50 flex flex-col items-end">
+        <!-- Chat Window -->
+        <div id="ai-chat-window" class="hidden bg-white dark:bg-gray-800 w-80 h-96 shadow-2xl rounded-2xl flex-col overflow-hidden mb-4 border border-gray-200 dark:border-gray-700">
+            <div class="bg-indigo-600 text-white px-4 py-3 flex justify-between items-center">
+                <div class="font-semibold"><i class="fas fa-robot mr-2"></i> AI Assistant</div>
+                <button onclick="document.getElementById('ai-chat-window').classList.add('hidden')" class="text-white hover:text-gray-200"><i class="fas fa-times"></i></button>
+            </div>
+            <div id="ai-chat-messages" class="flex-1 overflow-y-auto p-4 space-y-3 bg-gray-50 dark:bg-gray-900 text-sm">
+                <div class="bg-indigo-100 dark:bg-indigo-900/50 text-indigo-800 dark:text-indigo-200 p-3 rounded-lg rounded-tl-none w-3/4">
+                    สวัสดีครับ มีอะไรให้ AI ช่วยค้นหาข้อมูลอุปกรณ์ในระบบไหมครับ?
+                </div>
+            </div>
+            <div class="p-3 bg-white dark:bg-gray-800 border-t border-gray-200 dark:border-gray-700 flex items-center">
+                <input type="text" id="ai-chat-input" placeholder="พิมพ์คำถาม..." class="flex-1 bg-gray-100 dark:bg-gray-700 text-gray-900 dark:text-white rounded-l-lg px-3 py-2 focus:outline-none text-sm">
+                <button id="ai-chat-send" class="bg-indigo-600 text-white px-4 py-2 rounded-r-lg hover:bg-indigo-700"><i class="fas fa-paper-plane"></i></button>
+            </div>
+        </div>
+        <!-- Floating Button -->
+        <button onclick="document.getElementById('ai-chat-window').classList.toggle('hidden')" class="bg-indigo-600 hover:bg-indigo-700 text-white rounded-full w-14 h-14 shadow-lg flex items-center justify-center text-2xl transition-transform hover:scale-110">
+            <i class="fas fa-comment-dots"></i>
+        </button>
+    </div>
+
     <!-- Main Logic -->
     <script type="module" src="main.js"></script>
 </body>

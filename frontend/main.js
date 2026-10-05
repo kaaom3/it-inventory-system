@@ -2061,3 +2061,65 @@ window.generateSearchResultCard = function(item, collectionName) {
 window.renderSearchResult = function(item, collectionName) {
     // This function is now deprecated in favor of generateSearchResultCard used in performDeviceSearch
 };
+// AI Chat Logic
+document.addEventListener('DOMContentLoaded', () => {
+    const chatInput = document.getElementById('ai-chat-input');
+    const sendBtn = document.getElementById('ai-chat-send');
+    const messagesBox = document.getElementById('ai-chat-messages');
+
+    if (!chatInput || !sendBtn || !messagesBox) return;
+
+    const appendMessage = (text, sender) => {
+        const msgDiv = document.createElement('div');
+        if (sender === 'user') {
+            msgDiv.className = 'bg-blue-600 text-white p-3 rounded-lg rounded-tr-none w-3/4 ml-auto';
+        } else {
+            msgDiv.className = 'bg-indigo-100 dark:bg-indigo-900/50 text-indigo-800 dark:text-indigo-200 p-3 rounded-lg rounded-tl-none w-3/4';
+        }
+        // Basic markdown formatting
+        msgDiv.innerHTML = text.replace(/\n/g, '<br>');
+        messagesBox.appendChild(msgDiv);
+        messagesBox.scrollTop = messagesBox.scrollHeight;
+    };
+
+    const sendMessage = async () => {
+        const text = chatInput.value.trim();
+        if (!text) return;
+
+        appendMessage(text, 'user');
+        chatInput.value = '';
+        
+        // Show typing indicator
+        const typingDiv = document.createElement('div');
+        typingDiv.className = 'text-gray-500 text-xs italic';
+        typingDiv.textContent = 'AI is typing...';
+        messagesBox.appendChild(typingDiv);
+        messagesBox.scrollTop = messagesBox.scrollHeight;
+
+        try {
+            const token = localStorage.getItem('token');
+            const res = await fetch('/api/ai-chat', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
+                body: JSON.stringify({ prompt: text })
+            });
+            const data = await res.json();
+            typingDiv.remove();
+            
+            if (data.reply) {
+                appendMessage(data.reply, 'ai');
+            } else {
+                appendMessage('Sorry, an error occurred: ' + (data.error || data.message), 'ai');
+            }
+        } catch (err) {
+            typingDiv.remove();
+            appendMessage('Connection error.', 'ai');
+        }
+    };
+
+    sendBtn.addEventListener('click', sendMessage);
+    chatInput.addEventListener('keypress', (e) => {
+        if (e.key === 'Enter') sendMessage();
+    });
+});
+

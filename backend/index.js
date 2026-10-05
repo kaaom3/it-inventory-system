@@ -5,6 +5,8 @@ const jwt = require('jsonwebtoken');
 const bcrypt = require('bcryptjs');
 const ping = require('ping');
 const path = require('path');
+const { GoogleGenAI, Type } = require('@google/genai');
+const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
 
 const app = express();
 const port = process.env.PORT || 3000;
@@ -819,6 +821,77 @@ app.get('/api/ping/:target', verifyToken, async (req, res) => {
         const result = await ping.promise.probe(req.params.target, { timeout: 2 });
         res.json({ alive: result.alive, time: result.time });
     } catch (error) { res.status(500).json({ error: "Ping failed" }); }
+});
+
+// ===================================================================
+// --- AI Assistant Route ---
+// ===================================================================
+app.post('/api/ai-chat', verifyToken, async (req, res) => {
+    if (!db) return res.status(500).json({ message: "Database not connected" });
+    try {
+        const { prompt } = req.body;
+        if (!prompt) return res.status(400).json({ message: "Prompt is required" });
+
+        const searchInventoryDeclaration = {
+            name: "searchInventory",
+            description: "ค้นหาข้อมูลอุปกรณ์ในฐานข้อมูล (Inventory) สามารถใช้ค้นหาอุปกรณ์ คอมพิวเตอร์ หน้าจอ ฯลฯ",
+            parameters: {
+                type: Type.OBJECT,
+                properties: {
+                    collectionName: { 
+                        type: Type.STRING, 
+                        description: "ชื่อ Collection ที่ต้องการค้นหา เช่น Computers, Monitors, Printers, Network" 
+                    },
+                    queryObj: { 
+                        type: Type.STRING, 
+                        description: "เงื่อนไข MongoDB Query แบบ JSON String ตัวอย่างเช่น {\"Status\": \"Active\"} หรือ {\"RAM_GB\": \"16\"}" 
+                    }
+                },
+                required: ["collectionName", "queryObj"]
+            }
+        };
+
+        const response = await ai.models.generateContent({
+            model: 'gemini-2.5-flash',
+            contents: prompt,
+            config: {
+                systemInstruction: "คุณคือผู้ช่วย AI ประจำระบบจัดการคลังอุปกรณ์ไอที คุณสามารถเรียกใช้เครื่องมือ (Tools) เพื่อดึงข้อมูลอุปกรณ์จากฐานข้อมูลและตอบคำถามผู้ใช้เป็นภาษาไทยอย่างกระชับ",
+                tools: [{ functionDeclarations: [searchInventoryDeclaration] }],
+                temperature: 0.1
+            }
+        });
+
+        let finalResponseText = response.text;
+        
+        if (response.functionCalls && response.functionCalls.length > 0) {
+            const call = response.functionCalls[0];
+            if (call.name === "searchInventory") {
+                const args = call.args;
+                try {
+                    const query = JSON.parse(args.queryObj || "{}");
+                    const data = await db.collection(args.collectionName).find(query).limit(50).toArray();
+                    
+                    const followUp = await ai.models.generateContent({
+                        model: 'gemini-2.5-flash',
+                        contents: [
+                            { role: 'user', parts: [{ text: prompt }] },
+                            { role: 'model', parts: [{ functionCall: call }] },
+                            { role: 'user', parts: [{ functionResponse: { name: 'searchInventory', response: { data: data } } }] }
+                        ],
+                        config: { systemInstruction: "สรุปข้อมูลที่ได้จากฐานข้อมูลตามคำถามของผู้ใช้" }
+                    });
+                    finalResponseText = followUp.text;
+                } catch (err) {
+                    finalResponseText = "เกิดข้อผิดพลาดในการดึงข้อมูลจากฐานข้อมูล: " + err.message;
+                }
+            }
+        }
+
+        res.json({ reply: finalResponseText });
+    } catch (error) {
+        console.error("AI Chat Error:", error);
+        res.status(500).json({ error: error.message });
+    }
 });
 
 app.get('*', (req, res) => {
