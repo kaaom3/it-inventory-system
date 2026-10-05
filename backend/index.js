@@ -5,12 +5,7 @@ const jwt = require('jsonwebtoken');
 const bcrypt = require('bcryptjs');
 const ping = require('ping');
 const path = require('path');
-const { ChatGoogleGenerativeAI } = require("@langchain/google-genai");
-const { z } = require("zod");
-const { tool } = require("@langchain/core/tools");
-const { StateGraph, MessagesAnnotation } = require("@langchain/langgraph");
-const { ToolNode } = require("@langchain/langgraph/prebuilt");
-const { SystemMessage, HumanMessage } = require("@langchain/core/messages");
+// Removed LangChain/Gemini imports
 
 const app = express();
 const port = process.env.PORT || 3000;
@@ -831,74 +826,61 @@ app.get('/api/ping/:target', verifyToken, async (req, res) => {
 // --- AI Assistant Route ---
 // ===================================================================
 app.post('/api/ai-chat', verifyToken, async (req, res) => {
-    if (!db) return res.status(500).json({ message: "Database not connected" });
     try {
         const { prompt } = req.body;
         if (!prompt) return res.status(400).json({ message: "Prompt is required" });
 
-        const searchInventoryTool = tool(
-            async ({ collectionName, queryObj }) => {
-                try {
-                    const query = JSON.parse(queryObj || "{}");
-                    const data = await db.collection(collectionName).find(query).limit(50).toArray();
-                    return JSON.stringify(data);
-                } catch (e) {
-                    return `Error querying database: ${e.message}`;
-                }
+        const difyUrl = process.env.DIFY_API_URL;
+        const difyKey = process.env.DIFY_API_KEY;
+
+        if (!difyUrl || !difyKey) {
+            return res.status(500).json({ message: "DIFY_API_URL or DIFY_API_KEY is not configured on the server." });
+        }
+
+        const difyRes = await fetch(`${difyUrl}/chat-messages`, {
+            method: 'POST',
+            headers: {
+                'Authorization': `Bearer ${difyKey}`,
+                'Content-Type': 'application/json'
             },
-            {
-                name: "searchInventory",
-                description: "ค้นหาข้อมูลอุปกรณ์ในฐานข้อมูล (Inventory) สามารถใช้ค้นหาอุปกรณ์ คอมพิวเตอร์ หน้าจอ ฯลฯ",
-                schema: z.object({
-                    collectionName: z.string().describe("ชื่อ Collection ที่ต้องการค้นหา เช่น Computers, Monitors, Printers, Network"),
-                    queryObj: z.string().describe('เงื่อนไข MongoDB Query แบบ JSON String ตัวอย่างเช่น {"Status": "Active"} หรือ {"RAM_GB": "16"}')
-                })
-            }
-        );
+            body: JSON.stringify({
+                inputs: {},
+                query: prompt,
+                response_mode: "blocking",
+                user: req.user?.username || "inventory-user"
+            })
+        });
 
-        const tools = [searchInventoryTool];
-        const toolNode = new ToolNode(tools);
-
-        const model = new ChatGoogleGenerativeAI({
-            model: "gemini-3.8-flash",
-            apiKey: process.env.GEMINI_API_KEY,
-            temperature: 0.1
-        }).bindTools(tools);
-
-        async function callModel(state) {
-            const response = await model.invoke([
-                new SystemMessage("คุณคือผู้ช่วย AI ประจำระบบจัดการคลังอุปกรณ์ไอที คุณสามารถเรียกใช้เครื่องมือ (Tools) เพื่อดึงข้อมูลอุปกรณ์จากฐานข้อมูลและตอบคำถามผู้ใช้เป็นภาษาไทยอย่างกระชับ"),
-                ...state.messages
-            ]);
-            return { messages: [response] };
+        if (!difyRes.ok) {
+            const errorText = await difyRes.text();
+            throw new Error(`Dify API error (${difyRes.status}): ${errorText}`);
         }
 
-        function shouldContinue(state) {
-            const messages = state.messages;
-            const lastMessage = messages[messages.length - 1];
-            if (lastMessage.tool_calls && lastMessage.tool_calls.length > 0) {
-                return "tools";
-            }
-            return "__end__";
-        }
-
-        const workflow = new StateGraph(MessagesAnnotation)
-            .addNode("agent", callModel)
-            .addNode("tools", toolNode)
-            .addEdge("__start__", "agent")
-            .addConditionalEdges("agent", shouldContinue)
-            .addEdge("tools", "agent");
-
-        const appAgent = workflow.compile();
-
-        const result = await appAgent.invoke({ messages: [new HumanMessage(prompt)] });
-        const finalMessage = result.messages[result.messages.length - 1];
-        const finalResponseText = finalMessage.content;
-
-        res.json({ reply: finalResponseText });
+        const difyData = await difyRes.json();
+        res.json({ reply: difyData.answer || difyData.text || "ไม่ได้รับคำตอบจากระบบ" });
     } catch (error) {
-        console.error("AI Chat Error:", error);
+        console.error("Dify Chat Error:", error);
         res.status(500).json({ message: error.message || "Internal Server Error" });
+    }
+});
+
+// Endpoint สำหรับให้ Dify Custom Tool เรียกเข้ามาเพื่อค้นหาข้อมูลใน Database
+app.post('/api/dify-tool/search', async (req, res) => {
+    if (!db) return res.status(500).json({ message: "Database not connected" });
+    try {
+        const { collectionName, queryObj } = req.body;
+        if (!collectionName) return res.status(400).json({ message: "collectionName is required" });
+        
+        let query = {};
+        if (queryObj) {
+            query = typeof queryObj === 'string' ? JSON.parse(queryObj) : queryObj;
+        }
+        
+        const data = await db.collection(collectionName).find(query).limit(50).toArray();
+        res.json(data);
+    } catch (error) {
+        console.error("Dify Tool Search Error:", error);
+        res.status(500).json({ message: error.message });
     }
 });
 
