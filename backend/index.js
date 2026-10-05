@@ -852,7 +852,7 @@ app.post('/api/ai-chat', verifyToken, async (req, res) => {
         };
 
         const response = await ai.models.generateContent({
-            model: 'gemini-2.5-flash',
+            model: 'gemini-3.8-flash',
             contents: prompt,
             config: {
                 systemInstruction: "คุณคือผู้ช่วย AI ประจำระบบจัดการคลังอุปกรณ์ไอที คุณสามารถเรียกใช้เครื่องมือ (Tools) เพื่อดึงข้อมูลอุปกรณ์จากฐานข้อมูลและตอบคำถามผู้ใช้เป็นภาษาไทยอย่างกระชับ",
@@ -872,7 +872,7 @@ app.post('/api/ai-chat', verifyToken, async (req, res) => {
                     const data = await db.collection(args.collectionName).find(query).limit(50).toArray();
                     
                     const followUp = await ai.models.generateContent({
-                        model: 'gemini-2.5-flash',
+                        model: 'gemini-3.8-flash',
                         contents: [
                             { role: 'user', parts: [{ text: prompt }] },
                             { role: 'model', parts: [{ functionCall: call }] },

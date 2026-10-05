@@ -2107,7 +2107,7 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         } catch (err) {
             typingDiv.remove();
-            appendMessage('Connection error.', 'ai');
+            appendMessage('Error: ' + err.message, 'ai');
         }
     };
 
