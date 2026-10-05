@@ -884,7 +884,7 @@ app.post('/api/ai-chat', verifyToken, async (req, res) => {
         res.json({ reply: finalResponseText });
     } catch (error) {
         console.error("AI Chat Error:", error);
-        res.status(500).json({ error: error.message });
+        res.status(500).json({ message: error.message || "Internal Server Error" });
     }
 });
 
