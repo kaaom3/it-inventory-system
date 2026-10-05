@@ -2097,13 +2097,7 @@ document.addEventListener('DOMContentLoaded', () => {
         messagesBox.scrollTop = messagesBox.scrollHeight;
 
         try {
-            const token = localStorage.getItem('token');
-            const res = await fetch('/api/ai-chat', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
-                body: JSON.stringify({ prompt: text })
-            });
-            const data = await res.json();
+            const data = await apiRequest('/api/ai-chat', 'POST', { prompt: text });
             typingDiv.remove();
             
             if (data.reply) {
