@@ -5,8 +5,12 @@ const jwt = require('jsonwebtoken');
 const bcrypt = require('bcryptjs');
 const ping = require('ping');
 const path = require('path');
-const { GoogleGenAI, Type } = require('@google/genai');
-const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
+const { ChatGoogleGenerativeAI } = require("@langchain/google-genai");
+const { z } = require("zod");
+const { tool } = require("@langchain/core/tools");
+const { StateGraph, MessagesAnnotation } = require("@langchain/langgraph");
+const { ToolNode } = require("@langchain/langgraph/prebuilt");
+const { SystemMessage, HumanMessage } = require("@langchain/core/messages");
 
 const app = express();
 const port = process.env.PORT || 3000;
@@ -832,54 +836,64 @@ app.post('/api/ai-chat', verifyToken, async (req, res) => {
         const { prompt } = req.body;
         if (!prompt) return res.status(400).json({ message: "Prompt is required" });
 
-        const searchInventoryDeclaration = {
-            name: "searchInventory",
-            description: "ค้นหาข้อมูลอุปกรณ์ในฐานข้อมูล (Inventory) สามารถใช้ค้นหาอุปกรณ์ คอมพิวเตอร์ หน้าจอ ฯลฯ",
-            parameters: {
-                type: Type.OBJECT,
-                properties: {
-                    collectionName: { 
-                        type: Type.STRING, 
-                        description: "ชื่อ Collection ที่ต้องการค้นหา เช่น Computers, Monitors, Printers, Network" 
-                    },
-                    queryObj: { 
-                        type: Type.STRING, 
-                        description: "เงื่อนไข MongoDB Query แบบ JSON String ตัวอย่างเช่น {\"Status\": \"Active\"} หรือ {\"RAM_GB\": \"16\"}" 
-                    }
-                },
-                required: ["collectionName", "queryObj"]
-            }
-        };
-
-        const chat = ai.chats.create({
-            model: 'gemini-3.8-flash',
-            config: {
-                systemInstruction: "คุณคือผู้ช่วย AI ประจำระบบจัดการคลังอุปกรณ์ไอที คุณสามารถเรียกใช้เครื่องมือ (Tools) เพื่อดึงข้อมูลอุปกรณ์จากฐานข้อมูลและตอบคำถามผู้ใช้เป็นภาษาไทยอย่างกระชับ",
-                tools: [{ functionDeclarations: [searchInventoryDeclaration] }],
-                temperature: 0.1
-            }
-        });
-
-        let response = await chat.sendMessage({ message: prompt });
-        let finalResponseText = response.text;
-        
-        if (response.functionCalls && response.functionCalls.length > 0) {
-            const call = response.functionCalls[0];
-            if (call.name === "searchInventory") {
-                const args = call.args;
+        const searchInventoryTool = tool(
+            async ({ collectionName, queryObj }) => {
                 try {
-                    const query = JSON.parse(args.queryObj || "{}");
-                    const data = await db.collection(args.collectionName).find(query).limit(50).toArray();
-                    
-                    response = await chat.sendMessage({ 
-                        message: [{ functionResponse: { id: call.id, name: 'searchInventory', response: { data: data } } }] 
-                    });
-                    finalResponseText = response.text;
-                } catch (err) {
-                    finalResponseText = "เกิดข้อผิดพลาดในการดึงข้อมูลจากฐานข้อมูล: " + err.message;
+                    const query = JSON.parse(queryObj || "{}");
+                    const data = await db.collection(collectionName).find(query).limit(50).toArray();
+                    return JSON.stringify(data);
+                } catch (e) {
+                    return `Error querying database: ${e.message}`;
                 }
+            },
+            {
+                name: "searchInventory",
+                description: "ค้นหาข้อมูลอุปกรณ์ในฐานข้อมูล (Inventory) สามารถใช้ค้นหาอุปกรณ์ คอมพิวเตอร์ หน้าจอ ฯลฯ",
+                schema: z.object({
+                    collectionName: z.string().describe("ชื่อ Collection ที่ต้องการค้นหา เช่น Computers, Monitors, Printers, Network"),
+                    queryObj: z.string().describe('เงื่อนไข MongoDB Query แบบ JSON String ตัวอย่างเช่น {"Status": "Active"} หรือ {"RAM_GB": "16"}')
+                })
             }
+        );
+
+        const tools = [searchInventoryTool];
+        const toolNode = new ToolNode(tools);
+
+        const model = new ChatGoogleGenerativeAI({
+            model: "gemini-3.8-flash",
+            apiKey: process.env.GEMINI_API_KEY,
+            temperature: 0.1
+        }).bindTools(tools);
+
+        async function callModel(state) {
+            const response = await model.invoke([
+                new SystemMessage("คุณคือผู้ช่วย AI ประจำระบบจัดการคลังอุปกรณ์ไอที คุณสามารถเรียกใช้เครื่องมือ (Tools) เพื่อดึงข้อมูลอุปกรณ์จากฐานข้อมูลและตอบคำถามผู้ใช้เป็นภาษาไทยอย่างกระชับ"),
+                ...state.messages
+            ]);
+            return { messages: [response] };
         }
+
+        function shouldContinue(state) {
+            const messages = state.messages;
+            const lastMessage = messages[messages.length - 1];
+            if (lastMessage.tool_calls && lastMessage.tool_calls.length > 0) {
+                return "tools";
+            }
+            return "__end__";
+        }
+
+        const workflow = new StateGraph(MessagesAnnotation)
+            .addNode("agent", callModel)
+            .addNode("tools", toolNode)
+            .addEdge("__start__", "agent")
+            .addConditionalEdges("agent", shouldContinue)
+            .addEdge("tools", "agent");
+
+        const appAgent = workflow.compile();
+
+        const result = await appAgent.invoke({ messages: [new HumanMessage(prompt)] });
+        const finalMessage = result.messages[result.messages.length - 1];
+        const finalResponseText = finalMessage.content;
 
         res.json({ reply: finalResponseText });
     } catch (error) {
