@@ -851,9 +851,8 @@ app.post('/api/ai-chat', verifyToken, async (req, res) => {
             }
         };
 
-        const response = await ai.models.generateContent({
+        const chat = ai.chats.create({
             model: 'gemini-3.8-flash',
-            contents: prompt,
             config: {
                 systemInstruction: "คุณคือผู้ช่วย AI ประจำระบบจัดการคลังอุปกรณ์ไอที คุณสามารถเรียกใช้เครื่องมือ (Tools) เพื่อดึงข้อมูลอุปกรณ์จากฐานข้อมูลและตอบคำถามผู้ใช้เป็นภาษาไทยอย่างกระชับ",
                 tools: [{ functionDeclarations: [searchInventoryDeclaration] }],
@@ -861,6 +860,7 @@ app.post('/api/ai-chat', verifyToken, async (req, res) => {
             }
         });
 
+        let response = await chat.sendMessage({ message: prompt });
         let finalResponseText = response.text;
         
         if (response.functionCalls && response.functionCalls.length > 0) {
@@ -871,16 +871,10 @@ app.post('/api/ai-chat', verifyToken, async (req, res) => {
                     const query = JSON.parse(args.queryObj || "{}");
                     const data = await db.collection(args.collectionName).find(query).limit(50).toArray();
                     
-                    const followUp = await ai.models.generateContent({
-                        model: 'gemini-3.8-flash',
-                        contents: [
-                            { role: 'user', parts: [{ text: prompt }] },
-                            { role: 'model', parts: [{ functionCall: call }] },
-                            { role: 'user', parts: [{ functionResponse: { name: 'searchInventory', response: { data: data } } }] }
-                        ],
-                        config: { systemInstruction: "สรุปข้อมูลที่ได้จากฐานข้อมูลตามคำถามของผู้ใช้" }
+                    response = await chat.sendMessage({ 
+                        message: [{ functionResponse: { id: call.id, name: 'searchInventory', response: { data: data } } }] 
                     });
-                    finalResponseText = followUp.text;
+                    finalResponseText = response.text;
                 } catch (err) {
                     finalResponseText = "เกิดข้อผิดพลาดในการดึงข้อมูลจากฐานข้อมูล: " + err.message;
                 }
