@@ -825,9 +825,27 @@ app.get('/api/ping/:target', verifyToken, async (req, res) => {
 // ===================================================================
 // --- AI Assistant Route ---
 // ===================================================================
+app.post('/api/dify-tool/add-device', async (req, res) => {
+    if (!db) return res.status(500).json({ message: "Database not connected" });
+    try {
+        const { collectionName, deviceData } = req.body;
+        if (!collectionName || !deviceData) return res.status(400).json({ message: "Missing required fields" });
+        
+        let data = typeof deviceData === 'string' ? JSON.parse(deviceData) : deviceData;
+        data.DateAdded = new Date();
+        if (!data.Status) data.Status = 'Storage';
+
+        const result = await db.collection(collectionName).insertOne(data);
+        res.json({ success: true, insertedId: result.insertedId, message: `เพิ่มข้อมูลลง ${collectionName} สำเร็จ` });
+    } catch (error) {
+        console.error("Dify Tool Add Error:", error);
+        res.status(500).json({ message: error.message });
+    }
+});
+
 app.post('/api/ai-chat', verifyToken, async (req, res) => {
     try {
-        const { prompt } = req.body;
+        const { prompt, image } = req.body;
         if (!prompt) return res.status(400).json({ message: "Prompt is required" });
 
         const difyUrl = process.env.DIFY_API_URL;
@@ -835,6 +853,42 @@ app.post('/api/ai-chat', verifyToken, async (req, res) => {
 
         if (!difyUrl || !difyKey) {
             return res.status(500).json({ message: "DIFY_API_URL or DIFY_API_KEY is not configured on the server." });
+        }
+
+        const username = req.user?.username || "inventory-user";
+        let filesPayload = [];
+
+        // If an image is provided, upload it to Dify first
+        if (image) {
+            const formData = new FormData();
+            const byteString = atob(image.split(',')[1]);
+            const mimeString = image.split(',')[0].split(':')[1].split(';')[0];
+            const ab = new ArrayBuffer(byteString.length);
+            const ia = new Uint8Array(ab);
+            for (let i = 0; i < byteString.length; i++) {
+                ia[i] = byteString.charCodeAt(i);
+            }
+            const blob = new Blob([ab], { type: mimeString });
+            
+            formData.append('file', blob, 'upload.jpg');
+            formData.append('user', username);
+
+            const uploadRes = await fetch(`${difyUrl}/files/upload`, {
+                method: 'POST',
+                headers: { 'Authorization': `Bearer ${difyKey}` },
+                body: formData
+            });
+
+            if (uploadRes.ok) {
+                const uploadData = await uploadRes.json();
+                filesPayload.push({
+                    type: "image",
+                    transfer_method: "local_file",
+                    upload_file_id: uploadData.id
+                });
+            } else {
+                console.error("Failed to upload image to Dify:", await uploadRes.text());
+            }
         }
 
         const difyRes = await fetch(`${difyUrl}/chat-messages`, {
@@ -847,7 +901,8 @@ app.post('/api/ai-chat', verifyToken, async (req, res) => {
                 inputs: {},
                 query: prompt,
                 response_mode: "streaming",
-                user: req.user?.username || "inventory-user"
+                user: username,
+                ...(filesPayload.length > 0 && { files: filesPayload })
             })
         });
 

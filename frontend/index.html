@@ -673,9 +673,17 @@
                     สวัสดีครับ ผม "อับดุล" ถามอะไรเกี่ยวกับอุปกรณ์ในระบบเบิกจ่าย... ตอบได้! ลองพิมพ์ถามมาได้เลยครับ
                 </div>
             </div>
-            <div class="p-3 bg-white dark:bg-gray-800 border-t border-gray-200 dark:border-gray-700 flex items-center shrink-0">
-                <input type="text" id="ai-chat-input" placeholder="พิมพ์คำถาม..." class="flex-1 bg-gray-100 dark:bg-gray-700 text-gray-900 dark:text-white rounded-l-lg px-3 py-2 focus:outline-none text-sm">
-                <button id="ai-chat-send" class="bg-indigo-600 text-white px-4 py-2 rounded-r-lg hover:bg-indigo-700"><i class="fas fa-paper-plane"></i></button>
+            <div class="p-3 bg-white dark:bg-gray-800 border-t border-gray-200 dark:border-gray-700 flex flex-col shrink-0">
+                <div id="ai-chat-image-preview" class="hidden mb-2 relative">
+                    <img id="ai-chat-preview-img" class="h-16 w-16 object-cover rounded-md border border-gray-300">
+                    <button id="ai-chat-remove-image" class="absolute -top-2 -right-2 bg-red-500 text-white rounded-full w-5 h-5 flex items-center justify-center text-xs shadow hover:bg-red-600"><i class="fas fa-times"></i></button>
+                </div>
+                <div class="flex items-center">
+                    <input type="file" id="ai-chat-file-input" accept="image/*" class="hidden">
+                    <button id="ai-chat-attach-btn" onclick="document.getElementById('ai-chat-file-input').click()" class="text-gray-500 hover:text-indigo-600 px-2 text-lg"><i class="fas fa-paperclip"></i></button>
+                    <input type="text" id="ai-chat-input" placeholder="พิมพ์คำถาม หรือส่งรูปอุปกรณ์..." class="flex-1 bg-gray-100 dark:bg-gray-700 text-gray-900 dark:text-white rounded-l-lg px-3 py-2 focus:outline-none text-sm ml-2">
+                    <button id="ai-chat-send" class="bg-indigo-600 text-white px-4 py-2 rounded-r-lg hover:bg-indigo-700"><i class="fas fa-paper-plane"></i></button>
+                </div>
             </div>
         </div>
         <!-- Floating Button -->

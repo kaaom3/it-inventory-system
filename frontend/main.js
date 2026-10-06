@@ -2069,35 +2069,75 @@ document.addEventListener('DOMContentLoaded', () => {
 
     if (!chatInput || !sendBtn || !messagesBox) return;
 
-    const appendMessage = (text, sender) => {
+    const appendMessage = (text, sender, imageUrl = null) => {
         const msgDiv = document.createElement('div');
+        let content = '';
+        if (imageUrl) {
+            content += `<img src="${imageUrl}" class="w-full rounded-md mb-2 object-cover">`;
+        }
+        content += text.replace(/\n/g, '<br>');
+
         if (sender === 'user') {
             msgDiv.className = 'bg-blue-600 text-white p-3 rounded-lg rounded-tr-none w-3/4 ml-auto';
         } else {
             msgDiv.className = 'bg-indigo-100 dark:bg-indigo-900/50 text-indigo-800 dark:text-indigo-200 p-3 rounded-lg rounded-tl-none w-3/4';
         }
-        // Basic markdown formatting
-        msgDiv.innerHTML = text.replace(/\n/g, '<br>');
+        
+        msgDiv.innerHTML = content;
         messagesBox.appendChild(msgDiv);
         messagesBox.scrollTop = messagesBox.scrollHeight;
     };
 
+    let selectedImageBase64 = null;
+    const fileInput = document.getElementById('ai-chat-file-input');
+    const imagePreviewContainer = document.getElementById('ai-chat-image-preview');
+    const previewImg = document.getElementById('ai-chat-preview-img');
+    const removeImageBtn = document.getElementById('ai-chat-remove-image');
+
+    fileInput.addEventListener('change', (e) => {
+        const file = e.target.files[0];
+        if (file) {
+            const reader = new FileReader();
+            reader.onload = (evt) => {
+                selectedImageBase64 = evt.target.result;
+                previewImg.src = selectedImageBase64;
+                imagePreviewContainer.classList.remove('hidden');
+            };
+            reader.readAsDataURL(file);
+        }
+    });
+
+    removeImageBtn.addEventListener('click', () => {
+        selectedImageBase64 = null;
+        fileInput.value = '';
+        imagePreviewContainer.classList.add('hidden');
+    });
+
     const sendMessage = async () => {
         const text = chatInput.value.trim();
-        if (!text) return;
+        if (!text && !selectedImageBase64) return;
 
-        appendMessage(text, 'user');
+        const currentImage = selectedImageBase64;
+        
+        appendMessage(text, 'user', currentImage);
+        
         chatInput.value = '';
+        selectedImageBase64 = null;
+        fileInput.value = '';
+        imagePreviewContainer.classList.add('hidden');
         
         // Show typing indicator
         const typingDiv = document.createElement('div');
         typingDiv.className = 'text-gray-500 text-xs italic';
-        typingDiv.textContent = 'AI is typing...';
+        typingDiv.textContent = 'อับดุลกำลังคิด...';
         messagesBox.appendChild(typingDiv);
         messagesBox.scrollTop = messagesBox.scrollHeight;
 
         try {
-            const data = await apiRequest('/api/ai-chat', 'POST', { prompt: text });
+            const payload = { prompt: text || "อธิบายภาพนี้" };
+            if (currentImage) payload.image = currentImage;
+
+            const data = await apiRequest('/api/ai-chat', 'POST', payload);
             typingDiv.remove();
             
             if (data.reply) {
