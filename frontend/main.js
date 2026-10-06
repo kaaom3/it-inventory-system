@@ -2094,12 +2094,17 @@ document.addEventListener('DOMContentLoaded', () => {
         if (imageUrl) {
             content += `<img src="${imageUrl}" class="w-full rounded-md mb-2 object-cover">`;
         }
-        content += text.replace(/\n/g, '<br>');
+        
+        if (sender === 'ai' && window.marked) {
+            content += `<div class="prose prose-sm prose-indigo dark:prose-invert max-w-none break-words">${window.marked.parse(text)}</div>`;
+        } else {
+            content += text.replace(/\n/g, '<br>');
+        }
 
         if (sender === 'user') {
             msgDiv.className = 'bg-blue-600 text-white p-3 rounded-lg rounded-tr-none w-3/4 ml-auto';
         } else {
-            msgDiv.className = 'bg-indigo-100 dark:bg-indigo-900/50 text-indigo-800 dark:text-indigo-200 p-3 rounded-lg rounded-tl-none w-3/4';
+            msgDiv.className = 'bg-indigo-100 dark:bg-indigo-900/50 text-indigo-900 dark:text-indigo-100 p-3 rounded-lg rounded-tl-none w-11/12';
         }
         
         msgDiv.innerHTML = content;
