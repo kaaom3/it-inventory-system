@@ -864,7 +864,36 @@ app.post('/api/ai-chat', verifyToken, async (req, res) => {
     }
 });
 
-// Endpoint สำหรับให้ Dify Custom Tool เรียกเข้ามาเพื่อค้นหาข้อมูลใน Database
+// Endpoint สำหรับให้ Dify ค้นหาครอบจักรวาล (Global Search ทุกตาราง)
+app.post('/api/dify-tool/global-search', async (req, res) => {
+    if (!db) return res.status(500).json({ message: "Database not connected" });
+    try {
+        const { queryObj } = req.body;
+        let query = {};
+        if (queryObj) {
+            query = typeof queryObj === 'string' ? JSON.parse(queryObj) : queryObj;
+        }
+
+        const skipCollections = ['admins', 'TransactionHistory', 'LoanHistory', 'Maintenance Log', 'Staff', 'CustomMenus'];
+        const collections = await db.listCollections().toArray();
+        let results = [];
+
+        for (let col of collections) {
+            if (!skipCollections.includes(col.name)) {
+                const data = await db.collection(col.name).find(query).limit(10).toArray();
+                if (data.length > 0) {
+                    results.push({ collection: col.name, data });
+                }
+            }
+        }
+        res.json(results);
+    } catch (error) {
+        console.error("Dify Global Search Error:", error);
+        res.status(500).json({ message: error.message });
+    }
+});
+
+// Endpoint สำหรับให้ Dify Custom Tool เรียกเข้ามาเพื่อค้นหาข้อมูลใน Database (แบบระบุตาราง)
 app.post('/api/dify-tool/search', async (req, res) => {
     if (!db) return res.status(500).json({ message: "Database not connected" });
     try {
