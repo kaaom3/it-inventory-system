@@ -858,8 +858,9 @@ app.post('/api/ai-chat', verifyToken, async (req, res) => {
 
         let fullAnswer = "";
         let buffer = "";
+        const decoder = new TextDecoder("utf-8");
         for await (const chunk of difyRes.body) {
-            buffer += chunk.toString();
+            buffer += decoder.decode(chunk, { stream: true });
             let lines = buffer.split('\n');
             buffer = lines.pop(); // Keep incomplete line in buffer
             for (const line of lines) {
