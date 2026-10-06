@@ -846,7 +846,7 @@ app.post('/api/ai-chat', verifyToken, async (req, res) => {
             body: JSON.stringify({
                 inputs: {},
                 query: prompt,
-                response_mode: "blocking",
+                response_mode: "streaming",
                 user: req.user?.username || "inventory-user"
             })
         });
@@ -856,8 +856,29 @@ app.post('/api/ai-chat', verifyToken, async (req, res) => {
             throw new Error(`Dify API error (${difyRes.status}): ${errorText}`);
         }
 
-        const difyData = await difyRes.json();
-        res.json({ reply: difyData.answer || difyData.text || "ไม่ได้รับคำตอบจากระบบ" });
+        let fullAnswer = "";
+        let buffer = "";
+        for await (const chunk of difyRes.body) {
+            buffer += chunk.toString();
+            let lines = buffer.split('\n');
+            buffer = lines.pop(); // Keep incomplete line in buffer
+            for (const line of lines) {
+                if (line.startsWith('data: ')) {
+                    const dataStr = line.slice(6).trim();
+                    if (!dataStr) continue;
+                    try {
+                        const data = JSON.parse(dataStr);
+                        if (data.event === 'message' || data.event === 'agent_message') {
+                            if (data.answer) fullAnswer += data.answer;
+                        }
+                    } catch (e) {
+                        // ignore JSON parse error on incomplete stream chunks
+                    }
+                }
+            }
+        }
+
+        res.json({ reply: fullAnswer || "ไม่ได้รับคำตอบจากระบบ" });
     } catch (error) {
         console.error("Dify Chat Error:", error);
         res.status(500).json({ message: error.message || "Internal Server Error" });
