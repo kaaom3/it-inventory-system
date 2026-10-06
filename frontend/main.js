@@ -2061,6 +2061,25 @@ window.generateSearchResultCard = function(item, collectionName) {
 window.renderSearchResult = function(item, collectionName) {
     // This function is now deprecated in favor of generateSearchResultCard used in performDeviceSearch
 };
+// AI Chat UI Actions
+window.toggleChatSize = function() {
+    const chatWin = document.getElementById('ai-chat-window');
+    const icon = document.getElementById('chat-expand-icon');
+    if (chatWin.classList.contains('w-80')) {
+        // Expand
+        chatWin.classList.remove('w-80', 'h-96');
+        chatWin.classList.add('w-[90vw]', 'md:w-[500px]', 'h-[80vh]');
+        icon.classList.remove('fa-expand');
+        icon.classList.add('fa-compress');
+    } else {
+        // Shrink
+        chatWin.classList.add('w-80', 'h-96');
+        chatWin.classList.remove('w-[90vw]', 'md:w-[500px]', 'h-[80vh]');
+        icon.classList.remove('fa-compress');
+        icon.classList.add('fa-expand');
+    }
+};
+
 // AI Chat Logic
 document.addEventListener('DOMContentLoaded', () => {
     const chatInput = document.getElementById('ai-chat-input');
