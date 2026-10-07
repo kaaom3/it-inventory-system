@@ -942,6 +942,19 @@ app.post('/api/ai-chat', verifyToken, async (req, res) => {
 });
 
 // Endpoint สำหรับให้ Dify ค้นหาครอบจักรวาล (Global Search ทุกตาราง)
+// Helper function to remove huge Base64 image strings from AI responses
+function stripLargeFields(dataArray) {
+    return dataArray.map(item => {
+        const cleaned = { ...item };
+        for (let key in cleaned) {
+            if (typeof cleaned[key] === 'string' && cleaned[key].length > 1000) {
+                cleaned[key] = "[มีไฟล์แนบรูปภาพ - ซ่อนเพื่อประหยัดพื้นที่]";
+            }
+        }
+        return cleaned;
+    });
+}
+
 app.post('/api/dify-tool/global-search', async (req, res) => {
     if (!db) return res.status(500).json({ message: "Database not connected" });
     try {
@@ -957,8 +970,9 @@ app.post('/api/dify-tool/global-search', async (req, res) => {
 
         for (let col of collections) {
             if (!skipCollections.includes(col.name)) {
-                const data = await db.collection(col.name).find(query).limit(10).toArray();
+                let data = await db.collection(col.name).find(query).limit(10).toArray();
                 if (data.length > 0) {
+                    data = stripLargeFields(data);
                     results.push({ collection: col.name, data });
                 }
             }
@@ -982,7 +996,8 @@ app.post('/api/dify-tool/search', async (req, res) => {
             query = typeof queryObj === 'string' ? JSON.parse(queryObj) : queryObj;
         }
         
-        const data = await db.collection(collectionName).find(query).limit(50).toArray();
+        let data = await db.collection(collectionName).find(query).limit(50).toArray();
+        data = stripLargeFields(data);
         res.json(data);
     } catch (error) {
         console.error("Dify Tool Search Error:", error);
