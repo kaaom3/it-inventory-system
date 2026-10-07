@@ -525,13 +525,36 @@ app.post('/api/inventory/:collection/move', verifyToken, async (req, res) => {
 // ===================================================================
 // --- Inventory General CRUD ---
 // ===================================================================
+app.get('/api/inventory/item/:collectionName/:id', verifyToken, async (req, res) => {
+    if (!db) return res.status(500).json({ message: "Database not connected" });
+    try {
+        const { ObjectId } = require('mongodb');
+        const col = req.params.collectionName;
+        const id = req.params.id;
+        let query = {};
+        if (id.length === 24) {
+            try { query._id = new ObjectId(id); } catch(e) { query.id = id; }
+        } else {
+            query.id = id;
+        }
+        
+        let item = await db.collection(col).findOne(query);
+        if (!item && query._id) item = await db.collection(col).findOne({ id: id });
+        if (!item && query._id) item = await db.collection(col).findOne({ _id: id });
+        if (!item) return res.status(404).json({ message: 'Item not found' });
+        res.json(item);
+    } catch (error) { res.status(500).json({ message: error.message }); }
+});
+
 app.get('/api/inventory/all', verifyToken, async (req, res) => {
     if (!db) return res.status(500).json({ message: "Database not connected" });
     try {
         const collections = await db.listCollections().toArray();
         const allData = {};
         for (let col of collections) {
-            if (col.name !== 'admins') allData[col.name] = await db.collection(col.name).find().toArray();
+            if (col.name !== 'admins') {
+                allData[col.name] = await db.collection(col.name).find({}, { projection: { DisposalEvidence: 0, Image: 0, Photo: 0 } }).toArray();
+            }
         }
         res.json(allData);
     } catch (error) { res.status(500).json({ message: error.message }); }

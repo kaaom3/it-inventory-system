@@ -993,11 +993,20 @@ window.buildDeviceHistoryInModal = function(item, collectionName) {
     }); html += '</div>'; container.innerHTML = html;
 };
 
-window.openModal = function(mode, collectionName, id = null) {
+window.openModal = async function(mode, collectionName, id = null) {
     currentEdit = { mode, collection: collectionName, id }; 
     const form = document.getElementById('editForm'); if (!form) return; form.innerHTML = ''; 
     const config = collectionConfigs[collectionName]; 
-    const itemData = (mode === 'edit' && allData[collectionName]) ? allData[collectionName].find(i => i._id === id || i.id === id) || {} : {};
+    
+    let itemData = {};
+    if (mode === 'edit' && id) {
+        try {
+            itemData = await apiRequest(`/api/inventory/item/${collectionName}/${id}`);
+        } catch (e) {
+            console.error("Failed to fetch full item data:", e);
+            itemData = allData[collectionName] ? allData[collectionName].find(i => i._id === id || i.id === id) || {} : {};
+        }
+    }
     
     const actionText = mode === 'edit' ? 'Edit' : t('add_new'); 
     const actionIcon = mode === 'edit' ? 'fa-edit' : 'fa-plus-circle';
