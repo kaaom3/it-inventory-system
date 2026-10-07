@@ -548,15 +548,7 @@ async function initializeAppLogic() {
         window.updateDashboard();
         window.loadPage('Dashboard');
         if (refreshIntervalId) clearInterval(refreshIntervalId);
-        refreshIntervalId = setInterval(async () => { 
-            await refreshAllData();
-            const visiblePage = document.querySelector('.page-content.active');
-            if (visiblePage && visiblePage.id !== 'dashboard-page') {
-                const colName = visiblePage.id.replace('-page', '');
-                const realKey = Object.keys(collectionConfigs).find(k => k.toLowerCase() === colName);
-                if(realKey) window.buildTable(realKey);
-            }
-        }, 300000); 
+        // auto-refresh removed to save bandwidth 
     }
 }
 
