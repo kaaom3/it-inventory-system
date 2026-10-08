@@ -222,8 +222,17 @@ app.post('/api/inventory/sync', verifyApiKey, async (req, res) => {
             if (existingDevice && existingDevice.SerialNumber && existingDevice.SerialNumber !== 'N/A' && existingDevice.SerialNumber !== 'O.E.M.' && scriptHasInvalidSN) {
                 // Keep the old SerialNumber
             } else {
+                // Do NOT overwrite existing manual SerialNumber with generic/invalid SN
+            if (existingDevice && existingDevice.SerialNumber && existingDevice.SerialNumber !== 'N/A' && existingDevice.SerialNumber !== 'O.E.M.' && scriptHasInvalidSN) {
+                // Keep the old SerialNumber
+            } else {
                 updatePayload.$set.SerialNumber = data.serialNumber;
             }
+        }
+        
+        if (data.macAddress && data.macAddress !== "N/A") {
+            updatePayload.$set.MacAddress = data.macAddress;
+        }
         }
         
         if (data.macAddress && data.macAddress !== "N/A") {
@@ -577,7 +586,40 @@ async function recordDeviceHistory(collectionName, deviceId, serialNumber, oldDa
     
     for (const key in newData) {
         if (ignoreFields.includes(key)) continue;
-        if (key.startsWith('
+        if (key.startsWith('$')) continue; // Ignore mongo operators
+        const oldVal = oldData[key] !== undefined && oldData[key] !== null ? String(oldData[key]).trim() : '';
+        const newVal = newData[key] !== undefined && newData[key] !== null ? String(newData[key]).trim() : '';
+        if (oldVal !== newVal) {
+            changes.push({ field: key, oldValue: oldVal, newValue: newVal });
+        }
+    }
+    
+    if (changes.length > 0) {
+        try {
+            await db.collection('DeviceHistory').insertOne({
+                deviceId: deviceId.toString(),
+                collectionName,
+                serialNumber: serialNumber || oldData.SerialNumber || 'N/A',
+                timestamp: new Date(),
+                changedBy,
+                changes
+            });
+        } catch(e) {}
+    }
+}
+
+// GET Device History
+app.get('/api/inventory/history/:collectionName/:id', verifyToken, async (req, res) => {
+    if (!db) return res.status(500).json({ message: 'Database not connected' });
+    try {
+        const history = await db.collection('DeviceHistory')
+            .find({ deviceId: req.params.id, collectionName: req.params.collectionName })
+            .sort({ timestamp: -1 })
+            .toArray();
+        res.json(history);
+    } catch (error) { res.status(500).json({ message: error.message }); }
+});
+
 // ===================================================================
 
 // Helper to auto-update status based on UserName assignment
@@ -951,581 +993,6 @@ app.post('/api/dify-tool/update-device', async (req, res) => {
             await recordDeviceHistory(collectionName, oldData._id || oldData.id, oldData.SerialNumber, oldData, data, 'AI Assistant');
         }
 
-        if (result.matchedCount === 0) {
-             return res.json({ success: false, message: `ไม่พบข้อมูลที่ต้องการอัพเดทใน ${collectionName}` });
-        }
-        res.json({ success: true, message: `อัพเดทข้อมูลลง ${collectionName} สำเร็จ` });
-    } catch (error) {
-        console.error("Dify Tool Update Error:", error);
-        res.status(500).json({ message: error.message });
-    }
-});
-
-app.post('/api/ai-chat', verifyToken, async (req, res) => {
-    try {
-        const { prompt, image } = req.body;
-        if (!prompt) return res.status(400).json({ message: "Prompt is required" });
-
-        const difyUrl = process.env.DIFY_API_URL;
-        const difyKey = process.env.DIFY_API_KEY;
-
-        if (!difyUrl || !difyKey) {
-            return res.status(500).json({ message: "DIFY_API_URL or DIFY_API_KEY is not configured on the server." });
-        }
-
-        const username = req.user?.username || "inventory-user";
-        let filesPayload = [];
-
-        // If an image is provided, upload it to Dify first
-        if (image) {
-            const formData = new FormData();
-            const byteString = atob(image.split(',')[1]);
-            const mimeString = image.split(',')[0].split(':')[1].split(';')[0];
-            const ab = new ArrayBuffer(byteString.length);
-            const ia = new Uint8Array(ab);
-            for (let i = 0; i < byteString.length; i++) {
-                ia[i] = byteString.charCodeAt(i);
-            }
-            const blob = new Blob([ab], { type: mimeString });
-            
-            formData.append('file', blob, 'upload.jpg');
-            formData.append('user', username);
-
-            const uploadRes = await fetch(`${difyUrl}/files/upload`, {
-                method: 'POST',
-                headers: { 'Authorization': `Bearer ${difyKey}` },
-                body: formData
-            });
-
-            if (uploadRes.ok) {
-                const uploadData = await uploadRes.json();
-                filesPayload.push({
-                    type: "image",
-                    transfer_method: "local_file",
-                    upload_file_id: uploadData.id
-                });
-            } else {
-                console.error("Failed to upload image to Dify:", await uploadRes.text());
-            }
-        }
-
-            const systemDateInfo = `\n\n[SYSTEM_NOTE: วันที่ปัจจุบันคือ ${new Date().toISOString().split('T')[0]}]`;
-            
-            const difyRes = await fetch(`${difyUrl}/chat-messages`, {
-                method: 'POST',
-                headers: {
-                    'Authorization': `Bearer ${difyKey}`,
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify({
-                    inputs: {},
-                    query: prompt + systemDateInfo,
-                    response_mode: "streaming",
-                    user: username,
-                    ...(filesPayload.length > 0 && { files: filesPayload })
-            })
-        });
-
-        if (!difyRes.ok) {
-            const errorText = await difyRes.text();
-            throw new Error(`Dify API error (${difyRes.status}): ${errorText}`);
-        }
-
-        let fullAnswer = "";
-        let buffer = "";
-        const decoder = new TextDecoder("utf-8");
-        for await (const chunk of difyRes.body) {
-            buffer += decoder.decode(chunk, { stream: true });
-            let lines = buffer.split('\n');
-            buffer = lines.pop(); // Keep incomplete line in buffer
-            for (const line of lines) {
-                if (line.startsWith('data: ')) {
-                    const dataStr = line.slice(6).trim();
-                    if (!dataStr) continue;
-                    try {
-                        const data = JSON.parse(dataStr);
-                        if (data.event === 'message' || data.event === 'agent_message') {
-                            if (data.answer) fullAnswer += data.answer;
-                        }
-                    } catch (e) {
-                        // ignore JSON parse error on incomplete stream chunks
-                    }
-                }
-            }
-        }
-
-        res.json({ reply: fullAnswer || "ไม่ได้รับคำตอบจากระบบ" });
-    } catch (error) {
-        console.error("Dify Chat Error:", error);
-        res.status(500).json({ message: error.message || "Internal Server Error" });
-    }
-});
-
-// Endpoint สำหรับให้ Dify ค้นหาครอบจักรวาล (Global Search ทุกตาราง)
-// Helper function to remove huge Base64 image strings from AI responses
-function stripLargeFields(dataArray) {
-    return dataArray.map(item => {
-        const cleaned = { ...item };
-        for (let key in cleaned) {
-            if (typeof cleaned[key] === 'string' && cleaned[key].length > 1000) {
-                cleaned[key] = "[มีไฟล์แนบรูปภาพ - ซ่อนเพื่อประหยัดพื้นที่]";
-            }
-        }
-        return cleaned;
-    });
-}
-
-app.post('/api/dify-tool/global-search', async (req, res) => {
-    if (!db) return res.status(500).json({ message: "Database not connected" });
-    try {
-        const { queryObj } = req.body;
-        let query = {};
-        if (queryObj) {
-            query = typeof queryObj === 'string' ? JSON.parse(queryObj) : queryObj;
-        }
-
-        const skipCollections = ['admins', 'TransactionHistory', 'LoanHistory', 'Maintenance Log', 'Staff', 'CustomMenus'];
-        const collections = await db.listCollections().toArray();
-        let results = [];
-
-        for (let col of collections) {
-            if (!skipCollections.includes(col.name)) {
-                let data = await db.collection(col.name).find(query).limit(10).toArray();
-                if (data.length > 0) {
-                    data = stripLargeFields(data);
-                    results.push({ collection: col.name, data });
-                }
-            }
-        }
-        res.json(results);
-    } catch (error) {
-        console.error("Dify Global Search Error:", error);
-        res.status(500).json({ message: error.message });
-    }
-});
-
-// Endpoint สำหรับให้ Dify Custom Tool เรียกเข้ามาเพื่อค้นหาข้อมูลใน Database (แบบระบุตาราง)
-app.post('/api/dify-tool/search', async (req, res) => {
-    if (!db) return res.status(500).json({ message: "Database not connected" });
-    try {
-        const { collectionName, queryObj } = req.body;
-        if (!collectionName) return res.status(400).json({ message: "collectionName is required" });
-        
-        let query = {};
-        if (queryObj) {
-            query = typeof queryObj === 'string' ? JSON.parse(queryObj) : queryObj;
-        }
-        
-        let data = await db.collection(collectionName).find(query).limit(50).toArray();
-        data = stripLargeFields(data);
-        res.json(data);
-    } catch (error) {
-        console.error("Dify Tool Search Error:", error);
-        res.status(500).json({ message: error.message });
-    }
-});
-
-app.get('*', (req, res) => {
-    res.sendFile(path.join(frontendPath, 'index.html'));
-});
-
-app.listen(port, () => {
-    console.log(`Inventory Backend API listening on port ${port}`);
-});)) continue; // Ignore mongo operators
-        const oldVal = oldData[key] !== undefined && oldData[key] !== null ? String(oldData[key]).trim() : '';
-        const newVal = newData[key] !== undefined && newData[key] !== null ? String(newData[key]).trim() : '';
-        if (oldVal !== newVal) {
-            changes.push({ field: key, oldValue: oldVal, newValue: newVal });
-        }
-    }
-    
-    if (changes.length > 0) {
-        try {
-            await db.collection('DeviceHistory').insertOne({
-                deviceId: deviceId.toString(),
-                collectionName,
-                serialNumber: serialNumber || oldData.SerialNumber || 'N/A',
-                timestamp: new Date(),
-                changedBy,
-                changes
-            });
-        } catch(e) {}
-    }
-}
-
-// GET Device History
-app.get('/api/inventory/history/:collectionName/:id', verifyToken, async (req, res) => {
-    if (!db) return res.status(500).json({ message: 'Database not connected' });
-    try {
-        const history = await db.collection('DeviceHistory')
-            .find({ deviceId: req.params.id, collectionName: req.params.collectionName })
-            .sort({ timestamp: -1 })
-            .toArray();
-        res.json(history);
-    } catch (error) { res.status(500).json({ message: error.message }); }
-});
-
-// ===================================================================
-
-// Helper to auto-update status based on UserName assignment
-function applyAutoStatus(data) {
-    if (data && data.UserName && typeof data.UserName === 'string' && data.UserName.trim() !== '') {
-        if (!data.Status || data.Status === 'Storage') {
-            data.Status = 'Active';
-        }
-    }
-}
-app.get('/api/inventory/item/:collectionName/:id', verifyToken, async (req, res) => {
-    if (!db) return res.status(500).json({ message: "Database not connected" });
-    try {
-        const { ObjectId } = require('mongodb');
-        const col = req.params.collectionName;
-        const id = req.params.id;
-        let query = {};
-        if (id.length === 24) {
-            try { query._id = new ObjectId(id); } catch(e) { query.id = id; }
-        } else {
-            query.id = id;
-        }
-        
-        let item = await db.collection(col).findOne(query);
-        if (!item && query._id) item = await db.collection(col).findOne({ id: id });
-        if (!item && query._id) item = await db.collection(col).findOne({ _id: id });
-        if (!item) return res.status(404).json({ message: 'Item not found' });
-        res.json(item);
-    } catch (error) { res.status(500).json({ message: error.message }); }
-});
-
-app.get('/api/inventory/all', verifyToken, async (req, res) => {
-    if (!db) return res.status(500).json({ message: "Database not connected" });
-    try {
-        const collections = await db.listCollections().toArray();
-        const allData = {};
-        for (let col of collections) {
-            if (col.name !== 'admins') {
-                allData[col.name] = await db.collection(col.name).find({}, { projection: { DisposalEvidence: 0, Image: 0, Photo: 0 } }).toArray();
-            }
-        }
-        res.json(allData);
-    } catch (error) { res.status(500).json({ message: error.message }); }
-});
-
-// 🌟 ย้าย API Maintenance มาไว้ตรงนี้ (ต้องอยู่ก่อน /:collection เพื่อไม่ให้ Express สับสน)
-app.post('/api/inventory/maintenance', verifyToken, async (req, res) => {
-    if (!db) return res.status(500).json({ message: "Database not connected" });
-    try {
-        const data = req.body; data.Timestamp = new Date(); applyAutoStatus(data);
-        await db.collection('Maintenance Log').insertOne(data);
-        res.status(201).json({ message: "Maintenance log added" });
-    } catch (error) { res.status(500).json({ message: error.message }); }
-});
-
-// 🌟 ส่วนที่เพิ่มใหม่: API สำหรับอัปเดตสถานะงานซ่อมเดิม (เช่น การปิดงาน เปลี่ยนเป็น Completed)
-app.put('/api/inventory/maintenance/:id', verifyToken, async (req, res) => {
-    if (!db) return res.status(500).json({ message: "Database not connected" });
-    try {
-        const data = req.body;
-        delete data._id; // ป้องกันไม่ให้เอา _id ไปทับ
-
-        await db.collection('Maintenance Log').updateOne(
-            buildIdQuery(req.params.id),
-            { $set: data }
-        );
-        res.json({ message: "Maintenance log updated successfully" });
-    } catch (error) { res.status(500).json({ message: error.message }); }
-});
-
-app.post('/api/inventory/:collection', verifyToken, async (req, res) => {
-    if (!db) return res.status(500).json({ message: "Database not connected" });
-    try {
-        const data = req.body; data.Timestamp = new Date();
-        const result = await db.collection(req.params.collection).insertOne(data);
-        res.status(201).json(result);
-    } catch (error) { res.status(500).json({ message: error.message }); }
-});
-
-app.put('/api/inventory/:collection/:id', verifyToken, async (req, res) => {
-    if (!db) return res.status(500).json({ message: "Database not connected" });
-    try {
-        const data = req.body; delete data._id; applyAutoStatus(data); 
-        await db.collection(req.params.collection).updateOne(buildIdQuery(req.params.id), { $set: data });
-        res.json({ message: "Updated successfully" });
-    } catch (error) { res.status(500).json({ message: error.message }); }
-});
-
-app.delete('/api/inventory/:collection/:id', verifyToken, async (req, res) => {
-    if (!db) return res.status(500).json({ message: "Database not connected" });
-    try {
-        await db.collection(req.params.collection).deleteOne(buildIdQuery(req.params.id));
-        res.json({ message: "Deleted successfully" });
-    } catch (error) { res.status(500).json({ message: error.message }); }
-});
-
-app.get('/api/inventory/search/all', async (req, res) => {
-    if (!db) return res.status(500).json({ message: "Database not connected" });
-    try {
-        const query = req.query.q;
-        if (!query) return res.json([]);
-
-        const collections = await db.listCollections().toArray();
-        let results = [];
-        const regex = new RegExp(query, 'i'); // Case-insensitive partial match
-
-        for (let col of collections) {
-            const skipKeys = ['admins', 'CustomMenus', 'Staff', 'TransactionHistory', 'LoanHistory', 'Maintenance Log', 'Maintenance'];
-            if (skipKeys.includes(col.name)) continue;
-
-            const items = await db.collection(col.name).find({
-                $or: [
-                    { SerialNumber: regex },
-                    { MonitorSerial: regex },
-                    { ComputerName: regex },
-                    { DeviceName: regex },
-                    { ItemName: regex },
-                    { Name: regex },
-                    { IPAddress: regex },
-                    { Model: regex },
-                    { UserName: regex },
-                    { Location: regex }
-                ]
-            }).limit(20).toArray();
-
-            items.forEach(item => {
-                results.push({ item, collectionName: col.name });
-            });
-            
-            if (results.length >= 50) break; // Limit total results for performance
-        }
-        res.json(results);
-    } catch (error) { res.status(500).json({ message: error.message }); }
-});
-
-app.get('/api/inventory/find/:sn', async (req, res) => {
-    if (!db) return res.status(500).json({ message: "Database not connected" });
-    try {
-        const sn = req.params.sn;
-        const collections = await db.listCollections().toArray();
-        for (let col of collections) {
-            const skipKeys = ['admins', 'CustomMenus', 'Staff', 'TransactionHistory', 'LoanHistory', 'Maintenance Log', 'Maintenance'];
-            if (skipKeys.includes(col.name)) continue;
-
-            const searchIds = [sn];
-            if (sn.length === 24 && /^[0-9a-fA-F]{24}$/.test(sn)) searchIds.push(new ObjectId(sn));
-
-            const item = await db.collection(col.name).findOne({
-                $or: [
-                    { SerialNumber: sn },
-                    { MonitorSerial: sn },
-                    { ComputerName: sn },
-                    { DeviceName: sn },
-                    { ItemName: sn },
-                    { Name: sn },
-                    { IPAddress: sn },
-                    { _id: { $in: searchIds } },
-                    { id: { $in: searchIds } }
-                ]
-            });
-            if (item) return res.json({ item, collectionName: col.name });
-        }
-        res.status(404).json({ message: "Device not found" });
-    } catch (error) { res.status(500).json({ message: error.message }); }
-});
-
-app.post('/api/transactions/handover', verifyToken, async (req, res) => {
-    if (!db) return res.status(500).json({ message: "Database not connected" });
-    try {
-        const { staffUserName, devices } = req.body;
-        if (!staffUserName || !devices || !Array.isArray(devices)) return res.status(400).json({ message: "Invalid payload" });
-
-        for (const device of devices) {
-            const colName = device.collection;
-            const deviceId = device._id || device.id;
-            if (!colName || !deviceId) continue;
-            await db.collection(colName).updateOne(buildIdQuery(deviceId), { $set: { Status: 'Active', UserName: staffUserName } });
-        }
-
-        await db.collection('TransactionHistory').insertOne({
-            type: 'Handover', staffUserName, timestamp: new Date(),
-            devices: devices.map(d => ({ id: d._id || d.id, collection: d.collection, serial: d.SerialNumber || d.MonitorSerial || 'N/A' }))
-        });
-        res.status(200).json({ message: "Handover successful" });
-    } catch (error) { res.status(500).json({ message: error.message }); }
-});
-
-app.post('/api/transactions/return', verifyToken, async (req, res) => {
-    if (!db) return res.status(500).json({ message: "Database not connected" });
-    try {
-        const { devices } = req.body;
-        if (!devices || !Array.isArray(devices)) return res.status(400).json({ message: "Invalid payload" });
-
-        for (const device of devices) {
-            const colName = device.collection;
-            const deviceId = device.id || device._id;
-            if (!colName || !deviceId) continue;
-            await db.collection(colName).updateOne(buildIdQuery(deviceId), { $set: { Status: 'Storage', UserName: '' } });
-        }
-
-        await db.collection('TransactionHistory').insertOne({
-            type: 'Return', staffUserName: 'System (Returned)', timestamp: new Date(),
-            devices: devices.map(d => ({ id: d.id, collection: d.collection }))
-        });
-        res.status(200).json({ message: "Return successful" });
-    } catch (error) { res.status(500).json({ message: error.message }); }
-});
-
-app.get('/api/public/loanable-items', async (req, res) => {
-    if (!db) return res.status(500).json({ message: "Database not connected" });
-    try {
-        const collections = await db.listCollections().toArray();
-        const allData = {};
-        for (let col of collections) {
-            const skipKeys = ['admins', 'CustomMenus', 'Staff', 'TransactionHistory', 'LoanHistory', 'Maintenance Log', 'Maintenance'];
-            if (!skipKeys.includes(col.name)) allData[col.name] = await db.collection(col.name).find({ Status: 'Storage' }).toArray();
-        }
-        res.json(allData);
-    } catch (error) { res.status(500).json({ message: error.message }); }
-});
-
-app.post('/api/loans/submit', async (req, res) => {
-    if (!db) return res.status(500).json({ message: "Database not connected" });
-    try {
-        const { borrowerName, dueDate, notes, items } = req.body;
-        if (!borrowerName || !dueDate || !items || !items.length) return res.status(400).json({ message: "Missing required fields" });
-
-        const loanGroupId = "GRP-" + Date.now().toString().slice(-6);
-        for (const item of items) {
-            await db.collection(item.deviceType).updateOne(buildIdQuery(item.deviceId), { $set: { Status: 'On Loan', UserName: borrowerName } });
-            await db.collection('LoanHistory').insertOne({
-                LoanGroupID: loanGroupId, DeviceId: item.deviceId, DeviceSerial: item.deviceSerial, DeviceType: item.deviceType,
-                BorrowerName: borrowerName, LoanDate: new Date(), DueDate: dueDate, Notes: notes, Status: 'On Loan'
-            });
-        }
-        res.status(200).json({ message: "Loan submitted successfully", loanGroupId });
-    } catch (error) { res.status(500).json({ message: error.message }); }
-});
-
-app.get('/api/loans/group/:id', async (req, res) => {
-    if (!db) return res.status(500).json({ message: "Database not connected" });
-    try {
-        const loanItems = await db.collection('LoanHistory').find({ LoanGroupID: req.params.id }).toArray();
-        if (loanItems.length === 0) return res.status(404).json({ message: "Loan group not found" });
-
-        const devicesInfo = [];
-        for (const item of loanItems) {
-            const device = await db.collection(item.DeviceType).findOne(buildIdQuery(item.DeviceId));
-            if (device) devicesInfo.push(device);
-        }
-        res.status(200).json({ loanItems, devices: devicesInfo });
-    } catch (error) { res.status(500).json({ message: error.message }); }
-});
-
-app.post('/api/loans/return', async (req, res) => {
-    if (!db) return res.status(500).json({ message: "Database not connected" });
-    try {
-        const { transactionIds } = req.body;
-        if (!transactionIds || !transactionIds.length) return res.status(400).json({ message: "Missing transactionIds" });
-
-        for (const id of transactionIds) {
-            const loanRecord = await db.collection('LoanHistory').findOne(buildIdQuery(id));
-            if (loanRecord && loanRecord.Status === 'On Loan') {
-                await db.collection(loanRecord.DeviceType).updateOne(buildIdQuery(loanRecord.DeviceId), { $set: { Status: 'Storage', UserName: '' } });
-                await db.collection('LoanHistory').updateOne(buildIdQuery(id), { $set: { Status: 'Returned', ReturnDate: new Date() } });
-            }
-        }
-        res.status(200).json({ message: "Return processed successfully" });
-    } catch (error) { res.status(500).json({ message: error.message }); }
-});
-
-app.post('/api/custom-menus', verifyToken, async (req, res) => {
-    if (!db) return res.status(500).json({ message: "Database not connected" });
-    try {
-        const menuData = req.body;
-        if (await db.collection('CustomMenus').findOne({ name: menuData.name })) return res.status(400).json({ message: "Menu ID already exists." });
-        await db.collection('CustomMenus').insertOne(menuData);
-        await db.createCollection(menuData.name).catch(()=>{});
-        res.status(201).json({ message: "Menu created" });
-    } catch (error) { res.status(500).json({ message: error.message }); }
-});
-
-app.put('/api/custom-menus/:id', verifyToken, async (req, res) => {
-    if (!db) return res.status(500).json({ message: "Database not connected" });
-    try {
-        await db.collection('CustomMenus').updateOne(
-            { name: req.params.id }, 
-            { $set: { 
-                displayName: req.body.displayName, 
-                icon: req.body.icon, 
-                parentId: req.body.parentId, 
-                order: req.body.order, 
-                fields: req.body.fields,
-                displayColumns: req.body.displayColumns 
-            } }
-        );
-        res.json({ message: "Menu updated" });
-    } catch (error) { res.status(500).json({ message: error.message }); }
-});
-
-app.delete('/api/custom-menus/:id', verifyToken, async (req, res) => {
-    if (!db) return res.status(500).json({ message: "Database not connected" });
-    try {
-        await db.collection('CustomMenus').deleteOne({ name: req.params.id });
-        res.json({ message: "Menu removed" });
-    } catch (error) { res.status(500).json({ message: error.message }); }
-});
-
-app.post('/api/staff', verifyToken, async (req, res) => {
-    if (!db) return res.status(500).json({ message: "Database not connected" });
-    try { await db.collection('Staff').insertOne(req.body); res.status(201).json({ message: "Staff added" }); } catch (error) { res.status(500).json({ message: error.message }); }
-});
-
-app.put('/api/staff/:id', verifyToken, async (req, res) => {
-    if (!db) return res.status(500).json({ message: "Database not connected" });
-    try { const d = req.body; delete d._id; await db.collection('Staff').updateOne(buildIdQuery(req.params.id), { $set: d }); res.json({ message: "Staff updated" }); } catch (error) { res.status(500).json({ message: error.message }); }
-});
-
-app.delete('/api/staff/:id', verifyToken, async (req, res) => {
-    if (!db) return res.status(500).json({ message: "Database not connected" });
-    try { await db.collection('Staff').deleteOne(buildIdQuery(req.params.id)); res.json({ message: "Staff deleted" }); } catch (error) { res.status(500).json({ message: error.message }); }
-});
-
-app.get('/api/ping/:target', verifyToken, async (req, res) => {
-    try {
-        const result = await ping.promise.probe(req.params.target, { timeout: 2 });
-        res.json({ alive: result.alive, time: result.time });
-    } catch (error) { res.status(500).json({ error: "Ping failed" }); }
-});
-
-// ===================================================================
-// --- AI Assistant Route ---
-// ===================================================================
-app.post('/api/dify-tool/add-device', async (req, res) => {
-    if (!db) return res.status(500).json({ message: "Database not connected" });
-    try {
-        const { collectionName, deviceData } = req.body;
-        if (!collectionName || !deviceData) return res.status(400).json({ message: "Missing required fields" });
-        
-        let data = typeof deviceData === 'string' ? JSON.parse(deviceData) : deviceData;
-        data.DateAdded = new Date();
-        if (!data.Status) data.Status = 'Storage'; applyAutoStatus(data);
-
-        const result = await db.collection(collectionName).insertOne(data);
-        res.json({ success: true, insertedId: result.insertedId, message: `เพิ่มข้อมูลลง ${collectionName} สำเร็จ` });
-    } catch (error) {
-        console.error("Dify Tool Add Error:", error);
-        res.status(500).json({ message: error.message });
-    }
-});
-
-app.post('/api/dify-tool/update-device', async (req, res) => {
-    if (!db) return res.status(500).json({ message: "Database not connected" });
-    try {
-        const { collectionName, searchObj, updateData } = req.body;
-        if (!collectionName || !searchObj || !updateData) return res.status(400).json({ message: "Missing required fields" });
-        
-        let query = typeof searchObj === 'string' ? JSON.parse(searchObj) : searchObj;
-        let data = typeof updateData === 'string' ? JSON.parse(updateData) : updateData; applyAutoStatus(data);
-        
-        const result = await db.collection(collectionName).updateOne(query, { $set: data });
         if (result.matchedCount === 0) {
              return res.json({ success: false, message: `ไม่พบข้อมูลที่ต้องการอัพเดทใน ${collectionName}` });
         }
