@@ -427,7 +427,7 @@ app.post('/api/inventory/:collection/bulk-delete', verifyToken, async (req, res)
 app.put('/api/inventory/:collection/bulk-update', verifyToken, async (req, res) => {
     if (!db) return res.status(500).json({ message: "Database not connected" });
     try {
-        const { ids, updateData } = req.body;
+        const { ids, updateData } = req.body; applyAutoStatus(updateData);
         if (!Array.isArray(ids) || ids.length === 0 || !updateData) return res.status(400).json({ message: "Invalid payload" });
         
         const result = await db.collection(req.params.collection).updateMany(
@@ -525,6 +525,15 @@ app.post('/api/inventory/:collection/move', verifyToken, async (req, res) => {
 // ===================================================================
 // --- Inventory General CRUD ---
 // ===================================================================
+
+// Helper to auto-update status based on UserName assignment
+function applyAutoStatus(data) {
+    if (data && data.UserName && typeof data.UserName === 'string' && data.UserName.trim() !== '') {
+        if (!data.Status || data.Status === 'Storage') {
+            data.Status = 'Active';
+        }
+    }
+}
 app.get('/api/inventory/item/:collectionName/:id', verifyToken, async (req, res) => {
     if (!db) return res.status(500).json({ message: "Database not connected" });
     try {
@@ -564,7 +573,7 @@ app.get('/api/inventory/all', verifyToken, async (req, res) => {
 app.post('/api/inventory/maintenance', verifyToken, async (req, res) => {
     if (!db) return res.status(500).json({ message: "Database not connected" });
     try {
-        const data = req.body; data.Timestamp = new Date();
+        const data = req.body; data.Timestamp = new Date(); applyAutoStatus(data);
         await db.collection('Maintenance Log').insertOne(data);
         res.status(201).json({ message: "Maintenance log added" });
     } catch (error) { res.status(500).json({ message: error.message }); }
@@ -597,7 +606,7 @@ app.post('/api/inventory/:collection', verifyToken, async (req, res) => {
 app.put('/api/inventory/:collection/:id', verifyToken, async (req, res) => {
     if (!db) return res.status(500).json({ message: "Database not connected" });
     try {
-        const data = req.body; delete data._id; 
+        const data = req.body; delete data._id; applyAutoStatus(data); 
         await db.collection(req.params.collection).updateOne(buildIdQuery(req.params.id), { $set: data });
         res.json({ message: "Updated successfully" });
     } catch (error) { res.status(500).json({ message: error.message }); }
@@ -856,7 +865,7 @@ app.post('/api/dify-tool/add-device', async (req, res) => {
         
         let data = typeof deviceData === 'string' ? JSON.parse(deviceData) : deviceData;
         data.DateAdded = new Date();
-        if (!data.Status) data.Status = 'Storage';
+        if (!data.Status) data.Status = 'Storage'; applyAutoStatus(data);
 
         const result = await db.collection(collectionName).insertOne(data);
         res.json({ success: true, insertedId: result.insertedId, message: `เพิ่มข้อมูลลง ${collectionName} สำเร็จ` });
@@ -873,7 +882,7 @@ app.post('/api/dify-tool/update-device', async (req, res) => {
         if (!collectionName || !searchObj || !updateData) return res.status(400).json({ message: "Missing required fields" });
         
         let query = typeof searchObj === 'string' ? JSON.parse(searchObj) : searchObj;
-        let data = typeof updateData === 'string' ? JSON.parse(updateData) : updateData;
+        let data = typeof updateData === 'string' ? JSON.parse(updateData) : updateData; applyAutoStatus(data);
         
         const result = await db.collection(collectionName).updateOne(query, { $set: data });
         if (result.matchedCount === 0) {
