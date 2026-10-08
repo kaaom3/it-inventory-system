@@ -601,6 +601,27 @@
         </div>
     </div>
 
+    
+    <!-- Device History Modal -->
+    <div id="historyModal" class="modal opacity-0 pointer-events-none fixed inset-0 z-50 flex items-center justify-center p-4 backdrop-blur-md bg-gray-900/60 transition-opacity duration-300">
+        <div class="modal-content bg-white dark:bg-gray-800 rounded-2xl w-full max-w-3xl mx-4 my-8 shadow-2xl overflow-hidden flex flex-col max-h-[90vh] border border-gray-200 dark:border-gray-700 transition-all transform scale-95">
+            <div class="px-6 py-4 border-b border-gray-100 dark:border-gray-700 bg-gray-50/50 dark:bg-gray-800/50 flex justify-between items-center sticky top-0 z-10">
+                <h3 class="text-lg font-bold text-gray-900 dark:text-white flex items-center">
+                    <i class="fas fa-history text-indigo-500 mr-2"></i> 
+                    <span>ประวัติการเปลี่ยนแปลง (Device History)</span>
+                </h3>
+                <button onclick="window.hideModal('historyModal')" class="text-gray-400 hover:text-gray-500 dark:hover:text-gray-300 transition-colors bg-white dark:bg-gray-700 p-2 rounded-full shadow-sm hover:shadow">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            <div class="p-6 overflow-y-auto flex-1 custom-scrollbar">
+                <div id="historyContent" class="relative border-l-2 border-indigo-100 dark:border-indigo-900/50 ml-3 pl-6 space-y-6">
+                    <!-- History items will go here -->
+                </div>
+            </div>
+        </div>
+    </div>
+
     <!-- Staff Management Modal -->
     <div id="editStaffModal" class="modal opacity-0 pointer-events-none fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
         <div class="modal-content bg-white dark:bg-gray-800 rounded-xl w-full max-w-md shadow-xl">
