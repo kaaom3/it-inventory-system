@@ -866,6 +866,26 @@ app.post('/api/dify-tool/add-device', async (req, res) => {
     }
 });
 
+app.post('/api/dify-tool/update-device', async (req, res) => {
+    if (!db) return res.status(500).json({ message: "Database not connected" });
+    try {
+        const { collectionName, searchObj, updateData } = req.body;
+        if (!collectionName || !searchObj || !updateData) return res.status(400).json({ message: "Missing required fields" });
+        
+        let query = typeof searchObj === 'string' ? JSON.parse(searchObj) : searchObj;
+        let data = typeof updateData === 'string' ? JSON.parse(updateData) : updateData;
+        
+        const result = await db.collection(collectionName).updateOne(query, { $set: data });
+        if (result.matchedCount === 0) {
+             return res.json({ success: false, message: `ไม่พบข้อมูลที่ต้องการอัพเดทใน ${collectionName}` });
+        }
+        res.json({ success: true, message: `อัพเดทข้อมูลลง ${collectionName} สำเร็จ` });
+    } catch (error) {
+        console.error("Dify Tool Update Error:", error);
+        res.status(500).json({ message: error.message });
+    }
+});
+
 app.post('/api/ai-chat', verifyToken, async (req, res) => {
     try {
         const { prompt, image } = req.body;
