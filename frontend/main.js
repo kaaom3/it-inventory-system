@@ -2205,7 +2205,7 @@ window.openHistoryModal = async function() {
     
     try {
         const res = await fetch(`/api/inventory/history/${currentEdit.collection}/${currentEdit.id}`, {
-            headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
+            headers: { 'Authorization': `Bearer ${localStorage.getItem('authToken')}` }
         });
         if (!res.ok) {
             const errText = await res.text();
