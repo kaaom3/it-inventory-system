@@ -2207,7 +2207,10 @@ window.openHistoryModal = async function() {
         const res = await fetch(`/api/inventory/history/${currentEdit.collection}/${currentEdit.id}`, {
             headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
         });
-        if (!res.ok) throw new Error("Failed to load");
+        if (!res.ok) {
+            const errText = await res.text();
+            throw new Error(`Failed to load: ${res.status} ${res.statusText} - ${errText}`);
+        }
         const history = await res.json();
         
         if (history.length === 0) {
@@ -2240,6 +2243,6 @@ window.openHistoryModal = async function() {
             </div>`;
         }).join('');
     } catch (error) {
-        container.innerHTML = '<div class="text-center text-red-500 py-8">ไม่สามารถดึงข้อมูลประวัติได้</div>';
+        container.innerHTML = `<div class="text-center text-red-500 py-8">ไม่สามารถดึงข้อมูลประวัติได้<br><span class="text-xs text-gray-400">${error.message}</span></div>`;
     }
 };
