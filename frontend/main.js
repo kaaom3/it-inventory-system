@@ -852,7 +852,13 @@ window.openModalWindow = function(modalId) {
         }
     }
 
-    const modal = document.getElementById(modalId); modal.classList.remove('opacity-0', 'pointer-events-none');
+    const modal = document.getElementById(modalId);
+    if (!modal) {
+        console.error("Modal not found in DOM:", modalId);
+        alert("ไม่พบหน้าต่าง " + modalId + " ในระบบ (กรุณากด Ctrl+F5 เพื่อล้างแคชเบราว์เซอร์)");
+        return;
+    }
+    modal.classList.remove('opacity-0', 'pointer-events-none');
     if (modal.querySelector('.modal-content')) { modal.querySelector('.modal-content').classList.remove('scale-95'); modal.querySelector('.modal-content').classList.add('scale-100'); }
 }
 
