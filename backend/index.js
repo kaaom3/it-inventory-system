@@ -914,18 +914,20 @@ app.post('/api/ai-chat', verifyToken, async (req, res) => {
             }
         }
 
-        const difyRes = await fetch(`${difyUrl}/chat-messages`, {
-            method: 'POST',
-            headers: {
-                'Authorization': `Bearer ${difyKey}`,
-                'Content-Type': 'application/json'
-            },
-            body: JSON.stringify({
-                inputs: {},
-                query: prompt,
-                response_mode: "streaming",
-                user: username,
-                ...(filesPayload.length > 0 && { files: filesPayload })
+            const systemDateInfo = `\n\n[SYSTEM_NOTE: วันที่ปัจจุบันคือ ${new Date().toISOString().split('T')[0]}]`;
+            
+            const difyRes = await fetch(`${difyUrl}/chat-messages`, {
+                method: 'POST',
+                headers: {
+                    'Authorization': `Bearer ${difyKey}`,
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    inputs: {},
+                    query: prompt + systemDateInfo,
+                    response_mode: "streaming",
+                    user: username,
+                    ...(filesPayload.length > 0 && { files: filesPayload })
             })
         });
 
