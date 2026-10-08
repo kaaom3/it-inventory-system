@@ -413,11 +413,18 @@
             </div>
 
             <!-- Footer -->
-            <div class="px-6 py-4 bg-white dark:bg-gray-800 border-t border-gray-200 dark:border-gray-700 flex justify-end gap-3 rounded-b-2xl">
+            <div class="px-6 py-4 bg-white dark:bg-gray-800 border-t border-gray-200 dark:border-gray-700 flex justify-between gap-3 rounded-b-2xl">
+                <div>
+                    <button type="button" onclick="window.openHistoryModal()" class="px-4 py-2 text-indigo-600 bg-indigo-50 hover:bg-indigo-100 dark:bg-indigo-900/30 dark:text-indigo-400 dark:hover:bg-indigo-900/50 rounded-lg font-semibold transition-colors flex items-center shadow-sm border border-indigo-100 dark:border-indigo-800 hidden" id="viewHistoryBtn">
+                        <i class="fas fa-history mr-2"></i> ดูประวัติ
+                    </button>
+                </div>
+                <div class="flex gap-3">
                 <button type="button" onclick="window.hideModal('editModal')" class="px-6 py-2.5 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-600 font-bold transition shadow-sm" data-i18n="cancel">Cancel</button>
                 <button type="button" onclick="window.saveData()" class="px-6 py-2.5 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 font-bold transition shadow-md transform hover:-translate-y-0.5 flex items-center">
                     <i class="fas fa-save mr-2"></i> <span data-i18n="save_changes">Save Changes</span>
                 </button>
+                </div>
             </div>
         </div>
     </div>

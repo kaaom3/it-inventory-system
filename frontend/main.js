@@ -845,6 +845,13 @@ window.cloneCustomMenu = function(menuName, event) {
 };
 
 window.openModalWindow = function(modalId) {
+    if (modalId === 'editModal') {
+        const histBtn = document.getElementById('viewHistoryBtn');
+        if (histBtn) {
+            histBtn.classList.toggle('hidden', currentEdit.mode !== 'edit');
+        }
+    }
+
     const modal = document.getElementById(modalId); modal.classList.remove('opacity-0', 'pointer-events-none');
     if (modal.querySelector('.modal-content')) { modal.querySelector('.modal-content').classList.remove('scale-95'); modal.querySelector('.modal-content').classList.add('scale-100'); }
 }
@@ -2182,3 +2189,51 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 });
 
+
+
+window.openHistoryModal = async function() {
+    if (!currentEdit || currentEdit.mode !== 'edit') return;
+    window.openModalWindow('historyModal');
+    const container = document.getElementById('historyContent');
+    container.innerHTML = '<div class="text-center text-gray-500 py-8"><i class="fas fa-spinner fa-spin text-2xl mb-2"></i><br>กำลังโหลดประวัติ...</div>';
+    
+    try {
+        const res = await fetch(`/api/inventory/history/${currentEdit.collection}/${currentEdit.id}`, {
+            headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
+        });
+        if (!res.ok) throw new Error("Failed to load");
+        const history = await res.json();
+        
+        if (history.length === 0) {
+            container.innerHTML = '<div class="text-center text-gray-400 py-8 italic">ยังไม่มีประวัติการเปลี่ยนแปลง</div>';
+            return;
+        }
+        
+        container.innerHTML = history.map(h => {
+            const dateStr = new Date(h.timestamp).toLocaleString('th-TH');
+            const changedBy = h.changedBy || 'Unknown';
+            const changesHtml = h.changes.map(c => 
+                `<div class="mt-2 text-sm bg-gray-50 dark:bg-gray-800 p-2 rounded border border-gray-100 dark:border-gray-700">
+                    <span class="font-semibold text-gray-700 dark:text-gray-300">${c.field}:</span>
+                    <span class="line-through text-red-400 mx-1">${c.oldValue || '-'}</span> 
+                    <i class="fas fa-arrow-right text-gray-400 text-xs mx-1"></i> 
+                    <span class="text-green-600 dark:text-green-400 font-medium">${c.newValue || '-'}</span>
+                </div>`
+            ).join('');
+            
+            return `
+            <div class="relative mb-6">
+                <div class="absolute -left-[35px] bg-white dark:bg-gray-800 border-2 border-indigo-400 rounded-full w-4 h-4 mt-1.5"></div>
+                <div class="bg-white dark:bg-gray-800 shadow-sm border border-gray-100 dark:border-gray-700 rounded-xl p-4">
+                    <div class="flex justify-between items-start mb-2">
+                        <div class="font-bold text-gray-800 dark:text-gray-200">${changedBy}</div>
+                        <div class="text-xs text-gray-500 flex items-center"><i class="far fa-clock mr-1"></i>${dateStr}</div>
+                    </div>
+                    ${changesHtml}
+                </div>
+            </div>`;
+        }).join('');
+    } catch (error) {
+        container.innerHTML = '<div class="text-center text-red-500 py-8">ไม่สามารถดึงข้อมูลประวัติได้</div>';
+    }
+};
