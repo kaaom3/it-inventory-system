@@ -91,15 +91,6 @@ try {
     if (-not $userName) { $userName = $env:USERNAME } # Fallback
     
     $cleanSerial = Clean-Data $biosInfo.SerialNumber
-    
-    # 🌟 Fallback to MAC Address if Serial Number is generic/invalid (Crucial for POS machines where name changes)
-    if ([string]::IsNullOrWhiteSpace($cleanSerial) -or $cleanSerial -match "(?i)O.E.M|Default|System Serial|To Be Filled") {
-        if ($macAddress -and $macAddress -ne "N/A") {
-            $cleanSerial = "MAC-" + ($macAddress -replace ':','')
-            Write-Log "Generic SN detected. Using MAC Address instead: $cleanSerial"
-        }
-    }
-    
     $cleanModel = Clean-Data $computerSystem.Model
     $cleanManuf = Clean-Data $computerSystem.Manufacturer
     

@@ -181,8 +181,19 @@ app.post('/api/inventory/sync', verifyApiKey, async (req, res) => {
         const targetCollection = (data.type && data.type !== 'Unknown') ? data.type : 'Computers';
 
         let existingDevice = null;
-        if (!scriptHasInvalidSN) existingDevice = await db.collection(targetCollection).findOne({ SerialNumber: data.serialNumber });
-        if (!existingDevice && data.computerName) existingDevice = await db.collection(targetCollection).findOne({ ComputerName: data.computerName });
+        if (!scriptHasInvalidSN) {
+            existingDevice = await db.collection(targetCollection).findOne({ SerialNumber: data.serialNumber });
+        }
+        
+        // NEW: Search by MAC Address if SN wasn't found (or was invalid)
+        if (!existingDevice && data.macAddress && data.macAddress !== "N/A") {
+            existingDevice = await db.collection(targetCollection).findOne({ MacAddress: data.macAddress });
+        }
+
+        // Fallback: Search by ComputerName
+        if (!existingDevice && data.computerName) {
+            existingDevice = await db.collection(targetCollection).findOne({ ComputerName: data.computerName });
+        }
 
         const updatePayload = {
             $set: {
@@ -207,7 +218,16 @@ app.post('/api/inventory/sync', verifyApiKey, async (req, res) => {
         }
 
         if (!scriptHasInvalidSN) {
-            updatePayload.$set.SerialNumber = data.serialNumber;
+            // Do NOT overwrite existing manual SerialNumber with generic/invalid SN
+            if (existingDevice && existingDevice.SerialNumber && existingDevice.SerialNumber !== 'N/A' && existingDevice.SerialNumber !== 'O.E.M.' && scriptHasInvalidSN) {
+                // Keep the old SerialNumber
+            } else {
+                updatePayload.$set.SerialNumber = data.serialNumber;
+            }
+        }
+        
+        if (data.macAddress && data.macAddress !== "N/A") {
+            updatePayload.$set.MacAddress = data.macAddress;
         } else if (!existingDevice) {
             updatePayload.$set.SerialNumber = data.serialNumber || 'None';
         }
