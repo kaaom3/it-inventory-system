@@ -158,6 +158,7 @@ app.post('/api/tts/generate', verifyToken, async (req, res) => {
             body: JSON.stringify({
                 text: text,
                 model_id: "eleven_turbo_v2_5", // Using the newest turbo model
+                language_code: "th",
                 voice_settings: {
                     stability: 0.5,
                     similarity_boost: 0.85,
