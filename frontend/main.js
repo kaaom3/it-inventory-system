@@ -2108,10 +2108,11 @@ document.addEventListener('DOMContentLoaded', () => {
     if (!chatInput || !sendBtn || !messagesBox) return;
 
     const appendMessage = (text, sender, imageUrl = null) => {
-        const msgDiv = document.createElement('div');
+        const wrapperDiv = document.createElement('div');
+        
         let content = '';
         if (imageUrl) {
-            content += `<img src="${imageUrl}" class="w-full rounded-md mb-2 object-cover">`;
+            content += `<img src="${imageUrl}" class="w-full rounded-md mb-2 object-cover border border-white/20">`;
         }
         
         if (sender === 'ai' && window.marked) {
@@ -2121,13 +2122,23 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         if (sender === 'user') {
-            msgDiv.className = 'bg-blue-600 text-white p-3 rounded-lg rounded-tr-none w-3/4 ml-auto';
+            wrapperDiv.className = 'flex justify-end animate-fade-in-up';
+            wrapperDiv.innerHTML = `
+                <div class="bg-indigo-600 text-white p-3.5 rounded-2xl rounded-tr-sm shadow-md max-w-[85%] leading-relaxed text-[13.5px]">
+                    ${content}
+                </div>`;
         } else {
-            msgDiv.className = 'bg-indigo-100 dark:bg-indigo-900/50 text-indigo-900 dark:text-indigo-100 p-3 rounded-lg rounded-tl-none w-11/12';
+            wrapperDiv.className = 'flex items-start space-x-3 animate-fade-in-up';
+            wrapperDiv.innerHTML = `
+                <div class="w-8 h-8 bg-gradient-to-br from-indigo-500 to-purple-500 rounded-full flex items-center justify-center text-white shrink-0 shadow-md border border-white/50 mt-1">
+                    <i class="fas fa-robot text-xs"></i>
+                </div>
+                <div class="bg-white dark:bg-gray-800 text-gray-800 dark:text-gray-200 p-3.5 rounded-2xl rounded-tl-sm shadow-sm border border-gray-100 dark:border-gray-700 max-w-[85%] leading-relaxed markdown-body text-[13.5px]">
+                    ${content}
+                </div>`;
         }
         
-        msgDiv.innerHTML = content;
-        messagesBox.appendChild(msgDiv);
+        messagesBox.appendChild(wrapperDiv);
         messagesBox.scrollTop = messagesBox.scrollHeight;
     };
 
@@ -2185,6 +2196,9 @@ document.addEventListener('DOMContentLoaded', () => {
             
             if (data.reply) {
                 appendMessage(data.reply, 'ai');
+                if (window.isLiveMode || typeof isLiveMode !== 'undefined' && isLiveMode) {
+                    playElevenLabsTTS(data.reply);
+                }
             } else {
                 appendMessage('Sorry, an error occurred: ' + (data.error || data.message), 'ai');
             }
