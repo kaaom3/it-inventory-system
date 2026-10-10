@@ -2280,11 +2280,18 @@ async function fetchVoices() {
             const voices = await res.json();
             const select = document.getElementById('aiVoiceSelect');
             if (select) {
-                select.innerHTML = voices.map(v => `<option value="${v.voice_id}">${v.name}</option>`).join('');
+                select.innerHTML = voices.map(v => `<option value="${v.voice_id}" class="text-gray-900">${v.name}</option>`).join('');
                 select.value = "Yo0WmPHbg2TY6FYOSr3u"; // default if exists
             }
+        } else {
+            const select = document.getElementById('aiVoiceSelect');
+            if (select) select.innerHTML = '<option value="" class="text-gray-900">API Key Error (Check Render)</option>';
         }
-    } catch(e) { console.error("Could not fetch voices", e); }
+    } catch(e) { 
+        console.error("Could not fetch voices", e);
+        const select = document.getElementById('aiVoiceSelect');
+        if (select) select.innerHTML = '<option value="" class="text-gray-900">Error Loading Voices</option>';
+    }
 }
 
 function initSpeechRecognition() {
