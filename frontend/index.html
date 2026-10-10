@@ -693,22 +693,33 @@
     <!-- AI Chatbot UI -->
     <div id="ai-chat-container" class="fixed bottom-6 right-6 z-50 flex flex-col items-end">
         <!-- Chat Window -->
-        <div id="ai-chat-window" class="hidden bg-white dark:bg-gray-800 w-80 h-96 shadow-2xl rounded-2xl flex-col overflow-hidden mb-4 border border-gray-200 dark:border-gray-700 transition-all duration-300 origin-bottom-right">
-            <div class="bg-indigo-600 text-white px-4 py-3 flex justify-between items-center shrink-0">
-                <div class="font-semibold"><i class="fas fa-robot mr-2"></i> อับดุล ถามอะไรตอบได้!</div>
-                
+        <div id="ai-chat-window" class="hidden bg-white dark:bg-gray-800 w-[350px] sm:w-[400px] h-[550px] shadow-[0_20px_50px_-12px_rgba(0,0,0,0.5)] rounded-3xl flex-col overflow-hidden mb-5 border border-gray-100 dark:border-gray-700 transition-all duration-300 origin-bottom-right font-sans">
+            <!-- Modern Header -->
+            <div class="bg-gradient-to-r from-indigo-600 to-purple-600 text-white px-5 py-4 flex justify-between items-center shrink-0 shadow-md z-10 relative">
                 <div class="flex items-center space-x-3">
-                    <select id="aiVoiceSelect" class="text-xs bg-indigo-700 text-white rounded border-none outline-none hidden md:block">
-                        <option value="">Loading voices...</option>
+                    <div class="relative">
+                        <div class="w-10 h-10 bg-white/20 backdrop-blur-sm rounded-full flex items-center justify-center text-xl shadow-inner border border-white/30">
+                            <i class="fas fa-robot text-white drop-shadow-md"></i>
+                        </div>
+                        <div class="absolute bottom-0 right-0 w-3 h-3 bg-green-400 border-2 border-indigo-600 rounded-full"></div>
+                    </div>
+                    <div>
+                        <div class="font-bold text-sm tracking-wide">อับดุล AI</div>
+                        <div class="text-[10px] text-indigo-100 opacity-90 flex items-center"><i class="fas fa-bolt mr-1 text-yellow-300"></i> ถามอะไรตอบได้!</div>
+                    </div>
+                </div>
+                
+                <div class="flex items-center space-x-2">
+                    <select id="aiVoiceSelect" class="text-xs bg-white/20 backdrop-blur-md text-white rounded-lg border border-white/20 outline-none hidden md:block py-1 px-2 focus:bg-white/30 transition-colors shadow-sm cursor-pointer hover:bg-white/30">
+                        <option value="" class="text-gray-900">Loading voices...</option>
                     </select>
-                    <button id="ai-live-voice-btn" class="text-white hover:text-green-300 transition-colors" title="Live Voice Mode"><i class="fas fa-headset"></i></button>
-                    <button onclick="window.toggleChatSize()" class="text-white hover:text-gray-200"><i class="fas fa-expand" id="chat-expand-icon"></i></button>
- class="text-white hover:text-gray-200"><i class="fas fa-expand" id="chat-expand-icon"></i></button>
-                    <button onclick="document.getElementById('ai-chat-window').classList.add('hidden'); document.getElementById('ai-chat-window').classList.remove('flex');" class="text-white hover:text-gray-200"><i class="fas fa-times"></i></button>
+                    <button id="ai-live-voice-btn" class="w-8 h-8 rounded-full flex items-center justify-center text-white hover:bg-white/20 transition-all" title="Live Voice Mode"><i class="fas fa-headset"></i></button>
+                    <button onclick="window.toggleChatSize()" class="w-8 h-8 rounded-full flex items-center justify-center text-white hover:bg-white/20 transition-all"><i class="fas fa-expand" id="chat-expand-icon"></i></button>
+                    <button onclick="document.getElementById('ai-chat-window').classList.add('hidden'); document.getElementById('ai-chat-window').classList.remove('flex');" class="w-8 h-8 rounded-full flex items-center justify-center text-white hover:bg-red-500/80 hover:text-white transition-all"><i class="fas fa-times"></i></button>
                 </div>
             </div>
             
-            <div id="ai-chat-messages" class="flex-1 overflow-y-auto p-4 space-y-3 bg-gray-50 dark:bg-gray-900 text-sm relative">
+            <div id="ai-chat-messages" class="flex-1 overflow-y-auto p-5 space-y-5 bg-gray-50/50 dark:bg-gray-900/50 text-sm relative scroll-smooth custom-scrollbar"> class="flex-1 overflow-y-auto p-4 space-y-3 bg-gray-50 dark:bg-gray-900 text-sm relative">
                 <!-- Live Voice Overlay -->
                 <div id="liveVoiceOverlay" class="absolute inset-0 bg-black/80 z-10 hidden flex-col items-center justify-center text-white p-6 text-center backdrop-blur-sm">
                     <div class="relative">
@@ -722,29 +733,43 @@
                     <button id="exitLiveVoiceBtn" class="mt-8 px-6 py-2 bg-red-600 hover:bg-red-700 rounded-full font-bold shadow-md transition-colors"><i class="fas fa-times mr-2"></i> วางสาย (Exit)</button>
                 </div>
 
-                <div class="bg-indigo-100 dark:bg-indigo-900/50 text-indigo-800 dark:text-indigo-200 p-3 rounded-lg rounded-tl-none w-3/4">
-                    สวัสดีครับ ผม "อับดุล" ถามอะไรเกี่ยวกับอุปกรณ์ในระบบเบิกจ่าย... ตอบได้! ลองพิมพ์ถามมาได้เลยครับ
+                
+                <!-- AI Greeting -->
+                <div class="flex items-start space-x-3">
+                    <div class="w-8 h-8 bg-gradient-to-br from-indigo-500 to-purple-500 rounded-full flex items-center justify-center text-white shrink-0 shadow-md border border-white/50">
+                        <i class="fas fa-robot text-xs"></i>
+                    </div>
+                    <div class="bg-white dark:bg-gray-800 text-gray-800 dark:text-gray-200 p-3.5 rounded-2xl rounded-tl-sm shadow-sm border border-gray-100 dark:border-gray-700 max-w-[85%] leading-relaxed">
+                        สวัสดีครับ! ผม <strong>"อับดุล"</strong> ผู้ช่วย AI ประจำระบบเบิกจ่าย <br>มีอะไรให้ผมช่วยหา หรือจัดการอุปกรณ์ชิ้นไหนไหมครับ? 🤖✨
+                    </div>
                 </div>
             </div>
-            <div class="p-3 bg-white dark:bg-gray-800 border-t border-gray-200 dark:border-gray-700 flex flex-col shrink-0">
-                <div id="ai-chat-image-preview" class="hidden mb-2 relative">
-                    <img id="ai-chat-preview-img" class="h-16 w-16 object-cover rounded-md border border-gray-300">
-                    <button id="ai-chat-remove-image" class="absolute -top-2 -right-2 bg-red-500 text-white rounded-full w-5 h-5 flex items-center justify-center text-xs shadow hover:bg-red-600"><i class="fas fa-times"></i></button>
+            <div class="p-4 bg-white dark:bg-gray-800 border-t border-gray-100 dark:border-gray-700 flex flex-col shrink-0 shadow-[0_-4px_10px_rgba(0,0,0,0.02)] z-10">
+                <div id="ai-chat-image-preview" class="hidden mb-3 relative inline-block">
+                    <div class="relative group">
+                        <img id="ai-chat-preview-img" class="h-20 w-20 object-cover rounded-xl border-2 border-indigo-200 shadow-md transition-transform transform group-hover:scale-105">
+                        <button id="ai-chat-remove-image" class="absolute -top-2 -right-2 bg-gray-900 text-white rounded-full w-6 h-6 flex items-center justify-center text-xs shadow-lg hover:bg-red-600 transition-colors border-2 border-white"><i class="fas fa-times"></i></button>
+                    </div>
                 </div>
-                <div class="flex items-center">
+                
+                <div class="flex items-end space-x-2 bg-gray-100 dark:bg-gray-700/50 p-1.5 rounded-2xl border border-gray-200 dark:border-gray-600 focus-within:ring-2 focus-within:ring-indigo-500/50 focus-within:border-indigo-400 transition-all">
                     <input type="file" id="ai-chat-file-input" accept="image/*" class="hidden">
-                    <button id="ai-chat-attach-btn" onclick="document.getElementById('ai-chat-file-input').click()" class="text-gray-500 hover:text-indigo-600 px-2 text-lg"><i class="fas fa-paperclip"></i></button>
                     
-                    <button id="ai-chat-mic-btn" class="text-gray-500 hover:text-indigo-600 px-2 text-lg transition-colors"><i class="fas fa-microphone"></i></button>
-                    <input type="text" id="ai-chat-input"
- placeholder="พิมพ์คำถาม หรือส่งรูปอุปกรณ์..." class="flex-1 bg-gray-100 dark:bg-gray-700 text-gray-900 dark:text-white rounded-l-lg px-3 py-2 focus:outline-none text-sm ml-2">
-                    <button id="ai-chat-send" class="bg-indigo-600 text-white px-4 py-2 rounded-r-lg hover:bg-indigo-700"><i class="fas fa-paper-plane"></i></button>
+                    <button id="ai-chat-attach-btn" onclick="document.getElementById('ai-chat-file-input').click()" class="w-10 h-10 rounded-xl flex items-center justify-center text-gray-500 hover:text-indigo-600 hover:bg-white dark:hover:bg-gray-600 transition-all shrink-0"><i class="fas fa-plus text-lg"></i></button>
+                    
+                    <textarea id="ai-chat-input" rows="1" placeholder="พิมพ์ข้อความที่นี่..." class="flex-1 bg-transparent text-gray-900 dark:text-white px-2 py-2.5 focus:outline-none text-sm resize-none custom-scrollbar max-h-32 min-h-[40px] leading-relaxed" style="line-height: 1.5;"></textarea>
+                    
+                    <div class="flex space-x-1 shrink-0 p-1">
+                        <button id="ai-chat-mic-btn" class="w-8 h-8 rounded-full flex items-center justify-center text-gray-500 hover:text-indigo-600 hover:bg-indigo-50 dark:hover:bg-indigo-900/30 transition-all"><i class="fas fa-microphone"></i></button>
+                        <button id="ai-chat-send" class="w-8 h-8 rounded-full flex items-center justify-center bg-indigo-600 text-white hover:bg-indigo-700 shadow-md transition-transform hover:scale-105 active:scale-95"><i class="fas fa-arrow-up"></i></button>
+                    </div>
                 </div>
+                <div class="text-center mt-2 text-[10px] text-gray-400 font-medium">AI can make mistakes. Check important info.</div>
             </div>
         </div>
         <!-- Floating Button -->
-        <button onclick="document.getElementById('ai-chat-window').classList.toggle('hidden'); document.getElementById('ai-chat-window').classList.toggle('flex');" class="bg-indigo-600 hover:bg-indigo-700 text-white rounded-full w-14 h-14 shadow-lg flex items-center justify-center text-2xl transition-transform hover:scale-110">
-            <i class="fas fa-comment-dots"></i>
+        <button onclick="document.getElementById('ai-chat-window').classList.toggle('hidden'); document.getElementById('ai-chat-window').classList.toggle('flex');" class="bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white rounded-full w-14 h-14 shadow-[0_8px_20px_rgba(79,70,229,0.4)] flex items-center justify-center text-2xl transition-all duration-300 hover:scale-110 hover:shadow-[0_12px_25px_rgba(79,70,229,0.5)] active:scale-95 border-2 border-white/20">
+            <i class="fas fa-sparkles"></i>
         </button>
     </div>
 
