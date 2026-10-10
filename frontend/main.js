@@ -502,6 +502,11 @@ let currentLabelCategory = null;
 let currentDashboardFolder = null;
 
 document.addEventListener('DOMContentLoaded', () => {
+    fetchVoices();
+    document.getElementById('ai-live-voice-btn')?.addEventListener('click', window.toggleLiveVoiceMode);
+    document.getElementById('exitLiveVoiceBtn')?.addEventListener('click', window.toggleLiveVoiceMode);
+    document.getElementById('ai-chat-mic-btn')?.addEventListener('click', () => { if(!recognition) recognition = initSpeechRecognition(); recognition.start(); });
+
     const token = localStorage.getItem('authToken');
     const user = JSON.parse(localStorage.getItem('user'));
     if (token && user) {
@@ -2246,3 +2251,138 @@ window.openHistoryModal = async function() {
         container.innerHTML = `<div class="text-center text-red-500 py-8">ไม่สามารถดึงข้อมูลประวัติได้<br><span class="text-xs text-gray-400">${error.message}</span></div>`;
     }
 };
+
+
+// ===================================================================
+// 🌟 AI Voice Interaction (Live Mode + ElevenLabs)
+// ===================================================================
+let isLiveMode = false;
+let recognition = null;
+let silenceTimer = null;
+let currentAudio = null;
+
+async function fetchVoices() {
+    try {
+        const res = await fetch('/api/tts/voices', { headers: { 'Authorization': `Bearer ${localStorage.getItem('authToken')}` } });
+        if (res.ok) {
+            const voices = await res.json();
+            const select = document.getElementById('aiVoiceSelect');
+            if (select) {
+                select.innerHTML = voices.map(v => `<option value="${v.voice_id}">${v.name}</option>`).join('');
+                select.value = "21m00Tcm4TlvDq8ikWAM"; // default if exists
+            }
+        }
+    } catch(e) { console.error("Could not fetch voices", e); }
+}
+
+function initSpeechRecognition() {
+    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (!SpeechRecognition) return null;
+    
+    const rc = new SpeechRecognition();
+    rc.continuous = true;
+    rc.interimResults = true;
+    rc.lang = 'th-TH';
+
+    rc.onresult = (event) => {
+        let finalTranscript = '';
+        let interimTranscript = '';
+        for (let i = event.resultIndex; i < event.results.length; ++i) {
+            if (event.results[i].isFinal) finalTranscript += event.results[i][0].transcript;
+            else interimTranscript += event.results[i][0].transcript;
+        }
+        
+        const textDisplay = document.getElementById('liveVoiceText');
+        if (textDisplay) textDisplay.innerText = finalTranscript || interimTranscript;
+
+        clearTimeout(silenceTimer);
+        
+        if (finalTranscript.trim() !== '') {
+            document.getElementById('ai-chat-input').value = finalTranscript;
+            silenceTimer = setTimeout(() => {
+                if (isLiveMode) {
+                    rc.stop();
+                    document.getElementById('liveVoiceStatus').innerText = "กำลังคิด...";
+                    document.getElementById('liveVoiceRing').classList.remove('bg-indigo-500');
+                    document.getElementById('liveVoiceRing').classList.add('bg-yellow-500');
+                    document.getElementById('liveVoiceIcon').className = "fas fa-spinner fa-spin text-3xl";
+                    document.getElementById('ai-chat-send').click();
+                }
+            }, 1500); // 1.5 seconds silence triggers send
+        }
+    };
+
+    rc.onend = () => {
+        // If still in live mode but we stopped it to process, we shouldn't restart yet.
+        // It restarts after TTS finishes.
+    };
+    
+    return rc;
+}
+
+window.toggleLiveVoiceMode = function() {
+    isLiveMode = !isLiveMode;
+    const overlay = document.getElementById('liveVoiceOverlay');
+    const input = document.getElementById('ai-chat-input');
+    
+    if (!recognition) recognition = initSpeechRecognition();
+    
+    if (isLiveMode) {
+        overlay.classList.remove('hidden');
+        overlay.classList.add('flex');
+        input.value = '';
+        startListening();
+    } else {
+        overlay.classList.add('hidden');
+        overlay.classList.remove('flex');
+        if (recognition) recognition.stop();
+        if (currentAudio) currentAudio.pause();
+        clearTimeout(silenceTimer);
+    }
+}
+
+function startListening() {
+    if (!isLiveMode || !recognition) return;
+    document.getElementById('liveVoiceStatus').innerText = "กำลังฟัง...";
+    document.getElementById('liveVoiceText').innerText = "พูดสิ่งที่คุณต้องการถามได้เลย";
+    document.getElementById('liveVoiceRing').className = "absolute inset-0 bg-indigo-500 rounded-full animate-ping opacity-75";
+    document.getElementById('liveVoiceIcon').className = "fas fa-microphone text-3xl";
+    try { recognition.start(); } catch(e) {}
+}
+
+async function playElevenLabsTTS(text) {
+    if (!isLiveMode) return;
+    document.getElementById('liveVoiceStatus').innerText = "กำลังพูด...";
+    document.getElementById('liveVoiceRing').className = "absolute inset-0 bg-green-500 rounded-full animate-ping opacity-75";
+    document.getElementById('liveVoiceIcon').className = "fas fa-volume-up text-3xl";
+    
+    const voiceId = document.getElementById('aiVoiceSelect')?.value;
+    
+    try {
+        const res = await fetch('/api/tts/generate', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${localStorage.getItem('authToken')}`
+            },
+            body: JSON.stringify({ text, voiceId })
+        });
+        
+        if (!res.ok) throw new Error("TTS failed");
+        
+        const blob = await res.blob();
+        const url = URL.createObjectURL(blob);
+        
+        if (currentAudio) currentAudio.pause();
+        currentAudio = new Audio(url);
+        currentAudio.onended = () => {
+            URL.revokeObjectURL(url);
+            startListening(); // Resume listening after speaking
+        };
+        currentAudio.play();
+        
+    } catch (e) {
+        console.error(e);
+        startListening(); // fallback
+    }
+}
