@@ -2269,7 +2269,7 @@ async function fetchVoices() {
             const select = document.getElementById('aiVoiceSelect');
             if (select) {
                 select.innerHTML = voices.map(v => `<option value="${v.voice_id}">${v.name}</option>`).join('');
-                select.value = "21m00Tcm4TlvDq8ikWAM"; // default if exists
+                select.value = "Yo0WmPHbg2TY6FYOSr3u"; // default if exists
             }
         }
     } catch(e) { console.error("Could not fetch voices", e); }
