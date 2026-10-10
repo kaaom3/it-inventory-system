@@ -2197,7 +2197,14 @@ document.addEventListener('DOMContentLoaded', () => {
             if (data.reply) {
                 appendMessage(data.reply, 'ai');
                 if (window.isLiveMode || typeof isLiveMode !== 'undefined' && isLiveMode) {
-                    playElevenLabsTTS(data.reply);
+                    // Strip markdown and HTML for clean TTS audio
+                    const cleanText = data.reply
+                        .replace(/[#*_~>\-]/g, '') // remove markdown symbols
+                        .replace(/<[^>]+>/g, '') // remove html tags
+                        .replace(/\!\[.*?\]\(.*?\)/g, '') // remove images
+                        .replace(/\[.*?\]\(.*?\)/g, '') // remove links
+                        .replace(/\n+/g, ' '); // replace newlines with space
+                    playElevenLabsTTS(cleanText);
                 }
             } else {
                 appendMessage('Sorry, an error occurred: ' + (data.error || data.message), 'ai');
