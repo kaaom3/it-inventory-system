@@ -2196,7 +2196,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
     sendBtn.addEventListener('click', sendMessage);
     
-    const chatInput = document.getElementById('ai-chat-input');
     if (chatInput) {
         chatInput.addEventListener('input', function() {
             this.style.height = 'auto';
