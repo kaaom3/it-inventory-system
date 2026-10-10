@@ -117,6 +117,65 @@ const verifyApiKey = (req, res, next) => {
 };
 
 // ===================================================================
+
+// ===================================================================
+// 🌟 ElevenLabs TTS Integration
+// ===================================================================
+
+app.get('/api/tts/voices', verifyToken, async (req, res) => {
+    try {
+        const elevenLabsKey = process.env.ELEVENLABS_API_KEY;
+        if (!elevenLabsKey) return res.status(500).json({ message: "ELEVENLABS_API_KEY is not configured" });
+
+        const response = await fetch('https://api.elevenlabs.io/v1/voices', {
+            headers: { 'xi-api-key': elevenLabsKey }
+        });
+        if (!response.ok) throw new Error("Failed to fetch voices from ElevenLabs");
+        const data = await response.json();
+        res.json(data.voices);
+    } catch (error) {
+        console.error("Voices Error:", error);
+        res.status(500).json({ message: error.message });
+    }
+});
+
+app.post('/api/tts/generate', verifyToken, async (req, res) => {
+    try {
+        const { text, voiceId } = req.body;
+        if (!text) return res.status(400).json({ message: "Text is required" });
+
+        const elevenLabsKey = process.env.ELEVENLABS_API_KEY;
+        if (!elevenLabsKey) return res.status(500).json({ message: "ELEVENLABS_API_KEY is not configured" });
+
+        const targetVoice = voiceId || 'Yo0WmPHbg2TY6FYOSr3u';
+        const response = await fetch(`https://api.elevenlabs.io/v1/text-to-speech/${targetVoice}`, {
+            method: 'POST',
+            headers: {
+                'Accept': 'audio/mpeg',
+                'xi-api-key': elevenLabsKey,
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                text: text,
+                model_id: "eleven_multilingual_v2",
+                voice_settings: {
+                    stability: 0.5,
+                    similarity_boost: 0.75
+                }
+            })
+        });
+
+        if (!response.ok) throw new Error(`ElevenLabs API Error: ${response.statusText}`);
+
+        const arrayBuffer = await response.arrayBuffer();
+        res.set('Content-Type', 'audio/mpeg');
+        res.send(Buffer.from(arrayBuffer));
+    } catch (error) {
+        console.error("TTS Generate Error:", error);
+        res.status(500).json({ message: error.message });
+    }
+});
+
 // --- Authentication Routes ---
 // ===================================================================
 app.post('/api/login', async (req, res) => {
