@@ -1,11 +1,11 @@
 /**
  * ============================================================================
- * 🗺️ Interactive Floor Plan Module (Interactive Device Map) - v4.0
- * - Immersive Viewport: Full black-area coverage (เต็มพื้นที่สีดำ) + Full Pan & Zoom
- * - Smooth Mouse-Wheel Zoom directly toward cursor position
- * - Mouse Drag Panning & Touch Pinch-to-Zoom
+ * 🗺️ Interactive Floor Plan Module (Interactive Device Map & Smart Campus GIS) - v5.0
+ * - Zone & Area Navigation: Buildings (ตึกA, ตึกB) & Sub-zones/Departments (แผนก/จุดในตึก)
+ * - Clickable Location: Click on any device's Location to fly smoothly to that point/building
+ * - Precision Pan & Zoom Engine with cursor-anchored wheel zoom & touch gestures
  * - Dynamic Device-Specific Pins: Distinct icon/photo, category color, and machine name tag
- * - Hierarchical & Nested Categories with sub-menu device aggregation
+ * - Hierarchical Categories with sub-menu device aggregation
  * - Precision Drag & Drop Pinning regardless of zoom level or pan offset
  * ============================================================================
  */
@@ -17,11 +17,13 @@ class FloorPlanManager {
         this.mapViewport = null;
         this.mapCanvas = null;
         this.pinsContainer = null;
+        this.zonesContainer = null;
         
         this.selectedCategory = 'Computers';
         this.filterMode = 'all'; // 'all', 'unpinned', 'pinned'
         this.searchQuery = '';
         this.isolateCategory = true;
+        this.selectedZone = 'all'; // 'all' or zone id
         
         // Pan & Zoom Engine State
         this.scale = 1.0;
@@ -35,10 +37,17 @@ class FloorPlanManager {
         this.touchStartDist = null;
         this.touchStartScale = null;
 
-        // Active Pin Popover
+        // Active Pin Popover & Modals
         this.activePopover = null;
         this.initialized = false;
         this.resizeObserver = null;
+
+        // Map Picking Mode (for setting zone coordinates)
+        this.isPickingCoords = false;
+        this.pickingCallback = null;
+
+        // Zones / Buildings Data
+        this.zones = [];
 
         // Aspect ratio of map.webp (6719 x 7610 px)
         this.aspectRatio = 6719 / 7610; 
@@ -61,7 +70,10 @@ class FloorPlanManager {
         }
 
         await this.ensureDataLoaded();
+        this.loadZones();
         this.populateCategories();
+        this.renderZoneBar();
+        this.renderZoneLandmarks();
         this.renderDeviceCards();
         this.renderPins();
         
@@ -75,19 +87,19 @@ class FloorPlanManager {
         this.container.style.setProperty('flex-direction', 'column', 'important');
         this.container.innerHTML = `
             <!-- Top Controls Toolbar -->
-            <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 p-2.5 md:p-3 mb-2.5 md:mb-3 flex flex-wrap items-center justify-between gap-2.5 shrink-0">
+            <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 p-2.5 md:p-3 mb-2 flex flex-wrap items-center justify-between gap-2.5 shrink-0">
                 <div class="flex items-center space-x-3">
                     <div class="w-10 h-10 rounded-xl bg-indigo-50 dark:bg-indigo-900/40 text-indigo-600 dark:text-indigo-400 flex items-center justify-center text-lg shadow-inner">
                         <i class="fas fa-map-marked-alt"></i>
                     </div>
                     <div>
                         <h2 class="text-base md:text-lg font-bold text-gray-800 dark:text-white flex items-center">
-                            แผนผังพัสดุ & อุปกรณ์
+                            แผนผังพัสดุ & อาคารโซน
                             <span id="fp-cat-badge" class="ml-2 px-2.5 py-0.5 text-xs bg-indigo-100 dark:bg-indigo-900/60 text-indigo-700 dark:text-indigo-300 rounded-full font-semibold max-w-[200px] truncate">
                                 Computers
                             </span>
                         </h2>
-                        <p class="text-xs text-gray-500 dark:text-gray-400">ลากอุปกรณ์จากฝั่งซ้ายมาวางบนตำแหน่งที่ตั้งในแผนผังได้ทันที</p>
+                        <p class="text-xs text-gray-500 dark:text-gray-400">คลิกที่ Location ของอุปกรณ์เพื่อบินไปยังตำแหน่งบนผัง หรือเลือกโซน/อาคารด้านล่าง</p>
                     </div>
                 </div>
 
@@ -96,6 +108,12 @@ class FloorPlanManager {
                     <label class="flex items-center space-x-2 text-xs text-gray-700 dark:text-gray-300 bg-gray-50 dark:bg-gray-700/50 px-3 py-1.5 rounded-xl border border-gray-200 dark:border-gray-600 cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700 transition">
                         <input type="checkbox" id="fp-isolate-toggle" checked class="rounded text-indigo-600 focus:ring-indigo-500 w-3.5 h-3.5">
                         <span class="font-medium">👁️ ซ่อนหมวดอื่น (แสดงเฉพาะหมวดที่เลือก)</span>
+                    </label>
+
+                    <!-- Toggle Landmarks -->
+                    <label class="flex items-center space-x-2 text-xs text-gray-700 dark:text-gray-300 bg-gray-50 dark:bg-gray-700/50 px-3 py-1.5 rounded-xl border border-gray-200 dark:border-gray-600 cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700 transition">
+                        <input type="checkbox" id="fp-landmarks-toggle" checked class="rounded text-indigo-600 focus:ring-indigo-500 w-3.5 h-3.5">
+                        <span class="font-medium">🏷️ แสดงป้ายอาคาร</span>
                     </label>
 
                     <!-- Zoom & Pan Controls in Toolbar -->
@@ -119,6 +137,24 @@ class FloorPlanManager {
                     <!-- Toggle Sidebar Visibility on small screens -->
                     <button id="fp-toggle-tray" class="md:hidden px-3 py-1.5 bg-indigo-600 text-white rounded-xl text-xs font-bold shadow-sm">
                         <i class="fas fa-list mr-1"></i> รายการอุปกรณ์
+                    </button>
+                </div>
+            </div>
+
+            <!-- Zone & Building Navigation Bar (NEW!) -->
+            <div id="fp-zone-bar" class="bg-white/95 dark:bg-gray-800/95 backdrop-blur-md rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 px-3 py-2 mb-2.5 flex items-center justify-between gap-2 overflow-x-auto custom-scrollbar shrink-0">
+                <div class="flex items-center space-x-2 shrink-0">
+                    <span class="text-xs font-extrabold text-gray-700 dark:text-gray-200 flex items-center">
+                        <i class="fas fa-city text-indigo-500 mr-1.5"></i>
+                        โซน/อาคาร:
+                    </span>
+                </div>
+                <div id="fp-zone-pills" class="flex items-center space-x-2 flex-1 overflow-x-auto custom-scrollbar py-0.5">
+                    <!-- Populated dynamically with [ทั้งหมด] [ตึกA] [ตึกB]... -->
+                </div>
+                <div class="flex items-center space-x-1.5 shrink-0 pl-2 border-l border-gray-200 dark:border-gray-700">
+                    <button id="fp-btn-manage-zones" class="px-3 py-1.5 text-xs font-bold bg-indigo-50 hover:bg-indigo-100 dark:bg-indigo-950/80 dark:hover:bg-indigo-900/80 text-indigo-600 dark:text-indigo-300 rounded-xl transition flex items-center shadow-sm border border-indigo-200/80 dark:border-indigo-800/80">
+                        <i class="fas fa-cog mr-1.5 text-indigo-500"></i> จัดการโซน/อาคาร
                     </button>
                 </div>
             </div>
@@ -173,8 +209,13 @@ class FloorPlanManager {
                     <div id="fp-canvas" class="relative shadow-2xl origin-top-left will-change-transform" style="transform: translate(0px, 0px) scale(1);">
                         <img id="fp-map-img" src="map.webp" alt="Floor Plan" class="w-full h-full object-fill block select-none pointer-events-none">
                         
+                        <!-- Zone Landmarks Layer (Labels for Buildings/Zones) -->
+                        <div id="fp-zones-layer" class="absolute inset-0 pointer-events-auto z-15">
+                            <!-- Building/Zone badges rendered dynamically -->
+                        </div>
+
                         <!-- Pins Overlay Layer (Exact 100% overlay matching the image coordinates) -->
-                        <div id="fp-pins-layer" class="absolute inset-0 pointer-events-auto">
+                        <div id="fp-pins-layer" class="absolute inset-0 pointer-events-auto z-20">
                             <!-- Pins rendered dynamically -->
                         </div>
                     </div>
@@ -198,9 +239,16 @@ class FloorPlanManager {
                     </div>
 
                     <!-- Floating Help Tip (Bottom-Left) -->
-                    <div class="hidden sm:flex absolute bottom-4 left-4 bg-black/70 backdrop-blur-md text-white text-[11px] px-3.5 py-1.5 rounded-full shadow-lg pointer-events-none items-center space-x-2 border border-white/10 z-10">
+                    <div id="fp-hint-bar" class="hidden sm:flex absolute bottom-4 left-4 bg-black/75 backdrop-blur-md text-white text-[11px] px-3.5 py-1.5 rounded-full shadow-lg pointer-events-none items-center space-x-2 border border-white/10 z-10 transition-all">
                         <i class="fas fa-mouse text-indigo-400"></i>
-                        <span>คลิกลากเพื่อเลื่อนผัง | หมุนลูกกลิ้งเมาส์เพื่อซูมเข้า-ออก</span>
+                        <span>คลิกลากเพื่อเลื่อนผัง | หมุนลูกกลิ้งเมาส์เพื่อซูม | คลิกที่ Location ของอุปกรณ์เพื่อบินไปยังอาคาร</span>
+                    </div>
+
+                    <!-- Coordinate Picker Banner (Active when setting Zone point) -->
+                    <div id="fp-picker-banner" class="hidden absolute top-4 left-1/2 -translate-x-1/2 bg-amber-500 text-slate-900 font-bold text-xs px-4 py-2 rounded-2xl shadow-2xl flex items-center space-x-2 z-40 animate-bounce">
+                        <i class="fas fa-crosshairs text-base"></i>
+                        <span id="fp-picker-text">คลิกบนตำแหน่งอาคารในแผนผังเพื่อกำหนดพิกัด...</span>
+                        <button id="fp-btn-cancel-pick" class="ml-2 px-2 py-0.5 bg-black/20 hover:bg-black/30 rounded-lg text-[11px]">ยกเลิก</button>
                     </div>
 
                 </div>
@@ -212,6 +260,7 @@ class FloorPlanManager {
         this.mapCanvas = document.getElementById('fp-canvas');
         this.mapImg = document.getElementById('fp-map-img');
         this.pinsContainer = document.getElementById('fp-pins-layer');
+        this.zonesContainer = document.getElementById('fp-zones-layer');
 
         this.mapImg.onload = () => {
             this.fillWidth();
@@ -221,8 +270,24 @@ class FloorPlanManager {
     bindEvents() {
         const catSelect = document.getElementById('fp-cat-select');
         const isolateToggle = document.getElementById('fp-isolate-toggle');
+        const landmarksToggle = document.getElementById('fp-landmarks-toggle');
         const searchInput = document.getElementById('fp-search');
         const toggleTrayBtn = document.getElementById('fp-toggle-tray');
+        const manageZonesBtn = document.getElementById('fp-btn-manage-zones');
+        const cancelPickBtn = document.getElementById('fp-btn-cancel-pick');
+
+        // Manage Zones Modal
+        manageZonesBtn?.addEventListener('click', () => this.openZoneManagerModal());
+
+        // Cancel Coordinate Picking
+        cancelPickBtn?.addEventListener('click', () => this.cancelCoordPicking());
+
+        // Landmarks Toggle
+        landmarksToggle?.addEventListener('change', (e) => {
+            if (this.zonesContainer) {
+                this.zonesContainer.style.display = e.target.checked ? 'block' : 'none';
+            }
+        });
 
         // Toolbar Zoom & Fit Buttons
         document.getElementById('fp-btn-zoom-in')?.addEventListener('click', () => this.zoomAtCenter(1.25));
@@ -284,9 +349,24 @@ class FloorPlanManager {
             });
         });
 
-        // 🖱️ MOUSE PAN & DRAGGING
+        // 🖱️ MOUSE PAN & DRAGGING / COORDINATE PICKING
         this.mapViewport.addEventListener('mousedown', (e) => {
-            if (e.target.closest('.fp-pin') || e.target.closest('.fp-popover') || e.target.closest('#fp-hud-zoom-in') || e.target.closest('#fp-hud-zoom-out') || e.target.closest('#fp-hud-fill') || e.target.closest('#fp-hud-fit')) return;
+            // Coordinate picking mode takes precedence
+            if (this.isPickingCoords) {
+                const rect = this.pinsContainer.getBoundingClientRect();
+                const rawX = ((e.clientX - rect.left) / rect.width) * 100;
+                const rawY = ((e.clientY - rect.top) / rect.height) * 100;
+                const xPercent = parseFloat(Math.max(0, Math.min(100, rawX)).toFixed(2));
+                const yPercent = parseFloat(Math.max(0, Math.min(100, rawY)).toFixed(2));
+                
+                if (typeof this.pickingCallback === 'function') {
+                    this.pickingCallback(xPercent, yPercent);
+                }
+                this.cancelCoordPicking();
+                return;
+            }
+
+            if (e.target.closest('.fp-pin') || e.target.closest('.fp-popover') || e.target.closest('.fp-zone-landmark') || e.target.closest('#fp-hud-zoom-in') || e.target.closest('#fp-hud-zoom-out') || e.target.closest('#fp-hud-fill') || e.target.closest('#fp-hud-fit')) return;
             this.isPanning = true;
             this.startX = e.clientX - this.panX;
             this.startY = e.clientY - this.panY;
@@ -398,6 +478,575 @@ class FloorPlanManager {
     }
 
     // ------------------------------------------------------------------------
+    // 🏢 Zones & Locations Management (Buildings, Departments & Fly-To Navigation)
+    // ------------------------------------------------------------------------
+    loadZones() {
+        // 1. Try to load from database collection
+        const dbZones = window.allData?.FloorPlanZones;
+        if (Array.isArray(dbZones) && dbZones.length > 0) {
+            this.zones = dbZones;
+            return;
+        }
+
+        // 2. Try to load from localStorage
+        try {
+            const saved = localStorage.getItem('floorplan_zones');
+            if (saved) {
+                this.zones = JSON.parse(saved);
+                if (Array.isArray(this.zones) && this.zones.length > 0) return;
+            }
+        } catch (e) {
+            console.warn("Could not parse saved zones:", e);
+        }
+
+        // 3. Smart Initial Defaults matching the user's resort/water park & current data!
+        this.zones = [
+            {
+                id: 'zone-bld-a',
+                name: 'ตึก A (Office Building A)',
+                code: 'BLD-A',
+                locationKey: 'Office_Building_A',
+                icon: 'fa-building',
+                coords: { x: 58.0, y: 78.5 },
+                zoom: 1.8,
+                color: '#4f46e5',
+                description: 'อาคารสำนักงานใหญ่ รวมฝ่ายบริหาร ไอที และปฏิบัติการ',
+                subZones: [
+                    { id: 'sub-a-1', name: 'แผนก IT & Server Room', subKey: 'IT', coords: { x: 56.5, y: 77.0 }, zoom: 2.2 },
+                    { id: 'sub-a-2', name: 'แผนกปฏิบัติการ (Operations)', subKey: 'Operations', coords: { x: 58.0, y: 80.0 }, zoom: 2.2 },
+                    { id: 'sub-a-3', name: 'แผนกการเงิน & บัญชี', subKey: 'Accounting', coords: { x: 60.5, y: 78.0 }, zoom: 2.2 }
+                ]
+            },
+            {
+                id: 'zone-bld-b',
+                name: 'ตึก B (Engineering & Facility)',
+                code: 'BLD-B',
+                locationKey: 'Building_B',
+                icon: 'fa-tools',
+                coords: { x: 74.0, y: 75.0 },
+                zoom: 1.8,
+                color: '#0891b2',
+                description: 'อาคารฝ่ายวิศวกรรม ช่างซ่อมบำรุง และคลังพัสดุ',
+                subZones: [
+                    { id: 'sub-b-1', name: 'แผนกซ่อมบำรุง (Maintenance)', subKey: 'Maintenance', coords: { x: 73.0, y: 74.5 }, zoom: 2.2 },
+                    { id: 'sub-b-2', name: 'คลังอะไหล่ (Spare Parts Store)', subKey: 'Store', coords: { x: 75.0, y: 76.0 }, zoom: 2.2 }
+                ]
+            },
+            {
+                id: 'zone-waterpark',
+                name: 'โซนเครื่องเล่น & สวนน้ำ (Water Park)',
+                code: 'PARK',
+                locationKey: 'Water_Park',
+                icon: 'fa-water',
+                coords: { x: 52.0, y: 35.0 },
+                zoom: 1.5,
+                color: '#059669',
+                description: 'พื้นที่สวนน้ำ สไลเดอร์ และจุดบริการแคชเชียร์/จำหน่ายตั๋ว',
+                subZones: [
+                    { id: 'sub-wp-1', name: 'จุดจำหน่ายตั๋วทางเข้า (Ticket Counter)', subKey: 'Ticket', coords: { x: 53.0, y: 88.0 }, zoom: 2.3 },
+                    { id: 'sub-wp-2', name: 'สไลเดอร์ยักษ์ (Mega Slide Tower)', subKey: 'Slide', coords: { x: 45.0, y: 40.0 }, zoom: 2.0 },
+                    { id: 'sub-wp-3', name: 'ทะเลเทียม (Wave Pool & Beach)', subKey: 'Wave', coords: { x: 52.0, y: 24.0 }, zoom: 2.0 }
+                ]
+            }
+        ];
+
+        this.saveZonesLocally();
+    }
+
+    saveZonesLocally() {
+        try {
+            localStorage.setItem('floorplan_zones', JSON.stringify(this.zones));
+        } catch (e) {
+            console.warn("Local storage save failed:", e);
+        }
+    }
+
+    async saveZonesToDatabase() {
+        this.saveZonesLocally();
+        try {
+            const token = localStorage.getItem('authToken');
+            // Save to MongoDB collection 'FloorPlanZones'
+            for (const z of this.zones) {
+                await fetch(`/api/inventory/FloorPlanZones`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+                    body: JSON.stringify(z)
+                });
+            }
+        } catch (e) {
+            console.warn("DB save sync notice:", e);
+        }
+    }
+
+    renderZoneBar() {
+        const pillsContainer = document.getElementById('fp-zone-pills');
+        if (!pillsContainer) return;
+
+        // Count devices in each zone
+        const allDevices = [];
+        Object.keys(window.allData || {}).forEach(k => {
+            if (Array.isArray(window.allData[k]) && !['Staff', 'CustomMenus', 'FloorPlanZones'].includes(k)) {
+                allDevices.push(...window.allData[k]);
+            }
+        });
+
+        let pillsHtml = `
+            <button class="fp-zone-pill px-3 py-1 text-xs font-bold rounded-xl transition ${this.selectedZone === 'all' ? 'bg-indigo-600 text-white shadow-sm' : 'bg-gray-100 hover:bg-gray-200 dark:bg-gray-700 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-300'}" data-zone="all">
+                <i class="fas fa-th-large mr-1 text-[11px]"></i> ทั้งหมด (${allDevices.length})
+            </button>
+        `;
+
+        this.zones.forEach(z => {
+            const zKey = (z.locationKey || z.name).toLowerCase();
+            const count = allDevices.filter(d => (d.Location || '').toLowerCase().includes(zKey)).length;
+            const isSelected = this.selectedZone === z.id;
+
+            pillsHtml += `
+                <button class="fp-zone-pill px-3 py-1 text-xs font-bold rounded-xl transition whitespace-nowrap flex items-center ${isSelected ? 'bg-indigo-600 text-white shadow-sm' : 'bg-gray-100 hover:bg-gray-200 dark:bg-gray-700 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-300'}" data-zone="${z.id}" title="${z.description || z.name}">
+                    <i class="fas ${z.icon || 'fa-building'} mr-1.5 text-[11px]" style="color: ${isSelected ? '#ffffff' : (z.color || '#6366f1')}"></i>
+                    <span>${z.name}</span>
+                    <span class="ml-1.5 px-1.5 py-0.2 rounded-full text-[10px] ${isSelected ? 'bg-white/20 text-white' : 'bg-gray-200 dark:bg-gray-600 text-gray-700 dark:text-gray-200 font-mono'}">${count}</span>
+                </button>
+            `;
+        });
+
+        pillsContainer.innerHTML = pillsHtml;
+
+        // Bind clicks on Zone Pills
+        pillsContainer.querySelectorAll('.fp-zone-pill').forEach(btn => {
+            btn.addEventListener('click', () => {
+                const zoneId = btn.dataset.zone;
+                this.selectZone(zoneId);
+            });
+        });
+    }
+
+    selectZone(zoneId) {
+        this.selectedZone = zoneId;
+        this.renderZoneBar();
+
+        if (zoneId === 'all') {
+            this.fillWidth();
+            this.renderDeviceCards();
+            return;
+        }
+
+        const z = this.zones.find(item => item.id === zoneId);
+        if (z && z.coords) {
+            // Smoothly fly camera directly to the building!
+            this.flyToCoords(z.coords.x, z.coords.y, z.zoom || 1.8, 650);
+            this.showToastNotification(`🏢 บินมายัง: ${z.name}`, 'info');
+        }
+
+        this.renderDeviceCards();
+    }
+
+    // Render floating building badges on the map
+    renderZoneLandmarks() {
+        if (!this.zonesContainer) return;
+        this.zonesContainer.innerHTML = '';
+
+        const allDevices = [];
+        Object.keys(window.allData || {}).forEach(k => {
+            if (Array.isArray(window.allData[k]) && !['Staff', 'CustomMenus', 'FloorPlanZones'].includes(k)) {
+                allDevices.push(...window.allData[k]);
+            }
+        });
+
+        this.zones.forEach(z => {
+            if (!z.coords || typeof z.coords.x !== 'number') return;
+            const zKey = (z.locationKey || z.name).toLowerCase();
+            const count = allDevices.filter(d => (d.Location || '').toLowerCase().includes(zKey)).length;
+
+            const badge = document.createElement('div');
+            badge.className = 'fp-zone-landmark absolute -translate-x-1/2 -translate-y-1/2 cursor-pointer z-15 transition-transform hover:scale-115 group';
+            badge.style.left = `${z.coords.x}%`;
+            badge.style.top = `${z.coords.y}%`;
+            badge.title = `${z.name} - คลิกเพื่อซูมดูอาคาร`;
+
+            badge.innerHTML = `
+                <div class="flex items-center bg-gray-900/90 hover:bg-indigo-900/95 text-white text-[11px] font-extrabold px-3 py-1.5 rounded-2xl shadow-2xl border-2 border-indigo-400/60 backdrop-blur-md transition-colors">
+                    <i class="fas ${z.icon || 'fa-building'} mr-1.5 text-xs text-yellow-300"></i>
+                    <span class="truncate max-w-[140px]">${z.name.split('(')[0].trim()}</span>
+                    <span class="ml-1.5 px-1.5 py-0.2 text-[10px] bg-indigo-500 text-white rounded-full font-mono">${count}</span>
+                </div>
+            `;
+
+            badge.addEventListener('click', (e) => {
+                e.stopPropagation();
+                this.selectZone(z.id);
+            });
+
+            this.zonesContainer.appendChild(badge);
+        });
+    }
+
+    // 🚀 CAMERA FLIGHT (Smooth Ease-Out Glide to any target coordinates & zoom)
+    flyToCoords(targetXPercent, targetYPercent, targetScale = 1.6, duration = 600) {
+        if (!this.mapViewport || !this.mapCanvas) return;
+
+        const canvasW = this.mapCanvas.offsetWidth;
+        const canvasH = this.mapCanvas.offsetHeight;
+        const targetPixelX = (targetXPercent / 100) * canvasW;
+        const targetPixelY = (targetYPercent / 100) * canvasH;
+
+        const startScale = this.scale;
+        const startPanX = this.panX;
+        const startPanY = this.panY;
+
+        const endScale = Math.min(Math.max(targetScale, 0.4), 4.5);
+        const endPanX = (this.mapViewport.clientWidth / 2) - (targetPixelX * endScale);
+        const endPanY = (this.mapViewport.clientHeight / 2) - (targetPixelY * endScale);
+
+        const startTime = performance.now();
+
+        const animate = (currentTime) => {
+            const elapsed = currentTime - startTime;
+            const progress = Math.min(elapsed / duration, 1);
+            // Smooth cubic ease-out
+            const ease = 1 - Math.pow(1 - progress, 3);
+
+            this.scale = parseFloat((startScale + (endScale - startScale) * ease).toFixed(3));
+            this.panX = startPanX + (endPanX - startPanX) * ease;
+            this.panY = startPanY + (endPanY - startPanY) * ease;
+            this.updateTransform();
+
+            if (progress < 1) {
+                requestAnimationFrame(animate);
+            }
+        };
+
+        requestAnimationFrame(animate);
+    }
+
+    // 🎯 CLICKABLE LOCATION NAVIGATION (คลิกที่ Location ของอุปกรณ์เพื่อพาไปยังจุดในแผนที่)
+    navigateToLocation(locString, deviceId = null) {
+        // 1. If device is already pinned on the map, fly straight to its exact pin!
+        if (deviceId) {
+            for (const col of Object.keys(window.allData || {})) {
+                if (Array.isArray(window.allData[col])) {
+                    const d = window.allData[col].find(item => item._id === deviceId);
+                    if (d && d.mapLocation && typeof d.mapLocation.x === 'number') {
+                        this.flyToCoords(d.mapLocation.x, d.mapLocation.y, 1.8, 650);
+                        setTimeout(() => this.highlightPin(deviceId), 700);
+                        this.showToastNotification(`📍 บินมายังตำแหน่งของเครื่อง: ${this.getDeviceDisplayName(d)}`, 'success');
+                        return;
+                    }
+                }
+            }
+        }
+
+        // 2. If unpinned, look for matching Zone or Department by location string
+        if (!locString) {
+            this.showToastNotification("อุปกรณ์นี้ยังไม่ได้ระบุสถานที่ (Location)", "warning");
+            return;
+        }
+
+        const cleanLoc = locString.toLowerCase().trim();
+        
+        // Find matching zone
+        const matchedZone = this.zones.find(z => {
+            const zName = (z.name || '').toLowerCase();
+            const zKey = (z.locationKey || '').toLowerCase();
+            const zCode = (z.code || '').toLowerCase();
+            return cleanLoc.includes(zKey) || cleanLoc.includes(zName) || cleanLoc.includes(zCode) || zKey.includes(cleanLoc);
+        });
+
+        if (matchedZone && matchedZone.coords) {
+            // Check if there is a matching sub-zone / department inside this building
+            let targetCoords = matchedZone.coords;
+            let targetScale = matchedZone.zoom || 1.8;
+            let destLabel = matchedZone.name;
+
+            if (Array.isArray(matchedZone.subZones)) {
+                const sub = matchedZone.subZones.find(s => {
+                    const sKey = (s.subKey || '').toLowerCase();
+                    const sName = (s.name || '').toLowerCase();
+                    return cleanLoc.includes(sKey) || cleanLoc.includes(sName);
+                });
+                if (sub && sub.coords) {
+                    targetCoords = sub.coords;
+                    targetScale = sub.zoom || 2.2;
+                    destLabel = `${matchedZone.name} > ${sub.name}`;
+                }
+            }
+
+            this.flyToCoords(targetCoords.x, targetCoords.y, targetScale, 650);
+            this.showToastNotification(`🏢 บินมายัง: ${destLabel} (สามารถลากอุปกรณ์มาวางที่นี่ได้ทันที)`, 'info');
+            return;
+        }
+
+        // 3. If no matching zone coordinates are found, prompt user to set it
+        this.showToastNotification(`📍 ยังไม่ได้ระบุพิกัดสำหรับสถานที่: "${locString}" (คลิก [⚙️ จัดการโซน] เพื่อปักพิกัดอาคารได้)`, 'warning');
+    }
+
+    // Modal to Manage Zones & Sub-zones (Departments)
+    openZoneManagerModal() {
+        const existing = document.getElementById('fp-zone-modal');
+        if (existing) existing.remove();
+
+        const modal = document.createElement('div');
+        modal.id = 'fp-zone-modal';
+        modal.className = 'fixed inset-0 bg-black/70 backdrop-blur-sm z-[100] flex items-center justify-center p-3 md:p-6';
+
+        modal.innerHTML = `
+            <div class="bg-white dark:bg-gray-800 rounded-3xl shadow-2xl border border-gray-100 dark:border-gray-700 w-full max-w-2xl max-h-[90vh] flex flex-col overflow-hidden">
+                <!-- Header -->
+                <div class="p-5 border-b border-gray-100 dark:border-gray-700 flex justify-between items-center bg-gray-50 dark:bg-gray-800/60">
+                    <div class="flex items-center space-x-3">
+                        <div class="w-10 h-10 rounded-2xl bg-indigo-100 dark:bg-indigo-900/50 text-indigo-600 dark:text-indigo-400 flex items-center justify-center text-lg">
+                            <i class="fas fa-city"></i>
+                        </div>
+                        <div>
+                            <h3 class="text-lg font-extrabold text-gray-900 dark:text-white">จัดการโซน & อาคาร (Area / Zones)</h3>
+                            <p class="text-xs text-gray-500 dark:text-gray-400">กำหนดพิกัดอาคาร (ตึก A, ตึก B) และแผนกย่อยในอาคาร เพื่อให้คลิก Location แล้วบินมาได้</p>
+                        </div>
+                    </div>
+                    <button class="fp-modal-close text-gray-400 hover:text-gray-600 dark:hover:text-white p-2 text-lg"><i class="fas fa-times"></i></button>
+                </div>
+
+                <!-- Zone List Body -->
+                <div id="fp-zones-modal-list" class="flex-1 overflow-y-auto p-5 space-y-4 custom-scrollbar">
+                    <!-- Injected dynamically -->
+                </div>
+
+                <!-- Footer: Add Zone & Save -->
+                <div class="p-4 border-t border-gray-100 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/60 flex justify-between items-center">
+                    <button id="fp-btn-add-zone" class="px-4 py-2 bg-indigo-50 hover:bg-indigo-100 dark:bg-indigo-950 dark:hover:bg-indigo-900 text-indigo-600 dark:text-indigo-300 rounded-xl text-xs font-bold transition flex items-center border border-indigo-200 dark:border-indigo-800">
+                        <i class="fas fa-plus mr-1.5"></i> เพิ่มโซน/อาคารใหม่
+                    </button>
+                    <div class="space-x-2">
+                        <button class="fp-modal-close px-4 py-2 bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 text-gray-700 dark:text-gray-200 rounded-xl text-xs font-bold transition">ปิด</button>
+                        <button id="fp-btn-save-zones" class="px-5 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold shadow-md transition">บันทึกข้อมูลโซน</button>
+                    </div>
+                </div>
+            </div>
+        `;
+
+        document.body.appendChild(modal);
+
+        modal.querySelectorAll('.fp-modal-close').forEach(b => b.addEventListener('click', () => modal.remove()));
+
+        this.renderZoneModalList();
+
+        document.getElementById('fp-btn-add-zone')?.addEventListener('click', () => {
+            const newZone = {
+                id: `zone-${Date.now()}`,
+                name: 'โซนใหม่',
+                locationKey: 'New_Location',
+                icon: 'fa-building',
+                coords: { x: 50.0, y: 50.0 },
+                zoom: 1.8,
+                color: '#4f46e5',
+                subZones: []
+            };
+            this.zones.push(newZone);
+            this.renderZoneModalList();
+        });
+
+        document.getElementById('fp-btn-save-zones')?.addEventListener('click', async () => {
+            await this.saveZonesToDatabase();
+            this.renderZoneBar();
+            this.renderZoneLandmarks();
+            this.showToastNotification("บันทึกข้อมูลโซนและพิกัดอาคารเรียบร้อยแล้ว!", "success");
+            modal.remove();
+        });
+    }
+
+    renderZoneModalList() {
+        const container = document.getElementById('fp-zones-modal-list');
+        if (!container) return;
+
+        container.innerHTML = this.zones.map((z, idx) => `
+            <div class="bg-white dark:bg-gray-800/80 rounded-2xl border border-gray-200 dark:border-gray-700 p-4 shadow-sm space-y-3 relative group">
+                <div class="flex justify-between items-start">
+                    <div class="flex items-center space-x-2 flex-1 mr-4">
+                        <span class="w-7 h-7 rounded-lg bg-indigo-50 dark:bg-indigo-950 text-indigo-600 flex items-center justify-center text-xs font-bold shrink-0">
+                            ${idx + 1}
+                        </span>
+                        <input type="text" value="${z.name}" class="fp-zone-name-input font-bold text-sm bg-transparent border-b border-dashed border-gray-300 dark:border-gray-600 outline-none w-full text-gray-900 dark:text-white" data-idx="${idx}" placeholder="ชื่อโซน/อาคาร (เช่น ตึก A)">
+                    </div>
+                    <button class="fp-btn-del-zone text-red-400 hover:text-red-600 text-xs p-1" data-idx="${idx}" title="ลบโซนนี้"><i class="fas fa-trash-alt"></i></button>
+                </div>
+
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+                    <div>
+                        <label class="block text-gray-400 text-[10px] uppercase font-bold mb-1">คำค้นหาเชื่อมกับ Location อุปกรณ์</label>
+                        <input type="text" value="${z.locationKey || ''}" class="fp-zone-key-input w-full p-2 rounded-xl bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 text-gray-800 dark:text-white font-mono" data-idx="${idx}" placeholder="เช่น Office_Building_A">
+                    </div>
+                    <div>
+                        <label class="block text-gray-400 text-[10px] uppercase font-bold mb-1">พิกัดบนแผนผัง (X%, Y%)</label>
+                        <div class="flex items-center space-x-2">
+                            <span class="font-mono text-gray-600 dark:text-gray-300 p-2 bg-gray-100 dark:bg-gray-700 rounded-xl flex-1 text-center font-bold">
+                                ${z.coords ? `${z.coords.x}%, ${z.coords.y}%` : 'ยังไม่ระบุ'}
+                            </span>
+                            <button class="fp-btn-pick-coord px-3 py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl text-xs flex items-center shrink-0 shadow-sm transition" data-idx="${idx}" title="คลิกบนแผนที่เพื่อระบุจุด">
+                                <i class="fas fa-crosshairs mr-1"></i> จิ้มจุดบนผัง
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Sub-zones / Departments inside this building -->
+                <div class="pt-2 border-t border-gray-100 dark:border-gray-700/60">
+                    <div class="flex justify-between items-center mb-1.5">
+                        <span class="text-[11px] font-bold text-gray-500 uppercase tracking-wider flex items-center">
+                            <i class="fas fa-door-open mr-1 text-indigo-500"></i> แผนก / จุดย่อยในตึกนี้ (${(z.subZones || []).length}):
+                        </span>
+                        <button class="fp-btn-add-subzone text-[10.5px] font-bold text-indigo-600 hover:underline" data-idx="${idx}">+ เพิ่มแผนกในตึก</button>
+                    </div>
+                    <div class="space-y-1.5">
+                        ${(z.subZones || []).map((sub, sIdx) => `
+                            <div class="flex items-center space-x-2 p-1.5 bg-gray-50 dark:bg-gray-900/50 rounded-xl border border-gray-200/60 dark:border-gray-700/60 text-xs">
+                                <i class="fas fa-level-up-alt rotate-90 text-gray-400 text-xs ml-1"></i>
+                                <input type="text" value="${sub.name}" class="fp-sub-name-input flex-1 bg-transparent border-none outline-none text-gray-800 dark:text-white font-medium" data-zidx="${idx}" data-sidx="${sIdx}" placeholder="ชื่อแผนก (เช่น แผนก IT)">
+                                <input type="text" value="${sub.subKey || ''}" class="fp-sub-key-input w-28 bg-white dark:bg-gray-800 p-1 rounded-lg border border-gray-200 dark:border-gray-600 font-mono text-[10.5px]" data-zidx="${idx}" data-sidx="${sIdx}" placeholder="คำค้น (เช่น IT)">
+                                <button class="fp-btn-pick-sub-coord px-2 py-1 bg-gray-200 dark:bg-gray-700 hover:bg-indigo-600 hover:text-white rounded-lg text-[10px] font-bold transition" data-zidx="${idx}" data-sidx="${sIdx}" title="จิ้มพิกัดแผนก">
+                                    <i class="fas fa-map-pin"></i> ${sub.coords ? `${Math.round(sub.coords.x)}%,${Math.round(sub.coords.y)}%` : 'พิกัด'}
+                                </button>
+                                <button class="fp-btn-del-subzone text-red-400 hover:text-red-600 p-1" data-zidx="${idx}" data-sidx="${sIdx}"><i class="fas fa-times"></i></button>
+                            </div>
+                        `).join('')}
+                    </div>
+                </div>
+            </div>
+        `).join('');
+
+        // Bind Inputs & Handlers
+        container.querySelectorAll('.fp-zone-name-input').forEach(inp => {
+            inp.addEventListener('input', (e) => {
+                this.zones[e.target.dataset.idx].name = e.target.value;
+            });
+        });
+
+        container.querySelectorAll('.fp-zone-key-input').forEach(inp => {
+            inp.addEventListener('input', (e) => {
+                this.zones[e.target.dataset.idx].locationKey = e.target.value;
+            });
+        });
+
+        container.querySelectorAll('.fp-btn-del-zone').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                const idx = parseInt(e.currentTarget.dataset.idx);
+                if (confirm(`คุณต้องการลบโซน "${this.zones[idx].name}" ใช่หรือไม่?`)) {
+                    this.zones.splice(idx, 1);
+                    this.renderZoneModalList();
+                }
+            });
+        });
+
+        // Add Sub-zone
+        container.querySelectorAll('.fp-btn-add-subzone').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                const idx = parseInt(e.currentTarget.dataset.idx);
+                if (!Array.isArray(this.zones[idx].subZones)) this.zones[idx].subZones = [];
+                this.zones[idx].subZones.push({
+                    id: `sub-${Date.now()}`,
+                    name: 'แผนกใหม่',
+                    subKey: '',
+                    coords: { ...this.zones[idx].coords },
+                    zoom: 2.2
+                });
+                this.renderZoneModalList();
+            });
+        });
+
+        // Sub-zone inputs
+        container.querySelectorAll('.fp-sub-name-input').forEach(inp => {
+            inp.addEventListener('input', (e) => {
+                const zIdx = e.target.dataset.zidx;
+                const sIdx = e.target.dataset.sidx;
+                this.zones[zIdx].subZones[sIdx].name = e.target.value;
+            });
+        });
+
+        container.querySelectorAll('.fp-sub-key-input').forEach(inp => {
+            inp.addEventListener('input', (e) => {
+                const zIdx = e.target.dataset.zidx;
+                const sIdx = e.target.dataset.sidx;
+                this.zones[zIdx].subZones[sIdx].subKey = e.target.value;
+            });
+        });
+
+        container.querySelectorAll('.fp-btn-del-subzone').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                const zIdx = e.currentTarget.dataset.zidx;
+                const sIdx = e.currentTarget.dataset.sidx;
+                this.zones[zIdx].subZones.splice(sIdx, 1);
+                this.renderZoneModalList();
+            });
+        });
+
+        // Pick Zone Coord on Map
+        container.querySelectorAll('.fp-btn-pick-coord').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                const idx = parseInt(e.currentTarget.dataset.idx);
+                const zone = this.zones[idx];
+                document.getElementById('fp-zone-modal')?.classList.add('hidden');
+                this.startCoordPicking(`คลิกบนตำแหน่งของ "${zone.name}" ในแผนผัง...`, (x, y) => {
+                    zone.coords = { x, y };
+                    document.getElementById('fp-zone-modal')?.classList.remove('hidden');
+                    this.renderZoneModalList();
+                });
+            });
+        });
+
+        // Pick Sub-zone Coord on Map
+        container.querySelectorAll('.fp-btn-pick-sub-coord').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                const zIdx = parseInt(e.currentTarget.dataset.zidx);
+                const sIdx = parseInt(e.currentTarget.dataset.sidx);
+                const sub = this.zones[zIdx].subZones[sIdx];
+                document.getElementById('fp-zone-modal')?.classList.add('hidden');
+                this.startCoordPicking(`คลิกตำแหน่งแผนก "${sub.name}" ในแผนผัง...`, (x, y) => {
+                    sub.coords = { x, y };
+                    document.getElementById('fp-zone-modal')?.classList.remove('hidden');
+                    this.renderZoneModalList();
+                });
+            });
+        });
+    }
+
+    startCoordPicking(promptText, callback) {
+        this.isPickingCoords = true;
+        this.pickingCallback = callback;
+        const banner = document.getElementById('fp-picker-banner');
+        const text = document.getElementById('fp-picker-text');
+        if (banner) {
+            banner.classList.remove('hidden');
+            if (text) text.innerText = promptText;
+        }
+        if (this.mapViewport) this.mapViewport.style.cursor = 'crosshair';
+    }
+
+    cancelCoordPicking() {
+        this.isPickingCoords = false;
+        this.pickingCallback = null;
+        const banner = document.getElementById('fp-picker-banner');
+        if (banner) banner.classList.add('hidden');
+        if (this.mapViewport) this.mapViewport.style.cursor = 'grab';
+        document.getElementById('fp-zone-modal')?.classList.remove('hidden');
+    }
+
+    showToastNotification(message, type = 'info') {
+        const existing = document.getElementById('fp-toast-msg');
+        if (existing) existing.remove();
+
+        const toast = document.createElement('div');
+        toast.id = 'fp-toast-msg';
+        let bg = 'bg-gray-900/90 text-white border-white/10';
+        if (type === 'success') bg = 'bg-emerald-600 text-white border-emerald-400/50';
+        if (type === 'warning') bg = 'bg-amber-600 text-white border-amber-400/50';
+        if (type === 'info') bg = 'bg-indigo-600 text-white border-indigo-400/50';
+
+        toast.className = `fixed bottom-6 left-1/2 -translate-x-1/2 ${bg} backdrop-blur-md px-4 py-2.5 rounded-2xl shadow-2xl border text-xs font-bold z-[120] animate-bounce flex items-center space-x-2`;
+        toast.innerHTML = `<i class="fas fa-info-circle"></i><span>${message}</span>`;
+        document.body.appendChild(toast);
+
+        setTimeout(() => toast.remove(), 4000);
+    }
+
+    // ------------------------------------------------------------------------
     // 🔍 Data & Categories (Hierarchical & Nested Categories Support)
     // ------------------------------------------------------------------------
     async ensureDataLoaded() {
@@ -467,7 +1116,7 @@ class FloorPlanManager {
         });
 
         // 3. Any other collections
-        const skip = ['Staff', 'CustomMenus', 'TransactionHistory', 'LoanHistory', 'Maintenance Log', 'Maintenance', 'admins', 'Software', 'Accessory', ...coreCategories, ...customMenus.map(m => m.name)];
+        const skip = ['Staff', 'CustomMenus', 'TransactionHistory', 'LoanHistory', 'Maintenance Log', 'Maintenance', 'admins', 'Software', 'Accessory', 'FloorPlanZones', ...coreCategories, ...customMenus.map(m => m.name)];
         const extras = Object.keys(window.allData).filter(k => !skip.includes(k) && Array.isArray(window.allData[k]));
         if (extras.length > 0) {
             html += `<optgroup label="📦 หมวดหมู่อื่นๆ">`;
@@ -718,8 +1367,9 @@ class FloorPlanManager {
         const isParentWithChildren = customMenus.some(m => m.parentId === catName);
         const directItems = window.allData[catName] || [];
 
+        let aggregated = [];
+
         if (isParentWithChildren) {
-            const aggregated = [];
             if (Array.isArray(directItems)) {
                 aggregated.push(...directItems.map(d => ({ ...d, _collectionName: catName })));
             }
@@ -734,10 +1384,20 @@ class FloorPlanManager {
                     })));
                 }
             });
-            return aggregated;
+        } else {
+            aggregated = Array.isArray(directItems) ? directItems.map(d => ({ ...d, _collectionName: catName })) : [];
         }
 
-        return Array.isArray(directItems) ? directItems.map(d => ({ ...d, _collectionName: catName })) : [];
+        // Filter by selectedZone if active
+        if (this.selectedZone && this.selectedZone !== 'all') {
+            const z = this.zones.find(item => item.id === this.selectedZone);
+            if (z) {
+                const zKey = (z.locationKey || z.name).toLowerCase();
+                aggregated = aggregated.filter(d => (d.Location || '').toLowerCase().includes(zKey));
+            }
+        }
+
+        return aggregated;
     }
 
     renderDeviceCards() {
@@ -751,7 +1411,8 @@ class FloorPlanManager {
             const name = (d.ItemName || d.Model || d.ComputerName || d.DeviceName || d.name || '').toLowerCase();
             const sn = (d.SerialNumber || d.MonitorSerial || '').toLowerCase();
             const ip = (d.IPAddress || '').toLowerCase();
-            const matchesSearch = !this.searchQuery || name.includes(this.searchQuery) || sn.includes(this.searchQuery) || ip.includes(this.searchQuery);
+            const loc = (d.Location || '').toLowerCase();
+            const matchesSearch = !this.searchQuery || name.includes(this.searchQuery) || sn.includes(this.searchQuery) || ip.includes(this.searchQuery) || loc.includes(this.searchQuery);
 
             const isPinned = !!(d.mapLocation && typeof d.mapLocation.x === 'number');
             if (this.filterMode === 'pinned') return matchesSearch && isPinned;
@@ -763,7 +1424,7 @@ class FloorPlanManager {
         const pinnedCount = rawDevices.filter(d => d.mapLocation && typeof d.mapLocation.x === 'number').length;
         const unpinnedCount = total - pinnedCount;
         if (statsEl) {
-            statsEl.innerHTML = `<span>หมวดนี้: <strong>${total}</strong> เครื่อง</span><span>วางแล้ว: <strong>${pinnedCount}</strong> | ว่าง: <strong>${unpinnedCount}</strong></span>`;
+            statsEl.innerHTML = `<span>ในโซนนี้: <strong>${total}</strong> เครื่อง</span><span>วางแล้ว: <strong>${pinnedCount}</strong> | ว่าง: <strong>${unpinnedCount}</strong></span>`;
         }
 
         if (devices.length === 0) {
@@ -851,10 +1512,16 @@ class FloorPlanManager {
                             <span class="text-gray-400">ผู้ใช้:</span>
                             <span class="text-gray-700 dark:text-gray-300 truncate ml-1">${user}</span>
                         </div>` : ''}
+                        
+                        <!-- 🌟 CLICKABLE LOCATION BADGE (คลิกแล้วบินไปที่ตึกหรือพิกัดทันที!) -->
                         ${location ? `
-                        <div class="flex justify-between">
+                        <div class="flex justify-between items-center pt-0.5">
                             <span class="text-gray-400">สถานที่:</span>
-                            <span class="text-gray-700 dark:text-gray-300 truncate ml-1">${location}</span>
+                            <button class="fp-nav-loc-btn text-[11px] font-bold text-indigo-600 hover:text-indigo-800 dark:text-indigo-400 dark:hover:text-indigo-300 flex items-center bg-indigo-50/90 dark:bg-indigo-950/70 px-2 py-0.5 rounded-md border border-indigo-200/80 dark:border-indigo-800/80 transition group/loc" data-loc="${location}" data-id="${d._id}" title="คลิกเพื่อพาไปยังตำแหน่งในแผนที่">
+                                <i class="fas fa-map-marker-alt text-rose-500 mr-1 group-hover/loc:scale-125 transition-transform"></i>
+                                <span class="truncate max-w-[125px]">${location}</span>
+                                <i class="fas fa-external-link-alt text-[9px] text-gray-400 ml-1 opacity-70"></i>
+                            </button>
                         </div>` : ''}
                     </div>
 
@@ -882,6 +1549,14 @@ class FloorPlanManager {
         // Locate pin buttons
         listContainer.querySelectorAll('.fp-locate-btn').forEach(btn => {
             btn.addEventListener('click', () => this.highlightPin(btn.dataset.id));
+        });
+
+        // 🌟 Clickable Location buttons (Fly to Building/Pin!)
+        listContainer.querySelectorAll('.fp-nav-loc-btn').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                this.navigateToLocation(btn.dataset.loc, btn.dataset.id);
+            });
         });
 
         // Unpin buttons
@@ -1044,6 +1719,7 @@ class FloorPlanManager {
                 <div class="flex justify-between"><span class="text-gray-400">สถานะ:</span> <span class="font-semibold">${status}</span></div>
                 <div class="flex justify-between"><span class="text-gray-400">IP:</span> <span class="font-mono font-semibold text-blue-600 dark:text-blue-400">${ip}</span></div>
                 <div class="flex justify-between"><span class="text-gray-400">ผู้รับผิดชอบ:</span> <span class="truncate ml-1">${user}</span></div>
+                <div class="flex justify-between"><span class="text-gray-400">สถานที่:</span> <span class="font-semibold text-indigo-600 dark:text-indigo-400 truncate ml-1">${device.Location || '-'}</span></div>
                 <div class="flex justify-between"><span class="text-gray-400">พิกัดบนผัง:</span> <span class="font-mono text-gray-500">${Math.round(device.mapLocation.x)}%, ${Math.round(device.mapLocation.y)}%</span></div>
             </div>
 
@@ -1150,16 +1826,7 @@ class FloorPlanManager {
         const leftPct = parseFloat(pin.style.left);
         const topPct = parseFloat(pin.style.top);
 
-        const canvasW = this.mapCanvas.offsetWidth;
-        const canvasH = this.mapCanvas.offsetHeight;
-        const pinX = (leftPct / 100) * canvasW;
-        const pinY = (topPct / 100) * canvasH;
-
-        // Smoothly center on this pin and zoom to at least 1.4x
-        this.scale = Math.max(this.scale, 1.4);
-        this.panX = (this.mapViewport.clientWidth / 2) - (pinX * this.scale);
-        this.panY = (this.mapViewport.clientHeight / 2) - (pinY * this.scale);
-        this.updateTransform();
+        this.flyToCoords(leftPct, topPct, Math.max(this.scale, 1.6), 500);
 
         pin.classList.add('ring-4', 'ring-yellow-400', 'scale-125', 'z-50');
 
