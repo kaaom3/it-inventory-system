@@ -1811,46 +1811,62 @@ class FloorPlanManager {
     // ------------------------------------------------------------------------
     // 💾 Save / Update / Unpin Operations
     // ------------------------------------------------------------------------
-    findZoneAtCoords(x, y, maxDistance = 15) {
+    findZoneAtCoords(x, y, maxDistance = 16) {
         if (!this.zones || this.zones.length === 0) return null;
-        let closest = null;
-        let minDist = maxDistance;
+
+        let bestSubZone = null;
+        let minSubDist = 8.5;
+
+        let bestMainZone = null;
+        let minMainDist = maxDistance;
 
         this.zones.forEach(z => {
-            // Check sub-zones first (more specific department/area)
+            const bldTitle = z.name.includes('(') ? z.name.split('(')[0].trim() : z.name;
+
+            // 1. Check sub-zones (จุดย่อยในตึกนี้ / แผนก)
             if (Array.isArray(z.subZones)) {
                 z.subZones.forEach(sub => {
                     if (sub.coords && typeof sub.coords.x === 'number') {
                         const dist = Math.hypot(sub.coords.x - x, sub.coords.y - y);
-                        if (dist < minDist) {
-                            minDist = dist;
-                            closest = {
+                        if (dist < minSubDist) {
+                            minSubDist = dist;
+                            bestSubZone = {
                                 zone: z,
                                 subZone: sub,
-                                locationName: `${z.locationKey || z.name} - ${sub.subKey || sub.name}`,
-                                displayName: `${z.name.split('(')[0].trim()} > ${sub.name}`
+                                locationName: `${bldTitle} > ${sub.name}`,
+                                displayName: `${bldTitle} > ${sub.name}`
                             };
                         }
                     }
                 });
             }
 
-            // Check main building zone
+            // 2. Check main building zone (แอร์เรียหลัก)
             if (z.coords && typeof z.coords.x === 'number') {
                 const dist = Math.hypot(z.coords.x - x, z.coords.y - y);
-                if (dist < minDist) {
-                    minDist = dist;
-                    closest = {
+                if (dist < minMainDist) {
+                    minMainDist = dist;
+                    bestMainZone = {
                         zone: z,
                         subZone: null,
-                        locationName: z.locationKey || z.name,
+                        locationName: z.name,
                         displayName: z.name
                     };
                 }
             }
         });
 
-        return closest;
+        // Prioritize specific sub-zone (Area > Sub-point) if dropped close to it
+        if (bestSubZone) {
+            return bestSubZone;
+        }
+
+        // Otherwise return main building zone
+        if (bestMainZone) {
+            return bestMainZone;
+        }
+
+        return null;
     }
 
     async savePinLocation(id, col, x, y) {

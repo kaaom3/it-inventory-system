@@ -2141,11 +2141,12 @@ window.getLocationZoneDatalistOptions = function() {
     const options = new Set();
     const zones = (window.floorPlan && window.floorPlan.zones) || window.allData?.FloorPlanZones || [];
     zones.forEach(z => {
+        const bldTitle = z.name.includes('(') ? z.name.split('(')[0].trim() : z.name;
         if (z.name) options.add(z.name);
         if (z.locationKey) options.add(z.locationKey);
         if (Array.isArray(z.subZones)) {
             z.subZones.forEach(sub => {
-                if (sub.name) options.add(`${z.name.split('(')[0].trim()} - ${sub.name}`);
+                if (sub.name) options.add(`${bldTitle} > ${sub.name}`);
                 if (sub.subKey) options.add(sub.subKey);
             });
         }
