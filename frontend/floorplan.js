@@ -1,9 +1,9 @@
 /**
  * ============================================================================
- * 🗺️ Interactive Floor Plan Module (Interactive Device Map) - v2.0
- * - Map source: map.webp (Optimized blueprint)
- * - Auto-Fit Image to Viewport (No out-of-bounds overflow at 100%)
- * - Smooth Pan & Zoom (Mouse drag, wheel, pinch, reset button)
+ * 🗺️ Interactive Floor Plan Module (Interactive Device Map) - v2.1
+ * - Supports Hierarchical & Nested Categories / Sub-menus with automatic device aggregation
+ * - Mathematical Auto-Fit to Viewport (Zero overflow, pixel-perfect aspect ratio)
+ * - Smooth Pan & Zoom (Mouse drag, wheel zoom, touch pinch)
  * - Category isolation mode: only shows devices of the selected category
  * - Drag and Drop devices from left tray onto map
  * - Click pin to view details, move, or unpin
@@ -25,7 +25,6 @@ class FloorPlanManager {
         
         // Pan & Zoom State
         this.scale = 1.0;
-        this.baseScale = 1.0;
         this.panX = 0;
         this.panY = 0;
         this.isPanning = false;
@@ -35,6 +34,9 @@ class FloorPlanManager {
         // Active Pin Popover
         this.activePopover = null;
         this.initialized = false;
+
+        // Aspect ratio of map.webp (6719 x 7610 px)
+        this.aspectRatio = 6719 / 7610; 
     }
 
     async init() {
@@ -52,8 +54,8 @@ class FloorPlanManager {
         this.renderDeviceCards();
         this.renderPins();
         
-        // Fit map nicely once image is ready
-        setTimeout(() => this.fitToScreen(), 150);
+        // Fit map nicely to the container
+        requestAnimationFrame(() => this.fitToScreen());
     }
 
     renderLayout() {
@@ -68,7 +70,7 @@ class FloorPlanManager {
                     <div>
                         <h2 class="text-base md:text-lg font-bold text-gray-800 dark:text-white flex items-center">
                             แผนผังพัสดุ & อุปกรณ์
-                            <span id="fp-cat-badge" class="ml-2 px-2.5 py-0.5 text-xs bg-indigo-100 dark:bg-indigo-900/60 text-indigo-700 dark:text-indigo-300 rounded-full font-semibold">
+                            <span id="fp-cat-badge" class="ml-2 px-2.5 py-0.5 text-xs bg-indigo-100 dark:bg-indigo-900/60 text-indigo-700 dark:text-indigo-300 rounded-full font-semibold max-w-[200px] truncate">
                                 Computers
                             </span>
                         </h2>
@@ -93,7 +95,7 @@ class FloorPlanManager {
                             <i class="fas fa-search-plus text-xs"></i>
                         </button>
                         <button id="fp-zoom-fit" class="px-2.5 h-7 rounded-lg flex items-center justify-center text-xs font-semibold text-gray-600 dark:text-gray-300 hover:bg-white dark:hover:bg-gray-600 shadow-sm transition" title="พอดีหน้าจอ">
-                            <i class="fas fa-compress-arrows-alt mr-1"></i> พอดีจอ
+                            <i class="fas fa-compress-arrows-alt mr-1 text-indigo-500"></i> พอดีจอ
                         </button>
                     </div>
 
@@ -112,11 +114,12 @@ class FloorPlanManager {
                     
                     <!-- Category Selector Header -->
                     <div class="p-3 border-b border-gray-200/80 dark:border-gray-700 bg-white dark:bg-gray-800">
-                        <label class="block text-[11px] font-bold text-gray-500 uppercase tracking-wider mb-1.5">
-                            เลือกหมวดหมู่อุปกรณ์
+                        <label class="block text-[11px] font-bold text-gray-500 uppercase tracking-wider mb-1.5 flex justify-between items-center">
+                            <span>หมวดหมู่อุปกรณ์ & เมนูย่อย</span>
+                            <span id="fp-total-cat-count" class="text-indigo-600 font-bold">0 รายการ</span>
                         </label>
                         <select id="fp-cat-select" class="w-full px-3 py-2 text-sm bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-xl font-medium text-gray-800 dark:text-white outline-none focus:ring-2 focus:ring-indigo-500/50 cursor-pointer shadow-sm">
-                            <!-- Populated dynamically -->
+                            <!-- Populated with optgroups dynamically -->
                         </select>
                     </div>
 
@@ -146,21 +149,21 @@ class FloorPlanManager {
                     </div>
                 </div>
 
-                <!-- Center Map Viewport -->
-                <div id="fp-viewport" class="flex-1 relative overflow-hidden bg-gray-900 cursor-grab active:cursor-grabbing flex items-center justify-center p-0">
+                <!-- Center Map Viewport (Zero Overflow) -->
+                <div id="fp-viewport" class="flex-1 relative overflow-hidden bg-gray-950 flex items-center justify-center p-4">
                     
-                    <!-- Map Canvas & Pins Container -->
-                    <div id="fp-canvas" class="relative inline-block origin-center transition-transform duration-100 ease-out">
-                        <img id="fp-map-img" src="map.webp" alt="Floor Plan" class="block select-none pointer-events-none shadow-2xl rounded-lg max-w-none" style="width: 1200px; height: auto;">
+                    <!-- Map Canvas & Pins Container (Scaled & Aspect-Ratio fitted) -->
+                    <div id="fp-canvas" class="relative shadow-2xl rounded-xl overflow-hidden origin-center transition-transform duration-75 ease-out" style="width: 500px; height: 566px; transform: translate(0px, 0px) scale(1);">
+                        <img id="fp-map-img" src="map.webp" alt="Floor Plan" class="w-full h-full object-fill block select-none pointer-events-none">
                         
-                        <!-- Pins Overlay -->
+                        <!-- Pins Overlay Layer (Exact 100% overlay matching the image) -->
                         <div id="fp-pins-layer" class="absolute inset-0 pointer-events-auto">
                             <!-- Pins rendered dynamically -->
                         </div>
                     </div>
 
                     <!-- Floating Mini-HUD Hint -->
-                    <div class="absolute bottom-4 right-4 bg-black/75 backdrop-blur-md text-white text-[11px] px-3 py-1.5 rounded-full shadow-lg pointer-events-none flex items-center space-x-2 border border-white/10">
+                    <div class="absolute bottom-4 right-4 bg-black/80 backdrop-blur-md text-white text-[11px] px-3.5 py-1.5 rounded-full shadow-lg pointer-events-none flex items-center space-x-2 border border-white/10 z-10">
                         <i class="fas fa-hand-pointer text-indigo-400"></i>
                         <span>คลิกลากเพื่อเลื่อนแผนผัง | สกอร์ลเมาส์เพื่อซูม</span>
                     </div>
@@ -191,7 +194,8 @@ class FloorPlanManager {
         // Category Select
         catSelect.addEventListener('change', (e) => {
             this.selectedCategory = e.target.value;
-            document.getElementById('fp-cat-badge').innerText = this.selectedCategory;
+            const selectedText = catSelect.options[catSelect.selectedIndex]?.text.split('(')[0].trim() || this.selectedCategory;
+            document.getElementById('fp-cat-badge').innerText = selectedText;
             this.renderDeviceCards();
             this.renderPins();
         });
@@ -221,8 +225,8 @@ class FloorPlanManager {
         });
 
         // Zoom Controls
-        zoomIn.addEventListener('click', () => this.adjustZoom(0.2));
-        zoomOut.addEventListener('click', () => this.adjustZoom(-0.2));
+        zoomIn.addEventListener('click', () => this.adjustZoom(0.25));
+        zoomOut.addEventListener('click', () => this.adjustZoom(-0.25));
         zoomFit.addEventListener('click', () => this.fitToScreen());
 
         // Mouse Pan & Dragging
@@ -253,6 +257,13 @@ class FloorPlanManager {
             this.adjustZoom(delta);
         }, { passive: false });
 
+        // Window resize keeps map fitted
+        window.addEventListener('resize', () => {
+            if (this.container?.classList.contains('active')) {
+                this.fitToScreen();
+            }
+        });
+
         // Drag & Drop from Left Tray onto Map
         this.pinsContainer.addEventListener('dragover', (e) => {
             e.preventDefault();
@@ -266,7 +277,7 @@ class FloorPlanManager {
 
             try {
                 const device = JSON.parse(deviceDataStr);
-                const rect = this.mapImg.getBoundingClientRect();
+                const rect = this.pinsContainer.getBoundingClientRect();
 
                 // Calculate relative percentage (0% to 100%)
                 const rawX = ((e.clientX - rect.left) / rect.width) * 100;
@@ -275,7 +286,8 @@ class FloorPlanManager {
                 const xPercent = Math.max(0, Math.min(100, rawX));
                 const yPercent = Math.max(0, Math.min(100, rawY));
 
-                this.savePinLocation(device._id, device.collectionName, xPercent, yPercent);
+                const targetCollection = device.collectionName || this.selectedCategory;
+                this.savePinLocation(device._id, targetCollection, xPercent, yPercent);
             } catch (err) {
                 console.error("Drop error:", err);
             }
@@ -290,7 +302,7 @@ class FloorPlanManager {
     }
 
     // ------------------------------------------------------------------------
-    // 🔍 Data & Categories
+    // 🔍 Data & Categories (Hierarchical & Nested Categories Support)
     // ------------------------------------------------------------------------
     async ensureDataLoaded() {
         if (!window.allData || Object.keys(window.allData).length === 0) {
@@ -310,26 +322,107 @@ class FloorPlanManager {
 
     populateCategories() {
         const select = document.getElementById('fp-cat-select');
-        if (!select) return;
+        if (!select || !window.allData) return;
 
-        const allCollections = window.collectionConfigs 
-            ? Object.keys(window.collectionConfigs)
-            : ['Computers', 'Monitors', 'Printers', 'Network'];
+        const customMenus = window.allData.CustomMenus || [];
+        const coreCategories = ['Computers', 'Monitors', 'Printers', 'Network'];
 
-        const validCollections = allCollections.filter(col => 
-            !['Maintenance', 'Maintenance Log', 'CustomMenus', 'admins', 'Staff', 'TransactionHistory', 'LoanHistory', 'DisposedAssets'].includes(col)
-        );
+        let html = '';
+        let totalCount = 0;
 
-        select.innerHTML = validCollections.map(col => {
+        // 1. Core Categories Group
+        html += `<optgroup label="💻 หมวดหมู่อุปกรณ์หลัก (Core)">`;
+        coreCategories.forEach(col => {
+            const count = (window.allData[col] || []).length;
+            totalCount += count;
             const config = (window.collectionConfigs && window.collectionConfigs[col]) || {};
             const label = config.displayName || col;
-            return `<option value="${col}">${label}</option>`;
-        }).join('');
+            html += `<option value="${col}">${label} (${count} เครื่อง)</option>`;
+        });
+        html += `</optgroup>`;
+
+        // 2. Custom Categories & Nested Sub-menus
+        // Find top-level parent menus
+        const parentMenus = customMenus.filter(m => !m.parentId);
+        const subMenus = customMenus.filter(m => !!m.parentId);
+
+        parentMenus.forEach(parent => {
+            // Check if this parent has sub-menus
+            const children = subMenus.filter(s => s.parentId === parent.name);
+            
+            if (children.length > 0) {
+                html += `<optgroup label="📁 ${parent.displayName || parent.name}">`;
+                
+                // Allow selecting the parent folder directly (aggregates all children)
+                const parentTotal = children.reduce((sum, c) => sum + (window.allData[c.name] || []).length, 0);
+                html += `<option value="${parent.name}" class="font-bold">✨ ทั้งหมดใน ${parent.displayName || parent.name} (${parentTotal} เครื่อง)</option>`;
+                
+                // Add individual sub-menus
+                children.forEach(child => {
+                    const count = (window.allData[child.name] || []).length;
+                    totalCount += count;
+                    html += `<option value="${child.name}">&nbsp;&nbsp;└─ ${child.displayName || child.name} (${count} เครื่อง)</option>`;
+                });
+                html += `</optgroup>`;
+            } else {
+                // Standalone category without children
+                const count = (window.allData[parent.name] || []).length;
+                totalCount += count;
+                html += `<option value="${parent.name}">📁 ${parent.displayName || parent.name} (${count} เครื่อง)</option>`;
+            }
+        });
+
+        // Any other collections in allData that aren't excluded
+        const skip = ['Staff', 'CustomMenus', 'TransactionHistory', 'LoanHistory', 'Maintenance Log', 'Maintenance', 'admins', 'Software', 'Accessory', ...coreCategories, ...customMenus.map(m => m.name)];
+        const extras = Object.keys(window.allData).filter(k => !skip.includes(k) && Array.isArray(window.allData[k]));
+        if (extras.length > 0) {
+            html += `<optgroup label="📦 หมวดหมู่อื่นๆ">`;
+            extras.forEach(col => {
+                const count = window.allData[col].length;
+                html += `<option value="${col}">${col} (${count} เครื่อง)</option>`;
+            });
+            html += `</optgroup>`;
+        }
+
+        select.innerHTML = html;
+        document.getElementById('fp-total-cat-count').innerText = `${totalCount} เครื่อง`;
 
         if (select.value) {
             this.selectedCategory = select.value;
-            document.getElementById('fp-cat-badge').innerText = this.selectedCategory;
+            const selectedText = select.options[select.selectedIndex]?.text.split('(')[0].trim() || this.selectedCategory;
+            document.getElementById('fp-cat-badge').innerText = selectedText;
         }
+    }
+
+    // Helper to get devices taking into account parent menu aggregation
+    getDevicesForCategory(catName) {
+        if (!window.allData) return [];
+
+        // 1. Direct items check:
+        const directItems = window.allData[catName];
+        if (Array.isArray(directItems) && directItems.length > 0) {
+            return directItems.map(d => ({ ...d, _collectionName: catName }));
+        }
+
+        // 2. If it's a parent menu with children sub-menus:
+        const customMenus = window.allData.CustomMenus || [];
+        const children = customMenus.filter(m => m.parentId === catName);
+        if (children.length > 0) {
+            let aggregated = [];
+            children.forEach(child => {
+                const childItems = window.allData[child.name] || [];
+                if (Array.isArray(childItems)) {
+                    aggregated.push(...childItems.map(d => ({
+                        ...d,
+                        _collectionName: child.name,
+                        _subCategoryName: child.displayName || child.name
+                    })));
+                }
+            });
+            return aggregated;
+        }
+
+        return Array.isArray(directItems) ? directItems.map(d => ({ ...d, _collectionName: catName })) : [];
     }
 
     renderDeviceCards() {
@@ -337,7 +430,7 @@ class FloorPlanManager {
         const statsEl = document.getElementById('fp-tray-stats');
         if (!listContainer) return;
 
-        const rawDevices = (window.allData && window.allData[this.selectedCategory]) || [];
+        const rawDevices = this.getDevicesForCategory(this.selectedCategory);
 
         // Filter by search query and placement status
         let devices = rawDevices.filter(d => {
@@ -371,6 +464,8 @@ class FloorPlanManager {
             const sn = d.SerialNumber || d.MonitorSerial || '-';
             const ip = d.IPAddress || '';
             const status = d.Status || 'In Storage';
+            const colName = d._collectionName || this.selectedCategory;
+            const subBadge = d._subCategoryName ? `<span class="text-[9px] px-1.5 py-0.2 bg-gray-100 dark:bg-gray-700 text-gray-500 rounded">${d._subCategoryName}</span>` : '';
 
             let statusColor = 'bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300';
             if (status.includes('Use') || status.includes('Active') || status.includes('Loan')) statusColor = 'bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-300';
@@ -378,7 +473,7 @@ class FloorPlanManager {
 
             const payload = JSON.stringify({
                 _id: d._id,
-                collectionName: this.selectedCategory,
+                collectionName: colName,
                 name: name,
                 sn: sn
             });
@@ -389,7 +484,10 @@ class FloorPlanManager {
                      data-device='${payload.replace(/'/g, "&apos;")}'>
                     
                     <div class="flex justify-between items-start mb-1.5">
-                        <span class="text-[10px] font-bold px-2 py-0.5 rounded-full ${statusColor}">${status}</span>
+                        <div class="flex items-center space-x-1.5">
+                            <span class="text-[10px] font-bold px-2 py-0.5 rounded-full ${statusColor}">${status}</span>
+                            ${subBadge}
+                        </div>
                         ${isPinned 
                             ? `<button class="fp-locate-btn text-[11px] text-indigo-600 hover:text-indigo-800 dark:text-indigo-400 font-bold flex items-center" data-id="${d._id}"><i class="fas fa-crosshairs mr-1"></i>หาจุด</button>`
                             : `<span class="text-[10px] text-indigo-500 font-semibold flex items-center bg-indigo-50 dark:bg-indigo-950/50 px-1.5 py-0.5 rounded-md"><i class="fas fa-grip-vertical mr-1"></i>ลากไปวาง</span>`
@@ -405,7 +503,7 @@ class FloorPlanManager {
                     ${isPinned ? `
                         <div class="mt-2 pt-2 border-t border-gray-100 dark:border-gray-700/60 flex justify-between items-center text-[10px]">
                             <span class="text-gray-400"><i class="fas fa-check-circle text-green-500 mr-1"></i>ปักหมุดแล้ว</span>
-                            <button class="fp-unpin-btn text-red-500 hover:underline" data-id="${d._id}">ถอนหมุด</button>
+                            <button class="fp-unpin-btn text-red-500 hover:underline" data-id="${d._id}" data-col="${colName}">ถอนหมุด</button>
                         </div>
                     ` : ''}
                 </div>
@@ -430,7 +528,7 @@ class FloorPlanManager {
 
         // Unpin buttons
         listContainer.querySelectorAll('.fp-unpin-btn').forEach(btn => {
-            btn.addEventListener('click', () => this.unpinDevice(btn.dataset.id));
+            btn.addEventListener('click', () => this.unpinDevice(btn.dataset.id, btn.dataset.col));
         });
     }
 
@@ -441,19 +539,26 @@ class FloorPlanManager {
         if (!this.pinsContainer) return;
         this.pinsContainer.innerHTML = '';
 
-        const categoriesToRender = this.isolateCategory 
-            ? [this.selectedCategory] 
-            : Object.keys(window.allData || {});
-
-        categoriesToRender.forEach(col => {
-            const devices = (window.allData && window.allData[col]) || [];
+        if (this.isolateCategory) {
+            // Render only devices of currently selected category (or its children)
+            const devices = this.getDevicesForCategory(this.selectedCategory);
             devices.forEach(d => {
                 if (!d.mapLocation || typeof d.mapLocation.x !== 'number') return;
-
-                const pinEl = this.createPinElement(d, col);
+                const pinEl = this.createPinElement(d, d._collectionName || this.selectedCategory);
                 this.pinsContainer.appendChild(pinEl);
             });
-        });
+        } else {
+            // Render ALL pinned devices across the entire system
+            Object.keys(window.allData || {}).forEach(col => {
+                const list = window.allData[col];
+                if (!Array.isArray(list)) return;
+                list.forEach(d => {
+                    if (!d.mapLocation || typeof d.mapLocation.x !== 'number') return;
+                    const pinEl = this.createPinElement(d, col);
+                    this.pinsContainer.appendChild(pinEl);
+                });
+            });
+        }
     }
 
     createPinElement(device, collectionName) {
@@ -469,6 +574,7 @@ class FloorPlanManager {
         else if (collectionName.includes('Monitor')) iconClass = 'fa-desktop';
         else if (collectionName.includes('Network')) iconClass = 'fa-network-wired';
         else if (collectionName.includes('POS')) iconClass = 'fa-cash-register';
+        else if (collectionName.includes('Server')) iconClass = 'fa-server';
 
         const status = device.Status || 'In Storage';
         let colorBg = 'bg-blue-600';
@@ -507,7 +613,7 @@ class FloorPlanManager {
         popover.className = 'fp-popover absolute bg-white dark:bg-gray-800 rounded-2xl shadow-2xl border border-gray-100 dark:border-gray-700 p-4 w-64 z-40 text-xs animate-fade-in-up';
         
         popover.style.left = `${device.mapLocation.x}%`;
-        popover.style.top = `calc(${device.mapLocation.y}% - 40px)`;
+        popover.style.top = `calc(${device.mapLocation.y}% - 35px)`;
         popover.style.transform = 'translate(-50%, -100%)';
 
         const name = device.ItemName || device.Model || device.ComputerName || device.DeviceName || 'ไม่มีชื่ออุปกรณ์';
@@ -543,7 +649,7 @@ class FloorPlanManager {
 
         popover.querySelector('.fp-popover-close').addEventListener('click', () => this.closePopover());
         popover.querySelector('.fp-popover-unpin').addEventListener('click', () => {
-            this.unpinDevice(device._id);
+            this.unpinDevice(device._id, collectionName);
             this.closePopover();
         });
         popover.querySelector('.fp-popover-view').addEventListener('click', () => {
@@ -595,12 +701,14 @@ class FloorPlanManager {
         }
     }
 
-    async unpinDevice(id) {
+    async unpinDevice(id, col = null) {
         if (!confirm("คุณต้องการถอนหมุดอุปกรณ์ชิ้นนี้ออกจากแผนผังใช่หรือไม่?")) return;
+
+        const targetCol = col || this.selectedCategory;
 
         try {
             const token = localStorage.getItem('authToken');
-            const res = await fetch(`/api/inventory/${this.selectedCategory}/${id}`, {
+            const res = await fetch(`/api/inventory/${targetCol}/${id}`, {
                 method: 'PUT',
                 headers: {
                     'Content-Type': 'application/json',
@@ -611,8 +719,8 @@ class FloorPlanManager {
 
             if (!res.ok) throw new Error("Could not remove pin");
 
-            if (window.allData && window.allData[this.selectedCategory]) {
-                const item = window.allData[this.selectedCategory].find(d => d._id === id);
+            if (window.allData && window.allData[targetCol]) {
+                const item = window.allData[targetCol].find(d => d._id === id);
                 if (item) item.mapLocation = null;
             }
 
@@ -631,13 +739,13 @@ class FloorPlanManager {
         const leftPct = parseFloat(pin.style.left);
         const topPct = parseFloat(pin.style.top);
 
-        const imgWidth = this.mapImg.offsetWidth;
-        const imgHeight = this.mapImg.offsetHeight;
+        const canvasW = this.mapCanvas.offsetWidth;
+        const canvasH = this.mapCanvas.offsetHeight;
 
-        const pinX = (leftPct / 100) * imgWidth;
-        const pinY = (topPct / 100) * imgHeight;
+        const pinX = (leftPct / 100) * canvasW;
+        const pinY = (topPct / 100) * canvasH;
 
-        this.scale = 1.6;
+        this.scale = 2.0;
         this.panX = (this.mapViewport.offsetWidth / 2) - (pinX * this.scale);
         this.panY = (this.mapViewport.offsetHeight / 2) - (pinY * this.scale);
         this.updateTransform();
@@ -647,28 +755,38 @@ class FloorPlanManager {
     }
 
     // ------------------------------------------------------------------------
-    // 🔎 Pan & Zoom (Viewport Fitting without overflow)
+    // 🔎 Pan & Zoom (Mathematical Aspect Ratio Fit, Zero Overflow)
     // ------------------------------------------------------------------------
     fitToScreen() {
-        if (!this.mapViewport || !this.mapImg) return;
+        if (!this.mapViewport || !this.mapCanvas) return;
         
-        const vpW = this.mapViewport.clientWidth - 40;
-        const vpH = this.mapViewport.clientHeight - 40;
-        const imgW = this.mapImg.offsetWidth || 1200;
-        const imgH = this.mapImg.offsetHeight || 1350;
+        // Exact viewport dimensions minus comfortable margin (32px)
+        const vpW = Math.max(100, this.mapViewport.clientWidth - 32);
+        const vpH = Math.max(100, this.mapViewport.clientHeight - 32);
 
-        const scaleX = vpW / imgW;
-        const scaleY = vpH / imgH;
+        let canvasW, canvasH;
+        if ((vpW / vpH) < this.aspectRatio) {
+            // Screen is narrower than the map: fit by width
+            canvasW = vpW;
+            canvasH = vpW / this.aspectRatio;
+        } else {
+            // Screen is wider/taller: fit by height
+            canvasH = vpH;
+            canvasW = vpH * this.aspectRatio;
+        }
 
-        // Perfect scale that fits within viewport
-        this.scale = parseFloat(Math.min(scaleX, scaleY, 1.2).toFixed(2));
+        // Set pixel size of canvas so it fits perfectly on screen at scale=1
+        this.mapCanvas.style.width = `${Math.round(canvasW)}px`;
+        this.mapCanvas.style.height = `${Math.round(canvasH)}px`;
+
+        this.scale = 1.0;
         this.panX = 0;
         this.panY = 0;
         this.updateTransform();
     }
 
     adjustZoom(delta) {
-        const newScale = Math.min(Math.max(this.scale + delta, 0.3), 3.5);
+        const newScale = Math.min(Math.max(this.scale + delta, 0.4), 4.0);
         this.scale = parseFloat(newScale.toFixed(2));
         this.updateTransform();
     }
