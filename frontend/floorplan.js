@@ -1,11 +1,12 @@
 /**
  * ============================================================================
- * 🗺️ Interactive Floor Plan Module (Floor Plan System) - v3.0
- * - Single Fixed Layout: Map fits 100% inside viewport, no zooming/panning needed
- * - Dynamic Device-Specific Pins: Distinct icon/photo, color, and name tag for each device
- * - Hierarchical & Nested Categories with sub-menu support
- * - Drag & Drop Pinning from Tray, plus Drag-to-Relocate existing pins
- * - Filter by Category (with Isolation toggle), Search, and Placement Status
+ * 🗺️ Interactive Floor Plan Module (Interactive Device Map) - v4.0
+ * - Immersive Viewport: Full black-area coverage (เต็มพื้นที่สีดำ) + Full Pan & Zoom
+ * - Smooth Mouse-Wheel Zoom directly toward cursor position
+ * - Mouse Drag Panning & Touch Pinch-to-Zoom
+ * - Dynamic Device-Specific Pins: Distinct icon/photo, category color, and machine name tag
+ * - Hierarchical & Nested Categories with sub-menu device aggregation
+ * - Precision Drag & Drop Pinning regardless of zoom level or pan offset
  * ============================================================================
  */
 
@@ -22,6 +23,18 @@ class FloorPlanManager {
         this.searchQuery = '';
         this.isolateCategory = true;
         
+        // Pan & Zoom Engine State
+        this.scale = 1.0;
+        this.panX = 0;
+        this.panY = 0;
+        this.isPanning = false;
+        this.startX = 0;
+        this.startY = 0;
+
+        // Touch gestures
+        this.touchStartDist = null;
+        this.touchStartScale = null;
+
         // Active Pin Popover
         this.activePopover = null;
         this.initialized = false;
@@ -52,8 +65,8 @@ class FloorPlanManager {
         this.renderDeviceCards();
         this.renderPins();
         
-        // Fit map cleanly to single fixed layout
-        requestAnimationFrame(() => this.fitToScreen());
+        // Default: fill entire black viewport width for an immersive experience
+        requestAnimationFrame(() => this.fillWidth());
     }
 
     renderLayout() {
@@ -85,10 +98,22 @@ class FloorPlanManager {
                         <span class="font-medium">👁️ ซ่อนหมวดอื่น (แสดงเฉพาะหมวดที่เลือก)</span>
                     </label>
 
-                    <!-- Layout Status Indicator -->
-                    <div class="hidden sm:flex items-center text-xs font-semibold text-gray-500 dark:text-gray-400 bg-gray-100 dark:bg-gray-700/60 px-3 py-1.5 rounded-xl border border-gray-200/60 dark:border-gray-600/60">
-                        <i class="fas fa-expand text-indigo-500 mr-1.5"></i>
-                        <span>แผนผังเต็มจอ (Fixed Layout)</span>
+                    <!-- Zoom & Pan Controls in Toolbar -->
+                    <div class="flex items-center bg-gray-100 dark:bg-gray-700/80 rounded-xl p-1 space-x-1 border border-gray-200 dark:border-gray-600 shadow-sm">
+                        <button id="fp-btn-zoom-out" class="w-7 h-7 rounded-lg flex items-center justify-center text-gray-700 dark:text-gray-300 hover:bg-white dark:hover:bg-gray-600 transition" title="ซูมออก">
+                            <i class="fas fa-search-minus text-xs"></i>
+                        </button>
+                        <span class="fp-zoom-level-text text-xs font-bold text-gray-700 dark:text-gray-300 px-2 min-w-[45px] text-center">100%</span>
+                        <button id="fp-btn-zoom-in" class="w-7 h-7 rounded-lg flex items-center justify-center text-gray-700 dark:text-gray-300 hover:bg-white dark:hover:bg-gray-600 transition" title="ซูมเข้า">
+                            <i class="fas fa-search-plus text-xs"></i>
+                        </button>
+                        <div class="w-px h-4 bg-gray-300 dark:bg-gray-600 my-auto"></div>
+                        <button id="fp-btn-fill" class="px-2.5 h-7 rounded-lg flex items-center justify-center text-xs font-bold text-indigo-600 dark:text-indigo-400 bg-white dark:bg-gray-600 shadow-sm hover:bg-indigo-50 transition" title="ขยายเต็มพื้นที่สีดำ">
+                            <i class="fas fa-expand mr-1"></i> เต็มพื้นที่
+                        </button>
+                        <button id="fp-btn-fit" class="px-2.5 h-7 rounded-lg flex items-center justify-center text-xs font-semibold text-gray-600 dark:text-gray-300 hover:bg-white dark:hover:bg-gray-600 transition" title="ย่อพอดีหน้าจอ">
+                            <i class="fas fa-compress-arrows-alt mr-1"></i> พอดีจอ
+                        </button>
                     </div>
 
                     <!-- Toggle Sidebar Visibility on small screens -->
@@ -102,7 +127,7 @@ class FloorPlanManager {
             <div class="flex-1 min-h-0 flex overflow-hidden rounded-2xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 shadow-sm relative" style="min-height: 0; flex: 1 1 0%;">
                 
                 <!-- Left Panel: Category Tray & Device List -->
-                <div id="fp-tray" class="w-80 md:w-88 border-r border-gray-100 dark:border-gray-700 flex flex-col min-h-0 h-full bg-gray-50/50 dark:bg-gray-900/50 shrink-0 z-10 transition-transform duration-300" style="min-height: 0; height: 100%;">
+                <div id="fp-tray" class="w-80 md:w-88 border-r border-gray-100 dark:border-gray-700 flex flex-col min-h-0 h-full bg-gray-50/50 dark:bg-gray-900/50 shrink-0 z-20 transition-transform duration-300" style="min-height: 0; height: 100%;">
                     
                     <!-- Category Selector Header -->
                     <div class="p-3 border-b border-gray-200/80 dark:border-gray-700 bg-white dark:bg-gray-800 shrink-0">
@@ -141,23 +166,41 @@ class FloorPlanManager {
                     </div>
                 </div>
 
-                <!-- Center Map Viewport (Single Fixed Clean Layout) -->
-                <div id="fp-viewport" class="flex-1 relative overflow-hidden bg-slate-900/90 dark:bg-gray-950 flex items-center justify-center p-2 md:p-4 select-none">
+                <!-- Center Map Viewport (Immersive Full Black Area + Pan & Zoom Engine) -->
+                <div id="fp-viewport" class="flex-1 relative overflow-hidden bg-slate-950 flex items-center justify-center cursor-grab active:cursor-grabbing select-none">
                     
-                    <!-- Map Canvas & Pins Container (Always 100% Fitted, No Zoom/Pan Needed) -->
-                    <div id="fp-canvas" class="relative shadow-2xl rounded-2xl overflow-hidden bg-white/5 border border-white/10" style="max-width: 100%; max-height: 100%; aspect-ratio: 6719 / 7610;">
-                        <img id="fp-map-img" src="map.webp" alt="Floor Plan" class="w-full h-full object-contain block select-none pointer-events-none">
+                    <!-- Map Canvas Container (Transformed via translate & scale from origin 0 0) -->
+                    <div id="fp-canvas" class="relative shadow-2xl origin-top-left will-change-transform" style="transform: translate(0px, 0px) scale(1);">
+                        <img id="fp-map-img" src="map.webp" alt="Floor Plan" class="w-full h-full object-fill block select-none pointer-events-none">
                         
-                        <!-- Pins Overlay Layer (Exact 100% overlay matching the image) -->
+                        <!-- Pins Overlay Layer (Exact 100% overlay matching the image coordinates) -->
                         <div id="fp-pins-layer" class="absolute inset-0 pointer-events-auto">
                             <!-- Pins rendered dynamically -->
                         </div>
                     </div>
 
-                    <!-- Floating Mini-HUD Hint -->
-                    <div class="absolute bottom-3 right-3 bg-black/75 backdrop-blur-md text-white text-[11px] px-3.5 py-1.5 rounded-full shadow-lg pointer-events-none flex items-center space-x-2 border border-white/10 z-10">
-                        <i class="fas fa-hand-pointer text-indigo-400"></i>
-                        <span>ลากอุปกรณ์จากฝั่งซ้ายมาวางบนแผนผังได้ทันที</span>
+                    <!-- Floating Glassmorphism Controls HUD (Bottom-Right) -->
+                    <div class="absolute bottom-4 right-4 flex items-center bg-gray-900/90 backdrop-blur-md rounded-2xl p-1.5 space-x-1.5 shadow-2xl border border-white/10 z-30 select-none">
+                        <button id="fp-hud-zoom-out" class="w-8 h-8 rounded-xl bg-white/10 hover:bg-white/20 text-white flex items-center justify-center transition" title="ซูมออก">
+                            <i class="fas fa-minus text-xs"></i>
+                        </button>
+                        <span class="fp-zoom-level-text text-xs font-bold text-yellow-300 px-2 min-w-[45px] text-center">100%</span>
+                        <button id="fp-hud-zoom-in" class="w-8 h-8 rounded-xl bg-white/10 hover:bg-white/20 text-white flex items-center justify-center transition" title="ซูมเข้า">
+                            <i class="fas fa-plus text-xs"></i>
+                        </button>
+                        <div class="w-px h-5 bg-white/20 my-auto"></div>
+                        <button id="fp-hud-fill" class="px-3 h-8 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold flex items-center transition shadow-sm" title="เต็มพื้นที่สีดำ">
+                            <i class="fas fa-expand mr-1.5"></i> เต็มพื้นที่
+                        </button>
+                        <button id="fp-hud-fit" class="px-3 h-8 rounded-xl bg-white/10 hover:bg-white/20 text-white text-xs font-semibold flex items-center transition" title="พอดีจอ">
+                            <i class="fas fa-compress-arrows-alt mr-1.5"></i> พอดีจอ
+                        </button>
+                    </div>
+
+                    <!-- Floating Help Tip (Bottom-Left) -->
+                    <div class="hidden sm:flex absolute bottom-4 left-4 bg-black/70 backdrop-blur-md text-white text-[11px] px-3.5 py-1.5 rounded-full shadow-lg pointer-events-none items-center space-x-2 border border-white/10 z-10">
+                        <i class="fas fa-mouse text-indigo-400"></i>
+                        <span>คลิกลากเพื่อเลื่อนผัง | หมุนลูกกลิ้งเมาส์เพื่อซูมเข้า-ออก</span>
                     </div>
 
                 </div>
@@ -171,7 +214,7 @@ class FloorPlanManager {
         this.pinsContainer = document.getElementById('fp-pins-layer');
 
         this.mapImg.onload = () => {
-            this.fitToScreen();
+            this.fillWidth();
         };
     }
 
@@ -180,6 +223,18 @@ class FloorPlanManager {
         const isolateToggle = document.getElementById('fp-isolate-toggle');
         const searchInput = document.getElementById('fp-search');
         const toggleTrayBtn = document.getElementById('fp-toggle-tray');
+
+        // Toolbar Zoom & Fit Buttons
+        document.getElementById('fp-btn-zoom-in')?.addEventListener('click', () => this.zoomAtCenter(1.25));
+        document.getElementById('fp-btn-zoom-out')?.addEventListener('click', () => this.zoomAtCenter(0.8));
+        document.getElementById('fp-btn-fill')?.addEventListener('click', () => this.fillWidth());
+        document.getElementById('fp-btn-fit')?.addEventListener('click', () => this.fitScreen());
+
+        // Floating HUD Buttons
+        document.getElementById('fp-hud-zoom-in')?.addEventListener('click', () => this.zoomAtCenter(1.25));
+        document.getElementById('fp-hud-zoom-out')?.addEventListener('click', () => this.zoomAtCenter(0.8));
+        document.getElementById('fp-hud-fill')?.addEventListener('click', () => this.fillWidth());
+        document.getElementById('fp-hud-fit')?.addEventListener('click', () => this.fitScreen());
 
         // Mobile Tray Toggle
         if (toggleTrayBtn) {
@@ -229,21 +284,81 @@ class FloorPlanManager {
             });
         });
 
-        // Window & Container Resize (Keeps Single Fixed Layout perfectly fitted)
-        window.addEventListener('resize', () => {
-            if (this.container?.classList.contains('active')) {
-                this.fitToScreen();
+        // 🖱️ MOUSE PAN & DRAGGING
+        this.mapViewport.addEventListener('mousedown', (e) => {
+            if (e.target.closest('.fp-pin') || e.target.closest('.fp-popover') || e.target.closest('#fp-hud-zoom-in') || e.target.closest('#fp-hud-zoom-out') || e.target.closest('#fp-hud-fill') || e.target.closest('#fp-hud-fit')) return;
+            this.isPanning = true;
+            this.startX = e.clientX - this.panX;
+            this.startY = e.clientY - this.panY;
+            this.mapViewport.classList.add('cursor-grabbing');
+        });
+
+        window.addEventListener('mousemove', (e) => {
+            if (!this.isPanning) return;
+            this.panX = e.clientX - this.startX;
+            this.panY = e.clientY - this.startY;
+            this.updateTransform();
+        });
+
+        window.addEventListener('mouseup', () => {
+            if (this.isPanning) {
+                this.isPanning = false;
+                this.mapViewport?.classList.remove('cursor-grabbing');
             }
         });
 
-        if (window.ResizeObserver && this.mapViewport) {
-            this.resizeObserver = new ResizeObserver(() => {
-                if (this.container?.classList.contains('active')) {
-                    this.fitToScreen();
-                }
-            });
-            this.resizeObserver.observe(this.mapViewport);
-        }
+        // 🔄 MOUSE WHEEL ZOOM (Zooms naturally toward the mouse pointer!)
+        this.mapViewport.addEventListener('wheel', (e) => {
+            e.preventDefault();
+            const factor = e.deltaY < 0 ? 1.15 : 0.87;
+            this.zoomAtPoint(e.clientX, e.clientY, factor);
+        }, { passive: false });
+
+        // 📱 TOUCH PAN & PINCH-TO-ZOOM SUPPORT
+        this.mapViewport.addEventListener('touchstart', (e) => {
+            if (e.touches.length === 1) {
+                if (e.target.closest('.fp-pin') || e.target.closest('.fp-popover')) return;
+                this.isPanning = true;
+                this.startX = e.touches[0].clientX - this.panX;
+                this.startY = e.touches[0].clientY - this.panY;
+            } else if (e.touches.length === 2) {
+                this.isPanning = false;
+                this.touchStartDist = Math.hypot(
+                    e.touches[0].clientX - e.touches[1].clientX,
+                    e.touches[0].clientY - e.touches[1].clientY
+                );
+                this.touchStartScale = this.scale;
+            }
+        }, { passive: true });
+
+        this.mapViewport.addEventListener('touchmove', (e) => {
+            if (e.touches.length === 1 && this.isPanning) {
+                this.panX = e.touches[0].clientX - this.startX;
+                this.panY = e.touches[0].clientY - this.startY;
+                this.updateTransform();
+            } else if (e.touches.length === 2 && this.touchStartDist) {
+                const currentDist = Math.hypot(
+                    e.touches[0].clientX - e.touches[1].clientX,
+                    e.touches[0].clientY - e.touches[1].clientY
+                );
+                const ratio = currentDist / this.touchStartDist;
+                const midX = (e.touches[0].clientX + e.touches[1].clientX) / 2;
+                const midY = (e.touches[0].clientY + e.touches[1].clientY) / 2;
+                this.zoomAtPoint(midX, midY, ratio > 1 ? 1.04 : 0.96);
+            }
+        }, { passive: true });
+
+        this.mapViewport.addEventListener('touchend', () => {
+            this.isPanning = false;
+            this.touchStartDist = null;
+        });
+
+        // Window resize
+        window.addEventListener('resize', () => {
+            if (this.container?.classList.contains('active')) {
+                this.updateCanvasBaseSize();
+            }
+        });
 
         // Drag & Drop onto Floor Plan Map
         this.pinsContainer.addEventListener('dragover', (e) => {
@@ -260,7 +375,7 @@ class FloorPlanManager {
                 const device = JSON.parse(deviceDataStr);
                 const rect = this.pinsContainer.getBoundingClientRect();
 
-                // Calculate relative percentage (0% to 100%)
+                // Calculate relative percentage (0% to 100%) invariant under pan & zoom
                 const rawX = ((e.clientX - rect.left) / rect.width) * 100;
                 const rawY = ((e.clientY - rect.top) / rect.height) * 100;
 
@@ -694,7 +809,7 @@ class FloorPlanManager {
                             ${subBadge}
                         </div>
                         ${isPinned 
-                            ? `<button class="fp-locate-btn text-[11px] text-indigo-600 hover:text-indigo-800 dark:text-indigo-400 font-bold flex items-center bg-indigo-50 dark:bg-indigo-950/60 px-2 py-0.5 rounded-md transition" data-id="${d._id}"><i class="fas fa-crosshairs mr-1"></i>ดูจุด</button>`
+                            ? `<button class="fp-locate-btn text-[11px] text-indigo-600 hover:text-indigo-800 dark:text-indigo-400 font-bold flex items-center bg-indigo-50 dark:bg-indigo-950/60 px-2 py-0.5 rounded-md transition hover:bg-indigo-100" data-id="${d._id}"><i class="fas fa-crosshairs mr-1"></i>ดูจุด</button>`
                             : `<span class="text-[10.5px] text-indigo-600 dark:text-indigo-300 font-bold flex items-center bg-indigo-50 dark:bg-indigo-900/50 px-2 py-0.5 rounded-md border border-indigo-200 dark:border-indigo-700"><i class="fas fa-grip-vertical mr-1 text-indigo-400"></i>ลากไปวาง</span>`
                         }
                     </div>
@@ -804,7 +919,7 @@ class FloorPlanManager {
 
     createPinElement(device, collectionName) {
         const pin = document.createElement('div');
-        pin.className = 'fp-pin absolute -translate-x-1/2 -translate-y-full cursor-pointer transition-all hover:scale-115 z-20 group';
+        pin.className = 'fp-pin absolute -translate-x-1/2 -translate-y-full cursor-pointer transition-transform hover:scale-115 z-20 group';
         pin.style.left = `${device.mapLocation.x}%`;
         pin.style.top = `${device.mapLocation.y}%`;
         pin.dataset.id = device._id;
@@ -1027,9 +1142,24 @@ class FloorPlanManager {
         }
     }
 
+    // Smoothly pan & center on a pin with a highlight ring
     highlightPin(id) {
         const pin = this.pinsContainer?.querySelector(`.fp-pin[data-id="${id}"]`);
         if (!pin) return;
+
+        const leftPct = parseFloat(pin.style.left);
+        const topPct = parseFloat(pin.style.top);
+
+        const canvasW = this.mapCanvas.offsetWidth;
+        const canvasH = this.mapCanvas.offsetHeight;
+        const pinX = (leftPct / 100) * canvasW;
+        const pinY = (topPct / 100) * canvasH;
+
+        // Smoothly center on this pin and zoom to at least 1.4x
+        this.scale = Math.max(this.scale, 1.4);
+        this.panX = (this.mapViewport.clientWidth / 2) - (pinX * this.scale);
+        this.panY = (this.mapViewport.clientHeight / 2) - (pinY * this.scale);
+        this.updateTransform();
 
         pin.classList.add('ring-4', 'ring-yellow-400', 'scale-125', 'z-50');
 
@@ -1051,29 +1181,102 @@ class FloorPlanManager {
     }
 
     // ------------------------------------------------------------------------
-    // 🔎 Single Fixed Layout Auto-Fit Engine (Zero Overflow, Sharp Display)
+    // 🔎 Pan & Zoom Engine + Layout Sizing ("เต็มพื้นที่สีดำ" + Smooth Zoom)
     // ------------------------------------------------------------------------
-    fitToScreen() {
+    
+    // Updates base size of canvas when viewport changes
+    updateCanvasBaseSize() {
         if (!this.mapViewport || !this.mapCanvas) return;
-        
-        const padding = window.innerWidth < 768 ? 16 : 32;
-        const vpW = Math.max(100, this.mapViewport.clientWidth - padding);
-        const vpH = Math.max(100, this.mapViewport.clientHeight - padding);
+        const vpW = this.mapViewport.clientWidth;
+        if (vpW <= 0) return;
 
-        let canvasW, canvasH;
+        const canvasW = vpW;
+        const canvasH = Math.round(vpW / this.aspectRatio);
+
+        this.mapCanvas.style.width = `${canvasW}px`;
+        this.mapCanvas.style.height = `${canvasH}px`;
+        this.updateTransform();
+    }
+
+    // 📐 FILLS 100% OF THE BLACK VIEWPORT AREA (Zero black empty space on left/right!)
+    fillWidth() {
+        if (!this.mapViewport || !this.mapCanvas) return;
+        const vpW = this.mapViewport.clientWidth;
+        const vpH = this.mapViewport.clientHeight;
+        if (vpW <= 0 || vpH <= 0) return;
+
+        const canvasW = vpW;
+        const canvasH = Math.round(vpW / this.aspectRatio);
+
+        this.mapCanvas.style.width = `${canvasW}px`;
+        this.mapCanvas.style.height = `${canvasH}px`;
+
+        this.scale = 1.0;
+        this.panX = 0;
+        this.panY = 0; // Starts at top edge, fills 100% width
+        this.updateTransform();
+    }
+
+    // 🖼️ FITS ENTIRE MAP INTO VIEWPORT (Bird's eye view)
+    fitScreen() {
+        if (!this.mapViewport || !this.mapCanvas) return;
+        const vpW = this.mapViewport.clientWidth;
+        const vpH = this.mapViewport.clientHeight;
+        if (vpW <= 0 || vpH <= 0) return;
+
+        let targetW, targetH;
         if ((vpW / vpH) < this.aspectRatio) {
-            // Constrained by width
-            canvasW = vpW;
-            canvasH = vpW / this.aspectRatio;
+            targetW = vpW;
+            targetH = vpW / this.aspectRatio;
         } else {
-            // Constrained by height
-            canvasH = vpH;
-            canvasW = vpH * this.aspectRatio;
+            targetH = vpH;
+            targetW = vpH * this.aspectRatio;
         }
 
-        this.mapCanvas.style.width = `${Math.round(canvasW)}px`;
-        this.mapCanvas.style.height = `${Math.round(canvasH)}px`;
-        this.mapCanvas.style.transform = 'none';
+        const canvasW = vpW;
+        const canvasH = Math.round(vpW / this.aspectRatio);
+        this.mapCanvas.style.width = `${canvasW}px`;
+        this.mapCanvas.style.height = `${canvasH}px`;
+
+        this.scale = parseFloat((targetW / canvasW).toFixed(3));
+        this.panX = Math.round((vpW - (canvasW * this.scale)) / 2);
+        this.panY = Math.round((vpH - (canvasH * this.scale)) / 2);
+        this.updateTransform();
+    }
+
+    // Zoom at Center of viewport
+    zoomAtCenter(factor) {
+        if (!this.mapViewport) return;
+        const rect = this.mapViewport.getBoundingClientRect();
+        this.zoomAtPoint(rect.left + rect.width / 2, rect.top + rect.height / 2, factor);
+    }
+
+    // Precision Zoom directly toward mouse pointer (Google Maps / Figma algorithm)
+    zoomAtPoint(clientX, clientY, factor) {
+        if (!this.mapViewport || !this.mapCanvas) return;
+        const rect = this.mapViewport.getBoundingClientRect();
+        const mouseX = clientX - rect.left;
+        const mouseY = clientY - rect.top;
+
+        const oldScale = this.scale;
+        const newScale = Math.min(Math.max(oldScale * factor, 0.35), 4.5);
+        if (newScale === oldScale) return;
+
+        // Shift pan so pixel directly under cursor remains anchored
+        this.panX = mouseX - (mouseX - this.panX) * (newScale / oldScale);
+        this.panY = mouseY - (mouseY - this.panY) * (newScale / oldScale);
+        this.scale = parseFloat(newScale.toFixed(3));
+        this.updateTransform();
+    }
+
+    updateTransform() {
+        if (!this.mapCanvas) return;
+        this.mapCanvas.style.transform = `translate(${Math.round(this.panX)}px, ${Math.round(this.panY)}px) scale(${this.scale})`;
+        
+        // Update all zoom level text in UI
+        const pct = `${Math.round(this.scale * 100)}%`;
+        const zoomEls = document.querySelectorAll('.fp-zoom-level-text');
+        zoomEls.forEach(el => el.innerText = pct);
     }
 }
 
