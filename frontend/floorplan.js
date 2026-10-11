@@ -43,6 +43,12 @@ class FloorPlanManager {
         this.container = document.getElementById('floorplan-page');
         if (!this.container) return;
         
+        // Force flex display on the container with !important to override main.js: pageDiv.style.display = 'block'
+        this.container.style.setProperty('display', 'flex', 'important');
+        this.container.style.setProperty('flex-direction', 'column', 'important');
+        const mc = document.getElementById('main-content');
+        if (mc) mc.scrollTop = 0;
+
         if (!this.initialized) {
             this.renderLayout();
             this.bindEvents();
@@ -59,10 +65,12 @@ class FloorPlanManager {
     }
 
     renderLayout() {
-        this.container.className = 'page-content h-[calc(100vh-4.5rem)] flex flex-col p-2 md:p-4 overflow-hidden select-none';
+        this.container.className = 'page-content !flex flex-col h-[calc(100vh-5.5rem)] md:h-[calc(100vh-4.5rem)] p-1 md:p-3 overflow-hidden select-none';
+        this.container.style.setProperty('display', 'flex', 'important');
+        this.container.style.setProperty('flex-direction', 'column', 'important');
         this.container.innerHTML = `
             <!-- Top Controls Toolbar -->
-            <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 p-3 mb-3 flex flex-wrap items-center justify-between gap-3 shrink-0">
+            <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 p-2.5 md:p-3 mb-2.5 md:mb-3 flex flex-wrap items-center justify-between gap-2.5 shrink-0">
                 <div class="flex items-center space-x-3">
                     <div class="w-10 h-10 rounded-xl bg-indigo-50 dark:bg-indigo-900/40 text-indigo-600 dark:text-indigo-400 flex items-center justify-center text-lg shadow-inner">
                         <i class="fas fa-map-marked-alt"></i>
@@ -107,13 +115,13 @@ class FloorPlanManager {
             </div>
 
             <!-- Main Work Area: Left Sidebar + Center Map -->
-            <div class="flex-1 flex overflow-hidden rounded-2xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 shadow-sm relative">
+            <div class="flex-1 min-h-0 flex overflow-hidden rounded-2xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 shadow-sm relative" style="min-height: 0; flex: 1 1 0%;">
                 
                 <!-- Left Panel: Category Tray & Device List -->
-                <div id="fp-tray" class="w-80 md:w-88 border-r border-gray-100 dark:border-gray-700 flex flex-col bg-gray-50/50 dark:bg-gray-900/50 shrink-0 h-full z-10 transition-transform duration-300">
+                <div id="fp-tray" class="w-80 md:w-88 border-r border-gray-100 dark:border-gray-700 flex flex-col min-h-0 h-full bg-gray-50/50 dark:bg-gray-900/50 shrink-0 z-10 transition-transform duration-300" style="min-height: 0; height: 100%;">
                     
                     <!-- Category Selector Header -->
-                    <div class="p-3 border-b border-gray-200/80 dark:border-gray-700 bg-white dark:bg-gray-800">
+                    <div class="p-3 border-b border-gray-200/80 dark:border-gray-700 bg-white dark:bg-gray-800 shrink-0">
                         <label class="block text-[11px] font-bold text-gray-500 uppercase tracking-wider mb-1.5 flex justify-between items-center">
                             <span>หมวดหมู่อุปกรณ์ & เมนูย่อย</span>
                             <span id="fp-total-cat-count" class="text-indigo-600 font-bold">0 รายการ</span>
@@ -124,7 +132,7 @@ class FloorPlanManager {
                     </div>
 
                     <!-- Search & Filter Options -->
-                    <div class="p-3 border-b border-gray-200/80 dark:border-gray-700 space-y-2">
+                    <div class="p-3 border-b border-gray-200/80 dark:border-gray-700 space-y-2 shrink-0">
                         <div class="relative">
                             <i class="fas fa-search absolute left-3 top-2.5 text-xs text-gray-400"></i>
                             <input type="text" id="fp-search" placeholder="ค้นหาชื่อ, SN, หรือ IP..." class="w-full pl-8 pr-3 py-1.5 text-xs bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-600 rounded-xl outline-none focus:ring-2 focus:ring-indigo-500/40 text-gray-800 dark:text-white">
@@ -139,12 +147,12 @@ class FloorPlanManager {
                     </div>
 
                     <!-- Device Card List -->
-                    <div id="fp-device-list" class="flex-1 overflow-y-auto p-3 space-y-2.5 custom-scrollbar">
+                    <div id="fp-device-list" class="flex-1 min-h-0 overflow-y-auto p-3 space-y-2.5 custom-scrollbar" style="min-height: 0; flex: 1 1 0%; overflow-y: auto; -webkit-overflow-scrolling: touch;">
                         <!-- Devices injected here -->
                     </div>
 
                     <!-- Tray Footer Stats -->
-                    <div id="fp-tray-stats" class="p-2.5 border-t border-gray-200/80 dark:border-gray-700 bg-white dark:bg-gray-800 text-[11px] text-gray-500 dark:text-gray-400 flex justify-between items-center px-4">
+                    <div id="fp-tray-stats" class="p-2.5 border-t border-gray-200/80 dark:border-gray-700 bg-white dark:bg-gray-800 text-[11px] text-gray-500 dark:text-gray-400 flex justify-between items-center px-4 shrink-0">
                         <span>โหลดอุปกรณ์...</span>
                     </div>
                 </div>

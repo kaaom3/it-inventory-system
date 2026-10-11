@@ -801,7 +801,12 @@ window.loadPage = function(pageName, navElement) {
         else if (pageName === 'DisposedAssets') window.renderDisposedAssets();
         else if (pageName === 'Settings') window.renderSettings();
         else if (pageName === 'LabelPrinter') window.buildLabelPrinterPage();
-        else if (pageName === 'FloorPlan') { if (window.floorPlan) window.floorPlan.init(); }
+        else if (pageName === 'FloorPlan') { 
+            pageDiv.style.display = 'flex'; 
+            const mc = document.getElementById('main-content');
+            if (mc) mc.scrollTop = 0;
+            if (window.floorPlan) window.floorPlan.init(); 
+        }
         else if (pageName === 'Maintenance') window.buildMaintenancePage();
         else if (collectionConfigs[pageName]) { if (paginationState[pageName]) { paginationState[pageName].filterText = ''; const searchInput = document.getElementById(`${pageName.toLowerCase()}SearchInput`); if (searchInput) searchInput.value = ''; window.buildTable(pageName); } }
     }
