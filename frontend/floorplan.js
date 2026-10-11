@@ -395,6 +395,62 @@ class FloorPlanManager {
     }
 
     // Helper to get devices taking into account parent menu aggregation
+    
+    // Helper to get prominent machine name / device title
+    getDeviceDisplayName(d) {
+        if (!d) return 'อุปกรณ์';
+        
+        // 1. ComputerName (for PC, Laptop, POS, Server)
+        if (d.ComputerName && typeof d.ComputerName === 'string' && d.ComputerName.trim() !== '') {
+            return d.ComputerName.trim();
+        }
+
+        // 2. Name (capital N, for Printers and custom categories)
+        if (d.Name && typeof d.Name === 'string' && d.Name.trim() !== '') {
+            return d.Name.trim();
+        }
+
+        // 3. ItemName (for Scanner, Camera, Storage, Switch, UPS, Amplifier)
+        if (d.ItemName && typeof d.ItemName === 'string' && d.ItemName.trim() !== '') {
+            return d.ItemName.trim();
+        }
+
+        // 4. DeviceName (for Network, CCTV, etc.)
+        if (d.DeviceName && typeof d.DeviceName === 'string' && d.DeviceName.trim() !== '') {
+            return d.DeviceName.trim();
+        }
+
+        // 5. PartName / SoftwareName
+        if (d.PartName && typeof d.PartName === 'string' && d.PartName.trim() !== '') {
+            return d.PartName.trim();
+        }
+
+        // 6. Model + Manufacturer
+        if (d.Model && typeof d.Model === 'string' && d.Model.trim() !== '') {
+            const brand = (d.Manufacturer && typeof d.Manufacturer === 'string' && d.Manufacturer.trim()) ? d.Manufacturer.trim() + ' ' : '';
+            return (brand + d.Model.trim()).trim();
+        }
+
+        // 7. SerialNumber fallback
+        if (d.SerialNumber && typeof d.SerialNumber === 'string' && d.SerialNumber.trim() !== '') {
+            return d.SerialNumber.trim();
+        }
+
+        if (d.MonitorSerial && typeof d.MonitorSerial === 'string' && d.MonitorSerial.trim() !== '') {
+            return d.MonitorSerial.trim();
+        }
+
+        return 'ไม่ระบุชื่อ';
+    }
+
+    getDeviceSecondaryInfo(d) {
+        if (!d) return '';
+        const parts = [];
+        if (d.Manufacturer && d.Manufacturer.trim()) parts.push(d.Manufacturer.trim());
+        if (d.Model && d.Model.trim()) parts.push(d.Model.trim());
+        return parts.join(' ');
+    }
+
     getDevicesForCategory(catName) {
         if (!window.allData) return [];
 
@@ -460,50 +516,98 @@ class FloorPlanManager {
 
         listContainer.innerHTML = devices.map(d => {
             const isPinned = !!(d.mapLocation && typeof d.mapLocation.x === 'number');
-            const name = d.ItemName || d.Model || d.ComputerName || d.DeviceName || d.name || 'ไม่มีชื่ออุปกรณ์';
+            const primaryName = this.getDeviceDisplayName(d);
+            const secondarySpec = this.getDeviceSecondaryInfo(d);
             const sn = d.SerialNumber || d.MonitorSerial || '-';
             const ip = d.IPAddress || '';
+            const location = d.Location || '';
+            const assigned = d.AssignedComputer || '';
+            const user = d.UserName || d.CurrentUser || '';
             const status = d.Status || 'In Storage';
             const colName = d._collectionName || this.selectedCategory;
-            const subBadge = d._subCategoryName ? `<span class="text-[9px] px-1.5 py-0.2 bg-gray-100 dark:bg-gray-700 text-gray-500 rounded">${d._subCategoryName}</span>` : '';
+            const subBadge = d._subCategoryName ? `<span class="text-[9.5px] px-1.5 py-0.5 bg-indigo-50 dark:bg-indigo-900/50 text-indigo-700 dark:text-indigo-300 font-semibold rounded border border-indigo-200/50">${d._subCategoryName}</span>` : '';
 
             let statusColor = 'bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300';
             if (status.includes('Use') || status.includes('Active') || status.includes('Loan')) statusColor = 'bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-300';
             else if (status.includes('Repair') || status.includes('Issue') || status.includes('Damaged')) statusColor = 'bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300';
 
+            // Choose icon
+            let categoryIcon = 'fa-laptop';
+            if (colName.includes('Printer')) categoryIcon = 'fa-print';
+            else if (colName.includes('Monitor')) categoryIcon = 'fa-desktop';
+            else if (colName.includes('Network') || colName.includes('Switch')) categoryIcon = 'fa-network-wired';
+            else if (colName.includes('POS')) categoryIcon = 'fa-cash-register';
+            else if (colName.includes('Camera')) categoryIcon = 'fa-video';
+            else if (colName.includes('Scanner')) categoryIcon = 'fa-barcode';
+            else if (colName.includes('Storage')) categoryIcon = 'fa-server';
+
             const payload = JSON.stringify({
                 _id: d._id,
                 collectionName: colName,
-                name: name,
+                name: primaryName,
                 sn: sn
             });
 
             return `
-                <div class="fp-card bg-white dark:bg-gray-800 p-3 rounded-2xl border ${isPinned ? 'border-gray-200 dark:border-gray-700' : 'border-indigo-200 dark:border-indigo-800/60 shadow-sm'} transition-all hover:shadow-md relative group cursor-grab active:cursor-grabbing"
+                <div class="fp-card bg-white dark:bg-gray-800 p-3 rounded-2xl border ${isPinned ? 'border-gray-200 dark:border-gray-700' : 'border-indigo-300 dark:border-indigo-700/80 shadow-sm'} transition-all hover:shadow-md relative group cursor-grab active:cursor-grabbing"
                      draggable="${!isPinned}"
                      data-device='${payload.replace(/'/g, "&apos;")}'>
                     
-                    <div class="flex justify-between items-start mb-1.5">
-                        <div class="flex items-center space-x-1.5">
+                    <!-- Header: Status + Action -->
+                    <div class="flex justify-between items-center mb-1.5">
+                        <div class="flex items-center space-x-1">
                             <span class="text-[10px] font-bold px-2 py-0.5 rounded-full ${statusColor}">${status}</span>
                             ${subBadge}
                         </div>
                         ${isPinned 
-                            ? `<button class="fp-locate-btn text-[11px] text-indigo-600 hover:text-indigo-800 dark:text-indigo-400 font-bold flex items-center" data-id="${d._id}"><i class="fas fa-crosshairs mr-1"></i>หาจุด</button>`
-                            : `<span class="text-[10px] text-indigo-500 font-semibold flex items-center bg-indigo-50 dark:bg-indigo-950/50 px-1.5 py-0.5 rounded-md"><i class="fas fa-grip-vertical mr-1"></i>ลากไปวาง</span>`
+                            ? `<button class="fp-locate-btn text-[11px] text-indigo-600 hover:text-indigo-800 dark:text-indigo-400 font-bold flex items-center bg-indigo-50 dark:bg-indigo-950/60 px-2 py-0.5 rounded-md" data-id="${d._id}"><i class="fas fa-crosshairs mr-1"></i>หาจุด</button>`
+                            : `<span class="text-[10.5px] text-indigo-600 dark:text-indigo-300 font-bold flex items-center bg-indigo-50 dark:bg-indigo-900/50 px-2 py-0.5 rounded-md border border-indigo-200 dark:border-indigo-700"><i class="fas fa-grip-vertical mr-1 text-indigo-400"></i>ลากไปวาง</span>`
                         }
                     </div>
 
-                    <h4 class="font-bold text-xs text-gray-800 dark:text-gray-100 truncate">${name}</h4>
-                    <div class="text-[11px] text-gray-500 dark:text-gray-400 mt-1 flex justify-between">
-                        <span class="truncate">SN: ${sn}</span>
-                        ${ip ? `<span class="text-blue-500 font-mono text-[10px]">${ip}</span>` : ''}
+                    <!-- MACHINE NAME (Prominent, Bold, Clear) -->
+                    <div class="flex items-center space-x-1.5 mb-0.5">
+                        <i class="fas ${categoryIcon} text-indigo-600 dark:text-indigo-400 text-xs shrink-0"></i>
+                        <h4 class="font-extrabold text-[13.5px] text-gray-900 dark:text-white truncate tracking-wide" title="${primaryName}">
+                            ${primaryName}
+                        </h4>
+                    </div>
+
+                    <!-- Model / Spec Subtitle -->
+                    ${secondarySpec && secondarySpec !== primaryName ? `<div class="text-[11px] text-gray-600 dark:text-gray-300 font-medium truncate mb-1 pl-4">${secondarySpec}</div>` : ''}
+
+                    <!-- Details Grid -->
+                    <div class="space-y-0.5 text-[10.5px] text-gray-500 dark:text-gray-400 pt-1.5 mt-1 border-t border-gray-100 dark:border-gray-700/60">
+                        <div class="flex justify-between">
+                            <span class="font-mono text-gray-400">SN:</span>
+                            <span class="font-mono text-gray-700 dark:text-gray-300 font-medium truncate ml-1">${sn}</span>
+                        </div>
+                        ${ip ? `
+                        <div class="flex justify-between">
+                            <span class="text-gray-400">IP:</span>
+                            <span class="font-mono text-blue-600 dark:text-blue-400 font-semibold truncate ml-1">${ip}</span>
+                        </div>` : ''}
+                        ${assigned ? `
+                        <div class="flex justify-between">
+                            <span class="text-gray-400">เชื่อมต่อกับ:</span>
+                            <span class="font-semibold text-purple-600 dark:text-purple-400 truncate ml-1">💻 ${assigned}</span>
+                        </div>` : ''}
+                        ${user ? `
+                        <div class="flex justify-between">
+                            <span class="text-gray-400">ผู้ใช้:</span>
+                            <span class="text-gray-700 dark:text-gray-300 truncate ml-1">${user}</span>
+                        </div>` : ''}
+                        ${location ? `
+                        <div class="flex justify-between">
+                            <span class="text-gray-400">จุดติดตั้ง:</span>
+                            <span class="text-emerald-600 dark:text-emerald-400 font-medium truncate ml-1">📍 ${location}</span>
+                        </div>` : ''}
                     </div>
 
                     ${isPinned ? `
-                        <div class="mt-2 pt-2 border-t border-gray-100 dark:border-gray-700/60 flex justify-between items-center text-[10px]">
-                            <span class="text-gray-400"><i class="fas fa-check-circle text-green-500 mr-1"></i>ปักหมุดแล้ว</span>
-                            <button class="fp-unpin-btn text-red-500 hover:underline" data-id="${d._id}" data-col="${colName}">ถอนหมุด</button>
+                        <div class="mt-2 pt-1.5 border-t border-gray-100 dark:border-gray-700/60 flex justify-between items-center text-[10px]">
+                            <span class="text-green-600 font-semibold"><i class="fas fa-check-circle mr-1"></i>ปักหมุดแล้ว</span>
+                            <button class="fp-unpin-btn text-red-500 hover:text-red-700 font-bold" data-id="${d._id}" data-col="${colName}">ถอนหมุด</button>
                         </div>
                     ` : ''}
                 </div>
@@ -581,7 +685,7 @@ class FloorPlanManager {
         if (status.includes('Use') || status.includes('Active') || status.includes('Loan')) colorBg = 'bg-green-600';
         else if (status.includes('Repair') || status.includes('Issue') || status.includes('Damaged')) colorBg = 'bg-red-600';
 
-        const deviceName = device.ItemName || device.Model || device.ComputerName || device.DeviceName || 'อุปกรณ์';
+        const deviceName = this.getDeviceDisplayName(device);
 
         pin.innerHTML = `
             <div class="relative flex items-center justify-center">
@@ -616,7 +720,7 @@ class FloorPlanManager {
         popover.style.top = `calc(${device.mapLocation.y}% - 35px)`;
         popover.style.transform = 'translate(-50%, -100%)';
 
-        const name = device.ItemName || device.Model || device.ComputerName || device.DeviceName || 'ไม่มีชื่ออุปกรณ์';
+        const name = this.getDeviceDisplayName(device);
         const sn = device.SerialNumber || device.MonitorSerial || '-';
         const ip = device.IPAddress || '-';
         const status = device.Status || 'In Storage';
