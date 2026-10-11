@@ -141,40 +141,65 @@ app.get('/api/tts/voices', verifyToken, async (req, res) => {
 
 app.post('/api/tts/generate', verifyToken, async (req, res) => {
     try {
-        const { text, voiceId } = req.body;
+        let { text, voiceId } = req.body;
         if (!text) return res.status(400).json({ message: "Text is required" });
 
         const elevenLabsKey = process.env.ELEVENLABS_API_KEY;
         if (!elevenLabsKey) return res.status(500).json({ message: "ELEVENLABS_API_KEY is not configured" });
 
-        const targetVoice = voiceId || 'Yo0WmPHbg2TY6FYOSr3u';
-        const response = await fetch(`https://api.elevenlabs.io/v1/text-to-speech/${targetVoice}`, {
-            method: 'POST',
-            headers: {
-                'Accept': 'audio/mpeg',
-                'xi-api-key': elevenLabsKey,
-                'Content-Type': 'application/json'
-            },
-            body: JSON.stringify({
-                text: text,
-                model_id: "eleven_turbo_v2_5", // Using the newest turbo model
-                language_code: "th",
-                voice_settings: {
-                    stability: 0.5,
-                    similarity_boost: 0.85,
-                    use_speaker_boost: true
-                }
-            })
-        });
+        // Clean text of markdown, HTML, urls, and noisy symbols
+        const cleanText = text
+            .replace(/<[^>]+>/g, ' ')
+            .replace(/https?:\/\/\S+/g, ' ')
+            .replace(/[#*_~`>[\]\\()]/g, ' ')
+            .replace(/\s+/g, ' ')
+            .trim();
 
-        if (!response.ok) throw new Error(`ElevenLabs API Error: ${response.statusText}`);
+        if (!cleanText) return res.status(400).json({ message: "Text contains no speakable content" });
+
+        const targetVoice = voiceId || 'Yo0WmPHbg2TY6FYOSr3u';
+
+        // Helper to attempt TTS generation
+        const callElevenLabs = async (modelId) => {
+            return await fetch(`https://api.elevenlabs.io/v1/text-to-speech/${targetVoice}`, {
+                method: 'POST',
+                headers: {
+                    'Accept': 'audio/mpeg',
+                    'xi-api-key': elevenLabsKey,
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    text: cleanText,
+                    model_id: modelId,
+                    voice_settings: {
+                        stability: 0.5,
+                        similarity_boost: 0.75
+                    }
+                })
+            });
+        };
+
+        // Try eleven_v4 first (the model used in user dashboard)
+        let response = await callElevenLabs('eleven_v4');
+
+        // Fallback to eleven_multilingual_v2 if eleven_v4 is not supported for this account/key
+        if (!response.ok) {
+            const errFirst = await response.text();
+            console.warn(`ElevenLabs eleven_v4 failed (${response.status}): ${errFirst}. Falling back to eleven_multilingual_v2...`);
+            response = await callElevenLabs('eleven_multilingual_v2');
+            if (!response.ok) {
+                const errSecond = await response.text();
+                console.error(`ElevenLabs fallback also failed (${response.status}): ${errSecond}`);
+                return res.status(response.status).json({ message: `ElevenLabs Error: ${errSecond}` });
+            }
+        }
 
         const arrayBuffer = await response.arrayBuffer();
         res.set('Content-Type', 'audio/mpeg');
         res.send(Buffer.from(arrayBuffer));
     } catch (error) {
-        console.error("TTS Generate Error:", error);
-        res.status(500).json({ message: error.message });
+        console.error("TTS Generate Server Error:", error);
+        res.status(500).json({ message: error.message || "TTS generation failed" });
     }
 });
 
