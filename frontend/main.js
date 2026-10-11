@@ -984,7 +984,7 @@ window.buildTable = function(collectionName) {
             html += `<tr class="hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"><td class="px-4 py-3 text-center"><input type="checkbox" value="${id}" onclick="window.toggleSelectItem('${collectionName}', this)" class="${collectionName}-row-cb rounded text-indigo-600 focus:ring-indigo-500 cursor-pointer" ${isChecked ? 'checked' : ''}></td>`;
             config.headers.forEach(header => {
                 let val = item[header] || '';
-                if (header === 'Status') { let color = 'gray'; let tStatus = t(val.toLowerCase().replace(' ', '_')) || val; if (val === 'Active') color = 'green'; else if (val === 'On Loan') color = 'yellow'; else if (val === 'Repair') color = 'orange'; else if (val === 'Storage') color = 'blue'; else if (val === 'Damaged') color = 'red'; val = `<span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-${color}-100 text-${color}-800 dark:bg-${color}-900/50 dark:text-${color}-300">${tStatus}</span>`; } else if (header === 'Last Seen') { let lastSeen = item.lastSeenOnline; if (lastSeen) { const diffMins = (new Date() - new Date(lastSeen)) / 60000; if (diffMins <= 15) val = `<div class="flex items-center space-x-2"><div class="h-2.5 w-2.5 rounded-full bg-green-500 shadow-[0_0_5px_#22c55e] animate-pulse"></div><span class="font-medium text-green-600 dark:text-green-400">${t('online')}</span></div>`; else val = `<div class="flex flex-col"><div class="flex items-center space-x-2"><div class="h-2.5 w-2.5 rounded-full bg-gray-400"></div><span class="text-gray-500">${t('offline')}</span></div><span class="text-[10px] text-gray-400 mt-0.5" title="${new Date(lastSeen).toLocaleString('th-TH')}">${window.formatTimeAgo(lastSeen)}</span></div>`; } else { val = `<div class="flex items-center space-x-2"><div class="h-2.5 w-2.5 rounded-full bg-yellow-400"></div><span class="text-gray-500">${t('unknown')}</span></div>`; } }
+                if (header === 'Status') { let color = 'gray'; let tStatus = t(val.toLowerCase().replace(' ', '_')) || val; if (val === 'Active') color = 'green'; else if (val === 'On Loan') color = 'yellow'; else if (val === 'Repair') color = 'orange'; else if (val === 'Storage') color = 'blue'; else if (val === 'Damaged') color = 'red'; val = `<span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-${color}-100 text-${color}-800 dark:bg-${color}-900/50 dark:text-${color}-300">${tStatus}</span>`; } else if (header === 'Last Seen') { let lastSeen = item.lastSeenOnline; if (lastSeen) { const diffMins = (new Date() - new Date(lastSeen)) / 60000; if (diffMins <= 15) val = `<div class="flex items-center space-x-2"><div class="h-2.5 w-2.5 rounded-full bg-green-500 shadow-[0_0_5px_#22c55e] animate-pulse"></div><span class="font-medium text-green-600 dark:text-green-400">${t('online')}</span></div>`; else val = `<div class="flex flex-col"><div class="flex items-center space-x-2"><div class="h-2.5 w-2.5 rounded-full bg-gray-400"></div><span class="text-gray-500">${t('offline')}</span></div><span class="text-[10px] text-gray-400 mt-0.5" title="${new Date(lastSeen).toLocaleString('th-TH')}">${window.formatTimeAgo(lastSeen)}</span></div>`; } else { val = `<div class="flex items-center space-x-2"><div class="h-2.5 w-2.5 rounded-full bg-yellow-400"></div><span class="text-gray-500">${t('unknown')}</span></div>`; } } else if (header === 'Location' && val) { const safeLoc = encodeURIComponent(val); const safeCol = encodeURIComponent(collectionName); val = `<button type="button" onclick="event.stopPropagation(); window.jumpToFloorPlanLocation('${safeLoc}', '${id}', '${safeCol}')" class="inline-flex items-center px-2.5 py-1 rounded-xl text-xs font-bold bg-indigo-50 hover:bg-indigo-100 text-indigo-700 dark:bg-indigo-950/60 dark:hover:bg-indigo-900 dark:text-indigo-300 border border-indigo-200/80 dark:border-indigo-800/80 transition-all hover:scale-105 shadow-sm group" title="คลิกเพื่อบินไปยังตำแหน่งบนแผนผัง (Floor Plan)"><i class="fas fa-map-marker-alt text-red-500 mr-1.5 group-hover:scale-125 group-hover:rotate-12 transition-transform"></i><span class="truncate max-w-[130px]">${val}</span><i class="fas fa-location-arrow text-[10px] text-indigo-500 dark:text-indigo-400 ml-1.5 opacity-80 group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-transform"></i></button>`; }
                 html += `<td class="px-6 py-4 text-sm text-gray-700 dark:text-gray-200 whitespace-nowrap max-w-xs truncate" title="${String(val).replace(/<[^>]*>?/gm, '')}">${val}</td>`;
             });
             html += `<td class="px-6 py-4 text-sm font-medium space-x-3 whitespace-nowrap text-center"><button onclick="window.openModal('edit', '${collectionName}', '${id}')" class="text-indigo-600 hover:text-indigo-900 dark:text-indigo-400 dark:hover:text-indigo-300" title="Edit"><i class="fas fa-edit"></i></button><button onclick="window.openCloneModal('${collectionName}', '${id}')" class="text-blue-600 hover:text-blue-900 dark:text-blue-400 dark:hover:text-blue-300" title="Clone"><i class="fas fa-copy"></i></button><button onclick="window.openMoveModal('${collectionName}', '${id}')" class="text-purple-600 hover:text-purple-900 dark:text-purple-400 dark:hover:text-purple-300" title="Move Category"><i class="fas fa-exchange-alt"></i></button><button onclick="window.deleteItem('${collectionName}', '${id}')" class="text-red-600 hover:text-red-900 dark:text-red-400 dark:hover:text-red-300" title="Delete"><i class="fas fa-trash"></i></button><button onclick="window.showQrModal('${item[config.serialField] || id}', '${item[config.nameField] || 'Asset'}')" class="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200" title="QR Code"><i class="fas fa-qrcode"></i></button></td></tr>`;
@@ -1062,7 +1062,7 @@ window.openModal = async function(mode, collectionName, id = null) {
             const fieldId = f.id; const fieldDef = f.def; let val = itemData[fieldId] !== undefined ? itemData[fieldId] : ''; const dropdown = config.dropdowns && config.dropdowns[fieldId];
             formHtml += `<div class="col-span-1 relative">`; const requiredHtml = (fieldDef.required || ['SerialNumber', 'ItemName', 'Status'].includes(fieldId)) ? `<span class="text-red-500 ml-1">*</span>` : ''; formHtml += `<label class="block text-xs font-semibold text-gray-600 dark:text-gray-400 mb-1.5">${fieldDef.label}${requiredHtml}</label>`;
             const inputClasses = `w-full px-4 py-2.5 bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 block dark:bg-gray-700/50 dark:border-gray-600 dark:placeholder-gray-400 dark:text-white transition-all duration-200 hover:border-indigo-300`;
-            if (dropdown) { formHtml += `<select name="${fieldId}" id="edit-${fieldId}" class="${inputClasses} appearance-none"><option value="">-- Select --</option>${dropdown.map(opt => `<option value="${opt}" ${val === opt ? 'selected' : ''}>${t(opt.toLowerCase().replace(' ', '_')) || opt}</option>`).join('')}</select><div class="pointer-events-none absolute inset-y-0 right-0 top-6 flex items-center px-4 text-gray-500"><i class="fas fa-chevron-down text-xs"></i></div>`; } else if (fieldDef.type === 'date') { const d = new Date(val); if(!isNaN(d) && val) val = d.toISOString().split('T')[0]; formHtml += `<input type="date" name="${fieldId}" id="edit-${fieldId}" value="${val}" class="${inputClasses}">`; } else if (fieldDef.type === 'number') { formHtml += `<input type="number" name="${fieldId}" id="edit-${fieldId}" value="${val}" class="${inputClasses}">`; } else if (fieldDef.type === 'textarea') { formHtml += `<textarea name="${fieldId}" id="edit-${fieldId}" rows="2" class="${inputClasses}">${val}</textarea>`; } else { formHtml += `<input type="text" name="${fieldId}" id="edit-${fieldId}" value="${val}" class="${inputClasses}">`; } formHtml += `</div>`;
+            if (dropdown) { formHtml += `<select name="${fieldId}" id="edit-${fieldId}" class="${inputClasses} appearance-none"><option value="">-- Select --</option>${dropdown.map(opt => `<option value="${opt}" ${val === opt ? 'selected' : ''}>${t(opt.toLowerCase().replace(' ', '_')) || opt}</option>`).join('')}</select><div class="pointer-events-none absolute inset-y-0 right-0 top-6 flex items-center px-4 text-gray-500"><i class="fas fa-chevron-down text-xs"></i></div>`; } else if (fieldId === 'Location') { formHtml += `<div class="relative"><input type="text" name="${fieldId}" id="edit-${fieldId}" value="${val}" list="location-zone-options" class="${inputClasses}" placeholder="เลือกโซน/อาคาร หรือพิมพ์ระบุ..."><datalist id="location-zone-options">${window.getLocationZoneDatalistOptions ? window.getLocationZoneDatalistOptions() : ''}</datalist></div><div class="flex items-center justify-between mt-1 text-[11px]"><span class="text-gray-400"><i class="fas fa-info-circle mr-1"></i>เลือกโซนจากแผนผัง หรือพิมพ์เอง</span><button type="button" onclick="const lVal = document.getElementById('edit-${fieldId}')?.value || ''; window.jumpToFloorPlanLocation(lVal, '${id || ''}', '${collectionName}'); window.hideModal('editModal');" class="text-indigo-600 dark:text-indigo-400 font-bold hover:underline flex items-center"><i class="fas fa-map-marked-alt mr-1"></i>ดู/ระบุบนแผนผัง ↗</button></div>`; } else if (fieldDef.type === 'date') { const d = new Date(val); if(!isNaN(d) && val) val = d.toISOString().split('T')[0]; formHtml += `<input type="date" name="${fieldId}" id="edit-${fieldId}" value="${val}" class="${inputClasses}">`; } else if (fieldDef.type === 'number') { formHtml += `<input type="number" name="${fieldId}" id="edit-${fieldId}" value="${val}" class="${inputClasses}">`; } else if (fieldDef.type === 'textarea') { formHtml += `<textarea name="${fieldId}" id="edit-${fieldId}" rows="2" class="${inputClasses}">${val}</textarea>`; } else { formHtml += `<input type="text" name="${fieldId}" id="edit-${fieldId}" value="${val}" class="${inputClasses}">`; } formHtml += `</div>`;
         }); formHtml += `</div></div>`;
     }
     form.innerHTML = formHtml;
@@ -2065,7 +2065,7 @@ window.generateSearchResultCard = function(item, collectionName) {
                 </div>
                 <div>
                     <p class="text-[9px] text-gray-400 font-bold uppercase tracking-widest mb-0.5">Location</p>
-                    <p class="text-xs font-bold dark:text-white truncate">${item.Location || '-'}</p>
+                    ${item.Location ? `<button type="button" onclick="window.jumpToFloorPlanLocation('${encodeURIComponent(item.Location)}', '${item._id || item.id}', '${encodeURIComponent(collectionName)}')" class="text-xs font-bold text-indigo-600 dark:text-indigo-400 hover:text-indigo-800 dark:hover:text-indigo-300 hover:underline flex items-center space-x-1 group text-left truncate max-w-full" title="คลิกเพื่อดูตำแหน่งบนแผนผัง (Floor Plan)"><i class="fas fa-map-marker-alt text-red-500 mr-1 group-hover:scale-125 transition-transform"></i><span class="truncate">${item.Location}</span><i class="fas fa-external-link-alt text-[9px] opacity-70 ml-1"></i></button>` : `<p class="text-xs font-bold dark:text-white truncate">-</p>`}
                 </div>
                 <div>
                     <p class="text-[9px] text-gray-400 font-bold uppercase tracking-widest mb-0.5">IP Address</p>
@@ -2132,6 +2132,63 @@ window.openHistoryModal = async function() {
     } catch (error) {
         container.innerHTML = `<div class="text-center text-red-500 py-8">ไม่สามารถดึงข้อมูลประวัติได้<br><span class="text-xs text-gray-400">${error.message}</span></div>`;
     }
+};
+
+// ------------------------------------------------------------------------
+// 🗺️ Floor Plan & Location Navigation Helpers
+// ------------------------------------------------------------------------
+window.getLocationZoneDatalistOptions = function() {
+    const options = new Set();
+    const zones = (window.floorPlan && window.floorPlan.zones) || window.allData?.FloorPlanZones || [];
+    zones.forEach(z => {
+        if (z.name) options.add(z.name);
+        if (z.locationKey) options.add(z.locationKey);
+        if (Array.isArray(z.subZones)) {
+            z.subZones.forEach(sub => {
+                if (sub.name) options.add(`${z.name.split('(')[0].trim()} - ${sub.name}`);
+                if (sub.subKey) options.add(sub.subKey);
+            });
+        }
+    });
+
+    Object.keys(window.allData || {}).forEach(col => {
+        if (Array.isArray(window.allData[col])) {
+            window.allData[col].forEach(d => {
+                if (d.Location && typeof d.Location === 'string' && d.Location.trim()) {
+                    options.add(d.Location.trim());
+                }
+            });
+        }
+    });
+
+    let html = '';
+    options.forEach(opt => {
+        html += `<option value="${opt}"></option>`;
+    });
+    return html;
+};
+
+window.jumpToFloorPlanLocation = function(locStr, deviceId = null, collectionName = null) {
+    const rawLoc = locStr ? decodeURIComponent(locStr) : '';
+    const rawCol = collectionName ? decodeURIComponent(collectionName) : null;
+    const cleanId = (deviceId && deviceId !== 'null' && deviceId !== 'undefined') ? deviceId : null;
+
+    // 1. Switch page to Floor Plan
+    if (typeof window.loadPage === 'function') {
+        window.loadPage('FloorPlan');
+    }
+
+    // 2. Coordinate navigation with Floor Plan engine
+    let attempts = 0;
+    const trigger = () => {
+        attempts++;
+        if (window.floorPlan && typeof window.floorPlan.navigateToLocation === 'function') {
+            window.floorPlan.navigateToLocation(rawLoc, cleanId, rawCol);
+        } else if (attempts < 25) {
+            setTimeout(trigger, 100);
+        }
+    };
+    setTimeout(trigger, 150);
 };
 
 

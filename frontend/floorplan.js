@@ -78,7 +78,9 @@ class FloorPlanManager {
         this.renderPins();
         
         // Default: fill entire black viewport width for an immersive experience
-        requestAnimationFrame(() => this.fillWidth());
+        if (!this.pendingNavigation) {
+            requestAnimationFrame(() => this.fillWidth());
+        }
     }
 
     renderLayout() {
@@ -720,29 +722,81 @@ class FloorPlanManager {
     }
 
     // 🎯 CLICKABLE LOCATION NAVIGATION (คลิกที่ Location ของอุปกรณ์เพื่อพาไปยังจุดในแผนที่)
-    navigateToLocation(locString, deviceId = null) {
+    async navigateToLocation(locString, deviceId = null, preferredCol = null) {
+        if (!this.initialized) {
+            this.pendingNavigation = { locString, deviceId, preferredCol };
+            await this.init();
+            this.pendingNavigation = null;
+        }
+
+        // Wait brief frame so layout measurements settle
+        await new Promise(r => setTimeout(r, 120));
+
         // 1. If device is already pinned on the map, fly straight to its exact pin!
         if (deviceId) {
-            for (const col of Object.keys(window.allData || {})) {
-                if (Array.isArray(window.allData[col])) {
-                    const d = window.allData[col].find(item => item._id === deviceId);
-                    if (d && d.mapLocation && typeof d.mapLocation.x === 'number') {
-                        this.flyToCoords(d.mapLocation.x, d.mapLocation.y, 1.8, 650);
-                        setTimeout(() => this.highlightPin(deviceId), 700);
-                        this.showToastNotification(`📍 บินมายังตำแหน่งของเครื่อง: ${this.getDeviceDisplayName(d)}`, 'success');
-                        return;
+            let foundDevice = null;
+            let foundCol = null;
+
+            if (preferredCol && Array.isArray(window.allData?.[preferredCol])) {
+                foundDevice = window.allData[preferredCol].find(item => (item._id === deviceId || item.id === deviceId));
+                if (foundDevice) foundCol = preferredCol;
+            }
+
+            if (!foundDevice) {
+                for (const col of Object.keys(window.allData || {})) {
+                    if (Array.isArray(window.allData[col])) {
+                        const d = window.allData[col].find(item => (item._id === deviceId || item.id === deviceId));
+                        if (d) { foundDevice = d; foundCol = col; break; }
                     }
+                }
+            }
+
+            if (foundDevice) {
+                // Ensure the category is selected so the device is displayed
+                if (foundCol && this.selectedCategory !== foundCol) {
+                    this.selectedCategory = foundCol;
+                    const catSelect = document.getElementById('fp-cat-select');
+                    if (catSelect) catSelect.value = foundCol;
+                    const badge = document.getElementById('fp-cat-badge');
+                    if (badge && catSelect) badge.innerText = catSelect.options[catSelect.selectedIndex]?.text.split('(')[0].trim() || foundCol;
+                    this.renderPins();
+                    this.renderDeviceCards();
+                }
+
+                // If zone filtering is active and might hide this device, reset zone to 'all'
+                if (this.selectedZone !== 'all') {
+                    this.selectedZone = 'all';
+                    this.renderZoneBar();
+                    this.renderDeviceCards();
+                }
+
+                if (foundDevice.mapLocation && typeof foundDevice.mapLocation.x === 'number') {
+                    this.flyToCoords(foundDevice.mapLocation.x, foundDevice.mapLocation.y, 2.0, 650);
+                    setTimeout(() => this.highlightPin(deviceId), 700);
+                    this.showToastNotification(`📍 บินมายังตำแหน่งของเครื่อง: ${this.getDeviceDisplayName(foundDevice)}`, 'success');
+                    return;
+                } else {
+                    // Device is unpinned, highlight it in the left tray so user can drag it!
+                    setTimeout(() => {
+                        const card = this.container?.querySelector(`.fp-card[data-id="${deviceId}"]`);
+                        if (card) {
+                            card.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                            card.classList.add('ring-2', 'ring-indigo-500', 'bg-indigo-50', 'dark:bg-indigo-900/40');
+                            setTimeout(() => card.classList.remove('ring-2', 'ring-indigo-500', 'bg-indigo-50', 'dark:bg-indigo-900/40'), 3500);
+                        }
+                    }, 250);
                 }
             }
         }
 
         // 2. If unpinned, look for matching Zone or Department by location string
-        if (!locString) {
-            this.showToastNotification("อุปกรณ์นี้ยังไม่ได้ระบุสถานที่ (Location)", "warning");
+        const effectiveLoc = locString || (deviceId && window.allData?.[preferredCol]?.find(d => (d._id === deviceId || d.id === deviceId))?.Location);
+        if (!effectiveLoc) {
+            this.showToastNotification("อุปกรณ์นี้ยังไม่ได้ระบุสถานที่ (Location) หรือปักหมุด", "warning");
             return;
         }
 
-        const cleanLoc = locString.toLowerCase().trim();
+        const cleanLoc = effectiveLoc.toLowerCase().trim();
         
         // Find matching zone
         const matchedZone = this.zones.find(z => {
@@ -753,7 +807,6 @@ class FloorPlanManager {
         });
 
         if (matchedZone && matchedZone.coords) {
-            // Check if there is a matching sub-zone / department inside this building
             let targetCoords = matchedZone.coords;
             let targetScale = matchedZone.zoom || 1.8;
             let destLabel = matchedZone.name;
@@ -767,7 +820,7 @@ class FloorPlanManager {
                 if (sub && sub.coords) {
                     targetCoords = sub.coords;
                     targetScale = sub.zoom || 2.2;
-                    destLabel = `${matchedZone.name} > ${sub.name}`;
+                    destLabel = `${matchedZone.name.split('(')[0].trim()} > ${sub.name}`;
                 }
             }
 
@@ -777,7 +830,7 @@ class FloorPlanManager {
         }
 
         // 3. If no matching zone coordinates are found, prompt user to set it
-        this.showToastNotification(`📍 ยังไม่ได้ระบุพิกัดสำหรับสถานที่: "${locString}" (คลิก [⚙️ จัดการโซน] เพื่อปักพิกัดอาคารได้)`, 'warning');
+        this.showToastNotification(`📍 ยังไม่ได้ระบุพิกัดสำหรับสถานที่: "${effectiveLoc}" (คลิก [⚙️ จัดการโซน] เพื่อปักพิกัดอาคารได้)`, 'warning');
     }
 
     // Modal to Manage Zones & Sub-zones (Departments)
@@ -1461,6 +1514,7 @@ class FloorPlanManager {
             return `
                 <div class="fp-card bg-white dark:bg-gray-800 p-3 rounded-2xl border ${isPinned ? 'border-gray-200 dark:border-gray-700' : 'border-indigo-300 dark:border-indigo-700/80 shadow-sm'} transition-all hover:shadow-md relative group cursor-grab active:cursor-grabbing"
                      draggable="${!isPinned}"
+                     data-id="${d._id || d.id}"
                      data-device='${payload.replace(/'/g, "&apos;")}'>
                     
                     <!-- Header: Status + Action -->
@@ -1757,30 +1811,90 @@ class FloorPlanManager {
     // ------------------------------------------------------------------------
     // 💾 Save / Update / Unpin Operations
     // ------------------------------------------------------------------------
+    findZoneAtCoords(x, y, maxDistance = 15) {
+        if (!this.zones || this.zones.length === 0) return null;
+        let closest = null;
+        let minDist = maxDistance;
+
+        this.zones.forEach(z => {
+            // Check sub-zones first (more specific department/area)
+            if (Array.isArray(z.subZones)) {
+                z.subZones.forEach(sub => {
+                    if (sub.coords && typeof sub.coords.x === 'number') {
+                        const dist = Math.hypot(sub.coords.x - x, sub.coords.y - y);
+                        if (dist < minDist) {
+                            minDist = dist;
+                            closest = {
+                                zone: z,
+                                subZone: sub,
+                                locationName: `${z.locationKey || z.name} - ${sub.subKey || sub.name}`,
+                                displayName: `${z.name.split('(')[0].trim()} > ${sub.name}`
+                            };
+                        }
+                    }
+                });
+            }
+
+            // Check main building zone
+            if (z.coords && typeof z.coords.x === 'number') {
+                const dist = Math.hypot(z.coords.x - x, z.coords.y - y);
+                if (dist < minDist) {
+                    minDist = dist;
+                    closest = {
+                        zone: z,
+                        subZone: null,
+                        locationName: z.locationKey || z.name,
+                        displayName: z.name
+                    };
+                }
+            }
+        });
+
+        return closest;
+    }
+
     async savePinLocation(id, col, x, y) {
         try {
             const token = localStorage.getItem('authToken');
+            const nearest = this.findZoneAtCoords(x, y);
+
+            const payload = {
+                mapLocation: { x: parseFloat(x.toFixed(2)), y: parseFloat(y.toFixed(2)) }
+            };
+
+            // Auto-update Location field if placed in or near a known zone/building
+            if (nearest && nearest.locationName) {
+                payload.Location = nearest.locationName;
+            }
+
             const res = await fetch(`/api/inventory/${col}/${id}`, {
                 method: 'PUT',
                 headers: {
                     'Content-Type': 'application/json',
                     'Authorization': `Bearer ${token}`
                 },
-                body: JSON.stringify({
-                    mapLocation: { x: parseFloat(x.toFixed(2)), y: parseFloat(y.toFixed(2)) }
-                })
+                body: JSON.stringify(payload)
             });
 
             if (!res.ok) throw new Error("Could not save pin location");
 
             // Update in-memory cache
             if (window.allData && window.allData[col]) {
-                const item = window.allData[col].find(d => d._id === id);
-                if (item) item.mapLocation = { x: parseFloat(x.toFixed(2)), y: parseFloat(y.toFixed(2)) };
+                const item = window.allData[col].find(d => (d._id === id || d.id === id));
+                if (item) {
+                    item.mapLocation = payload.mapLocation;
+                    if (payload.Location) item.Location = payload.Location;
+                }
             }
 
             this.renderDeviceCards();
             this.renderPins();
+
+            if (nearest) {
+                this.showToastNotification(`📍 ปักหมุดแล้ว & ซิงค์ Location: "${nearest.displayName}"`, 'success');
+            } else {
+                this.showToastNotification("📍 บันทึกพิกัดตำแหน่งอุปกรณ์เรียบร้อย", 'success');
+            }
 
         } catch (error) {
             alert(`ไม่สามารถบันทึกพิกัดได้: ${error.message}`);
