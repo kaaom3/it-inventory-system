@@ -729,6 +729,7 @@ function renderSidebarDynamic() {
     if (!container) return; container.innerHTML = ''; 
     const dashboardNode = { id: 'Dashboard', name: t('dashboard'), icon: 'fa-tachometer-alt', children: [], isSystem: true, clickAction: "window.loadPage('Dashboard', this)" };
     const searchScanNode = { id: 'SearchScan', name: t('search_scan'), icon: 'fa-search-plus', children: [], isSystem: true, clickAction: "window.loadPage('SearchScan', this)" };
+    const floorPlanNode = { id: 'FloorPlan', name: 'แผนผังพัสดุ (Floor Plan)', icon: 'fa-map-marked-alt', children: [], isSystem: true, clickAction: "window.loadPage('FloorPlan', this)" };
     const assetChildren = [
         { id: 'Computers', name: t('computers'), icon: 'fa-laptop', isSystem: true, clickAction: "window.loadPage('Computers', this)" },
         { id: 'Monitors', name: t('monitors'), icon: 'fa-desktop', isSystem: true, clickAction: "window.loadPage('Monitors', this)" },
@@ -746,7 +747,7 @@ function renderSidebarDynamic() {
     
     const allKnown = ['Computers', 'Monitors', 'Printers', 'Network', 'Maintenance', 'Maintenance Log', ...customNodes.map(n => n.id)];
     Object.keys(collectionConfigs).forEach(key => { if (!allKnown.includes(key)) customNodes.push({ id: key, name: collectionConfigs[key].displayName, icon: 'fa-box', isSystem: false, parentId: null, clickAction: `window.loadPage('${key}', this)`, allowDelete: false, allowEdit: true, order: 99 }); });
-    const rootNodes = [dashboardNode, searchScanNode, { type: 'header', label: t('assets') }, ...assetChildren, ...customNodes.filter(n => !n.parentId), { type: 'header', label: t('management') }, ...managementChildren];
+    const rootNodes = [dashboardNode, searchScanNode, floorPlanNode, { type: 'header', label: t('assets') }, ...assetChildren, ...customNodes.filter(n => !n.parentId), { type: 'header', label: t('management') }, ...managementChildren];
     const nodeMap = {}; [...rootNodes, ...customNodes].forEach(n => { if(n.id) nodeMap[n.id] = n; });
     customNodes.forEach(node => { if (node.parentId && nodeMap[node.parentId]) { if (!nodeMap[node.parentId].children) nodeMap[node.parentId].children = []; if (!nodeMap[node.parentId].children.find(c => c.id === node.id)) { nodeMap[node.parentId].children.push(node); nodeMap[node.parentId].children.sort((a, b) => (a.order || 0) - (b.order || 0) || a.name.localeCompare(b.name)); } } });
 
@@ -800,6 +801,7 @@ window.loadPage = function(pageName, navElement) {
         else if (pageName === 'DisposedAssets') window.renderDisposedAssets();
         else if (pageName === 'Settings') window.renderSettings();
         else if (pageName === 'LabelPrinter') window.buildLabelPrinterPage();
+        else if (pageName === 'FloorPlan') { if (window.floorPlan) window.floorPlan.init(); }
         else if (pageName === 'Maintenance') window.buildMaintenancePage();
         else if (collectionConfigs[pageName]) { if (paginationState[pageName]) { paginationState[pageName].filterText = ''; const searchInput = document.getElementById(`${pageName.toLowerCase()}SearchInput`); if (searchInput) searchInput.value = ''; window.buildTable(pageName); } }
     }
