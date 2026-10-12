@@ -776,6 +776,25 @@ app.put('/api/inventory/maintenance/:id', verifyToken, async (req, res) => {
     } catch (error) { res.status(500).json({ message: error.message }); }
 });
 
+// 🌟 FloorPlanZones: Batch Sync / Replace zones atomically without duplicates
+app.put('/api/inventory/FloorPlanZones', verifyToken, async (req, res) => {
+    if (!db) return res.status(500).json({ message: "Database not connected" });
+    try {
+        const zones = req.body;
+        if (!Array.isArray(zones)) return res.status(400).json({ message: "Invalid payload: zones must be an array" });
+        await db.collection('FloorPlanZones').deleteMany({});
+        if (zones.length > 0) {
+            const cleanZones = zones.map(z => {
+                const { _id, ...clean } = z;
+                clean.Timestamp = new Date();
+                return clean;
+            });
+            await db.collection('FloorPlanZones').insertMany(cleanZones);
+        }
+        res.json({ message: "FloorPlanZones synced successfully", count: zones.length });
+    } catch (error) { res.status(500).json({ message: error.message }); }
+});
+
 app.post('/api/inventory/:collection', verifyToken, async (req, res) => {
     if (!db) return res.status(500).json({ message: "Database not connected" });
     try {

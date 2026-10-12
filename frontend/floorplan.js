@@ -377,8 +377,11 @@ class FloorPlanManager {
 
         window.addEventListener('mousemove', (e) => {
             if (!this.isPanning) return;
-            this.panX = e.clientX - this.startX;
-            this.panY = e.clientY - this.startY;
+            const targetX = e.clientX - this.startX;
+            const targetY = e.clientY - this.startY;
+            const clamped = this.clampPan(targetX, targetY, this.scale);
+            this.panX = clamped.x;
+            this.panY = clamped.y;
             this.updateTransform();
         });
 
@@ -415,8 +418,11 @@ class FloorPlanManager {
 
         this.mapViewport.addEventListener('touchmove', (e) => {
             if (e.touches.length === 1 && this.isPanning) {
-                this.panX = e.touches[0].clientX - this.startX;
-                this.panY = e.touches[0].clientY - this.startY;
+                const targetX = e.touches[0].clientX - this.startX;
+                const targetY = e.touches[0].clientY - this.startY;
+                const clamped = this.clampPan(targetX, targetY, this.scale);
+                this.panX = clamped.x;
+                this.panY = clamped.y;
                 this.updateTransform();
             } else if (e.touches.length === 2 && this.touchStartDist) {
                 const currentDist = Math.hypot(
@@ -483,10 +489,15 @@ class FloorPlanManager {
     // 🏢 Zones & Locations Management (Buildings, Departments & Fly-To Navigation)
     // ------------------------------------------------------------------------
     loadZones() {
-        // 1. Try to load from database collection
+        // 1. Try to load from database collection (deduplicating to prevent phantom duplicates)
         const dbZones = window.allData?.FloorPlanZones;
         if (Array.isArray(dbZones) && dbZones.length > 0) {
-            this.zones = dbZones;
+            const uniqueMap = new Map();
+            dbZones.forEach(z => {
+                const zId = z.id || z.code || z.name;
+                if (!uniqueMap.has(zId)) uniqueMap.set(zId, z);
+            });
+            this.zones = Array.from(uniqueMap.values());
             return;
         }
 
@@ -494,14 +505,22 @@ class FloorPlanManager {
         try {
             const saved = localStorage.getItem('floorplan_zones');
             if (saved) {
-                this.zones = JSON.parse(saved);
-                if (Array.isArray(this.zones) && this.zones.length > 0) return;
+                const parsed = JSON.parse(saved);
+                if (Array.isArray(parsed) && parsed.length > 0) {
+                    const uniqueMap = new Map();
+                    parsed.forEach(z => {
+                        const zId = z.id || z.code || z.name;
+                        if (!uniqueMap.has(zId)) uniqueMap.set(zId, z);
+                    });
+                    this.zones = Array.from(uniqueMap.values());
+                    return;
+                }
             }
         } catch (e) {
             console.warn("Could not parse saved zones:", e);
         }
 
-        // 3. Smart Initial Defaults matching the user's resort/water park & current data!
+        // 3. Smart Initial Defaults matching the resort layout & exact building locations!
         this.zones = [
             {
                 id: 'zone-bld-a',
@@ -509,14 +528,15 @@ class FloorPlanManager {
                 code: 'BLD-A',
                 locationKey: 'Office_Building_A',
                 icon: 'fa-building',
-                coords: { x: 58.0, y: 78.5 },
+                coords: { x: 39.28, y: 88.07 },
                 zoom: 1.8,
                 color: '#4f46e5',
-                description: 'อาคารสำนักงานใหญ่ รวมฝ่ายบริหาร ไอที และปฏิบัติการ',
+                description: 'อาคารสำนักงานใหญ่ รวมฝ่ายบริหาร ไอที ปฏิบัติการ และจุดจำหน่ายตั๋ว',
                 subZones: [
-                    { id: 'sub-a-1', name: 'แผนก IT & Server Room', subKey: 'IT', coords: { x: 56.5, y: 77.0 }, zoom: 2.2 },
-                    { id: 'sub-a-2', name: 'แผนกปฏิบัติการ (Operations)', subKey: 'Operations', coords: { x: 58.0, y: 80.0 }, zoom: 2.2 },
-                    { id: 'sub-a-3', name: 'แผนกการเงิน & บัญชี', subKey: 'Accounting', coords: { x: 60.5, y: 78.0 }, zoom: 2.2 }
+                    { id: 'sub-a-1', name: 'แผนก IT & Server Room', subKey: 'IT', coords: { x: 58.0, y: 89.0 }, zoom: 2.2 },
+                    { id: 'sub-a-2', name: 'แผนกปฏิบัติการ (Operations)', subKey: 'Operations', coords: { x: 49.5, y: 86.0 }, zoom: 2.2 },
+                    { id: 'sub-a-3', name: 'แผนกการเงิน & บัญชี', subKey: 'Accounting', coords: { x: 42.0, y: 88.0 }, zoom: 2.2 },
+                    { id: 'sub-a-4', name: 'จุดจำหน่ายตั๋วทางเข้า (Ticket Counter)', subKey: 'Ticket', coords: { x: 33.73, y: 85.28 }, zoom: 2.2 }
                 ]
             },
             {
@@ -525,7 +545,7 @@ class FloorPlanManager {
                 code: 'BLD-B',
                 locationKey: 'Building_B',
                 icon: 'fa-tools',
-                coords: { x: 74.0, y: 75.0 },
+                coords: { x: 74.92, y: 70.39 },
                 zoom: 1.8,
                 color: '#0891b2',
                 description: 'อาคารฝ่ายวิศวกรรม ช่างซ่อมบำรุง และคลังพัสดุ',
@@ -543,11 +563,10 @@ class FloorPlanManager {
                 coords: { x: 52.0, y: 35.0 },
                 zoom: 1.5,
                 color: '#059669',
-                description: 'พื้นที่สวนน้ำ สไลเดอร์ และจุดบริการแคชเชียร์/จำหน่ายตั๋ว',
+                description: 'พื้นที่สวนน้ำ สไลเดอร์ และทะเลเทียม',
                 subZones: [
-                    { id: 'sub-wp-1', name: 'จุดจำหน่ายตั๋วทางเข้า (Ticket Counter)', subKey: 'Ticket', coords: { x: 53.0, y: 88.0 }, zoom: 2.3 },
-                    { id: 'sub-wp-2', name: 'สไลเดอร์ยักษ์ (Mega Slide Tower)', subKey: 'Slide', coords: { x: 45.0, y: 40.0 }, zoom: 2.0 },
-                    { id: 'sub-wp-3', name: 'ทะเลเทียม (Wave Pool & Beach)', subKey: 'Wave', coords: { x: 52.0, y: 24.0 }, zoom: 2.0 }
+                    { id: 'sub-wp-2', name: 'สไลเดอร์ยักษ์ (Tower A)', subKey: 'Slide', coords: { x: 75.75, y: 54.52 }, zoom: 2.0 },
+                    { id: 'sub-wp-3', name: 'ทะเลเทียม (Wave Pool & Beach)', subKey: 'Wave', coords: { x: 31.66, y: 21.94 }, zoom: 2.0 }
                 ]
             }
         ];
@@ -567,13 +586,18 @@ class FloorPlanManager {
         this.saveZonesLocally();
         try {
             const token = localStorage.getItem('authToken');
-            // Save to MongoDB collection 'FloorPlanZones'
-            for (const z of this.zones) {
-                await fetch(`/api/inventory/FloorPlanZones`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-                    body: JSON.stringify(z)
-                });
+            const cleanZones = this.zones.map(z => {
+                const { _id, ...clean } = z;
+                return clean;
+            });
+            // Atomic Batch PUT to MongoDB collection 'FloorPlanZones'
+            const res = await fetch(`/api/inventory/FloorPlanZones`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+                body: JSON.stringify(cleanZones)
+            });
+            if (res.ok && window.allData) {
+                window.allData.FloorPlanZones = this.zones;
             }
         } catch (e) {
             console.warn("DB save sync notice:", e);
@@ -683,7 +707,45 @@ class FloorPlanManager {
         });
     }
 
-    // 🚀 CAMERA FLIGHT (Smooth Ease-Out Glide to any target coordinates & zoom)
+    // 🛡️ CAMERA CLAMP ENGINE: Keeps the map image covering the viewport (zero black empty void!)
+    clampPan(panX, panY, scale = this.scale) {
+        if (!this.mapViewport || !this.mapCanvas) return { x: panX, y: panY };
+
+        const vpW = this.mapViewport.clientWidth;
+        const vpH = this.mapViewport.clientHeight;
+        const canvasW = this.mapCanvas.offsetWidth;
+        const canvasH = this.mapCanvas.offsetHeight;
+
+        if (vpW <= 0 || vpH <= 0 || canvasW <= 0 || canvasH <= 0) return { x: panX, y: panY };
+
+        const renderedW = canvasW * scale;
+        const renderedH = canvasH * scale;
+
+        let clampedX = panX;
+        let clampedY = panY;
+
+        // Horizontal clamping: If rendered canvas is wider than viewport, prevent black void on sides
+        if (renderedW <= vpW) {
+            clampedX = (vpW - renderedW) / 2;
+        } else {
+            const minX = vpW - renderedW;
+            const maxX = 0;
+            clampedX = Math.max(minX, Math.min(maxX, panX));
+        }
+
+        // Vertical clamping: If rendered canvas is taller than viewport, prevent black void top and bottom
+        if (renderedH <= vpH) {
+            clampedY = (vpH - renderedH) / 2;
+        } else {
+            const minY = vpH - renderedH;
+            const maxY = 0;
+            clampedY = Math.max(minY, Math.min(maxY, panY));
+        }
+
+        return { x: clampedX, y: clampedY };
+    }
+
+    // 🚀 CAMERA FLIGHT (Smooth Ease-Out Glide to any target coordinates & zoom with boundary clamping)
     flyToCoords(targetXPercent, targetYPercent, targetScale = 1.6, duration = 600) {
         if (!this.mapViewport || !this.mapCanvas) return;
 
@@ -697,8 +759,12 @@ class FloorPlanManager {
         const startPanY = this.panY;
 
         const endScale = Math.min(Math.max(targetScale, 0.4), 4.5);
-        const endPanX = (this.mapViewport.clientWidth / 2) - (targetPixelX * endScale);
-        const endPanY = (this.mapViewport.clientHeight / 2) - (targetPixelY * endScale);
+        const rawEndPanX = (this.mapViewport.clientWidth / 2) - (targetPixelX * endScale);
+        const rawEndPanY = (this.mapViewport.clientHeight / 2) - (targetPixelY * endScale);
+
+        const clampedEnd = this.clampPan(rawEndPanX, rawEndPanY, endScale);
+        const endPanX = clampedEnd.x;
+        const endPanY = clampedEnd.y;
 
         const startTime = performance.now();
 
@@ -709,8 +775,11 @@ class FloorPlanManager {
             const ease = 1 - Math.pow(1 - progress, 3);
 
             this.scale = parseFloat((startScale + (endScale - startScale) * ease).toFixed(3));
-            this.panX = startPanX + (endPanX - startPanX) * ease;
-            this.panY = startPanY + (endPanY - startPanY) * ease;
+            const currentPanX = startPanX + (endPanX - startPanX) * ease;
+            const currentPanY = startPanY + (endPanY - startPanY) * ease;
+            const clampedCurrent = this.clampPan(currentPanX, currentPanY, this.scale);
+            this.panX = clampedCurrent.x;
+            this.panY = clampedCurrent.y;
             this.updateTransform();
 
             if (progress < 1) {
@@ -738,14 +807,14 @@ class FloorPlanManager {
             let foundCol = null;
 
             if (preferredCol && Array.isArray(window.allData?.[preferredCol])) {
-                foundDevice = window.allData[preferredCol].find(item => (item._id === deviceId || item.id === deviceId));
+                foundDevice = window.allData[preferredCol].find(item => (String(item._id) === String(deviceId) || String(item.id) === String(deviceId)));
                 if (foundDevice) foundCol = preferredCol;
             }
 
             if (!foundDevice) {
                 for (const col of Object.keys(window.allData || {})) {
                     if (Array.isArray(window.allData[col])) {
-                        const d = window.allData[col].find(item => (item._id === deviceId || item.id === deviceId));
+                        const d = window.allData[col].find(item => (String(item._id) === String(deviceId) || String(item.id) === String(deviceId)));
                         if (d) { foundDevice = d; foundCol = col; break; }
                     }
                 }
@@ -771,8 +840,8 @@ class FloorPlanManager {
                 }
 
                 if (foundDevice.mapLocation && typeof foundDevice.mapLocation.x === 'number') {
-                    this.flyToCoords(foundDevice.mapLocation.x, foundDevice.mapLocation.y, 2.0, 650);
-                    setTimeout(() => this.highlightPin(deviceId), 700);
+                    this.flyToCoords(foundDevice.mapLocation.x, foundDevice.mapLocation.y, 2.0, 600);
+                    setTimeout(() => this.highlightPin(deviceId, true), 620);
                     this.showToastNotification(`📍 บินมายังตำแหน่งของเครื่อง: ${this.getDeviceDisplayName(foundDevice)}`, 'success');
                     return;
                 } else {
@@ -1811,62 +1880,91 @@ class FloorPlanManager {
     // ------------------------------------------------------------------------
     // 💾 Save / Update / Unpin Operations
     // ------------------------------------------------------------------------
-    findZoneAtCoords(x, y, maxDistance = 16) {
+    findZoneAtCoords(x, y, maxDistance = 24) {
         if (!this.zones || this.zones.length === 0) return null;
 
-        let bestSubZone = null;
-        let minSubDist = 8.5;
-
-        let bestMainZone = null;
-        let minMainDist = maxDistance;
+        // 1. First find which main building/zone this coordinate is closest to or inside
+        let bestZone = null;
+        let minZoneDist = maxDistance;
 
         this.zones.forEach(z => {
-            const bldTitle = z.name.includes('(') ? z.name.split('(')[0].trim() : z.name;
-
-            // 1. Check sub-zones (จุดย่อยในตึกนี้ / แผนก)
-            if (Array.isArray(z.subZones)) {
-                z.subZones.forEach(sub => {
-                    if (sub.coords && typeof sub.coords.x === 'number') {
-                        const dist = Math.hypot(sub.coords.x - x, sub.coords.y - y);
-                        if (dist < minSubDist) {
-                            minSubDist = dist;
-                            bestSubZone = {
-                                zone: z,
-                                subZone: sub,
-                                locationName: `${bldTitle} > ${sub.name}`,
-                                displayName: `${bldTitle} > ${sub.name}`
-                            };
-                        }
-                    }
-                });
-            }
-
-            // 2. Check main building zone (แอร์เรียหลัก)
             if (z.coords && typeof z.coords.x === 'number') {
                 const dist = Math.hypot(z.coords.x - x, z.coords.y - y);
-                if (dist < minMainDist) {
-                    minMainDist = dist;
-                    bestMainZone = {
-                        zone: z,
-                        subZone: null,
-                        locationName: z.name,
-                        displayName: z.name
-                    };
+                if (dist < minZoneDist) {
+                    minZoneDist = dist;
+                    bestZone = z;
                 }
             }
         });
 
-        // Prioritize specific sub-zone (Area > Sub-point) if dropped close to it
-        if (bestSubZone) {
-            return bestSubZone;
+        // 2. If no main building center is within maxDistance, check if close to any sub-zone
+        if (!bestZone) {
+            let nearestSubZone = null;
+            let nearestParentZone = null;
+            let minSubDist = 12.0;
+
+            this.zones.forEach(z => {
+                if (Array.isArray(z.subZones)) {
+                    z.subZones.forEach(sub => {
+                        if (sub.coords && typeof sub.coords.x === 'number') {
+                            const dist = Math.hypot(sub.coords.x - x, sub.coords.y - y);
+                            if (dist < minSubDist) {
+                                minSubDist = dist;
+                                nearestSubZone = sub;
+                                nearestParentZone = z;
+                            }
+                        }
+                    });
+                }
+            });
+
+            if (nearestSubZone && nearestParentZone) {
+                const bldTitle = nearestParentZone.name.includes('(') ? nearestParentZone.name.split('(')[0].trim() : nearestParentZone.name;
+                return {
+                    zone: nearestParentZone,
+                    subZone: nearestSubZone,
+                    locationName: `${bldTitle} > ${nearestSubZone.name}`,
+                    displayName: `${bldTitle} > ${nearestSubZone.name}`
+                };
+            }
+
+            return null;
         }
 
-        // Otherwise return main building zone
-        if (bestMainZone) {
-            return bestMainZone;
+        // 3. Parent building (bestZone) found!
+        // Now check if coordinates are close to a specific sub-zone WITHIN this building
+        const bldTitle = bestZone.name.includes('(') ? bestZone.name.split('(')[0].trim() : bestZone.name;
+        let matchedSub = null;
+        let minSubDist = 8.5; // Detection radius for department within the building
+
+        if (Array.isArray(bestZone.subZones)) {
+            bestZone.subZones.forEach(sub => {
+                if (sub.coords && typeof sub.coords.x === 'number') {
+                    const dist = Math.hypot(sub.coords.x - x, sub.coords.y - y);
+                    if (dist < minSubDist) {
+                        minSubDist = dist;
+                        matchedSub = sub;
+                    }
+                }
+            });
         }
 
-        return null;
+        if (matchedSub) {
+            return {
+                zone: bestZone,
+                subZone: matchedSub,
+                locationName: `${bldTitle} > ${matchedSub.name}`,
+                displayName: `${bldTitle} > ${matchedSub.name}`
+            };
+        }
+
+        // Dropped inside building area, but not directly on a specific department
+        return {
+            zone: bestZone,
+            subZone: null,
+            locationName: bestZone.name,
+            displayName: bestZone.name
+        };
     }
 
     async savePinLocation(id, col, x, y) {
@@ -1948,33 +2046,58 @@ class FloorPlanManager {
         }
     }
 
-    // Smoothly pan & center on a pin with a highlight ring
-    highlightPin(id) {
-        const pin = this.pinsContainer?.querySelector(`.fp-pin[data-id="${id}"]`);
-        if (!pin) return;
+    // Smoothly pan & center on a pin with a highlight ring and popover
+    highlightPin(id, skipFly = false) {
+        if (!id) return;
 
-        const leftPct = parseFloat(pin.style.left);
-        const topPct = parseFloat(pin.style.top);
+        // 1. Locate pin DOM element robustly
+        let pin = this.pinsContainer?.querySelector(`.fp-pin[data-id="${id}"]`);
+        if (!pin && this.pinsContainer) {
+            const allPins = this.pinsContainer.querySelectorAll('.fp-pin');
+            for (const p of allPins) {
+                if (String(p.dataset.id) === String(id)) {
+                    pin = p;
+                    break;
+                }
+            }
+        }
 
-        this.flyToCoords(leftPct, topPct, Math.max(this.scale, 1.6), 500);
-
-        pin.classList.add('ring-4', 'ring-yellow-400', 'scale-125', 'z-50');
-
+        // 2. Locate device in window.allData robustly
         let targetDevice = null;
         let targetCol = null;
         for (const col of Object.keys(window.allData || {})) {
             if (Array.isArray(window.allData[col])) {
-                const found = window.allData[col].find(d => d._id === id);
+                const found = window.allData[col].find(d => String(d._id) === String(id) || String(d.id) === String(id));
                 if (found) { targetDevice = found; targetCol = col; break; }
             }
         }
-        if (targetDevice) {
-            this.openPinPopover(targetDevice, targetCol, pin);
+
+        if (!targetDevice) return;
+
+        // If pin DOM element is not yet created, render pins and retry
+        if (!pin) {
+            this.renderPins();
+            pin = this.pinsContainer?.querySelector(`.fp-pin[data-id="${id}"]`);
         }
 
-        setTimeout(() => {
-            pin.classList.remove('ring-4', 'ring-yellow-400', 'scale-125', 'z-50');
-        }, 3000);
+        if (pin) {
+            if (!skipFly) {
+                const leftPct = parseFloat(pin.style.left);
+                const topPct = parseFloat(pin.style.top);
+                this.flyToCoords(leftPct, topPct, Math.max(this.scale, 1.8), 500);
+            }
+
+            pin.classList.add('ring-4', 'ring-yellow-400', 'scale-125', 'z-50');
+            this.openPinPopover(targetDevice, targetCol, pin);
+
+            setTimeout(() => {
+                pin?.classList.remove('ring-4', 'ring-yellow-400', 'scale-125', 'z-50');
+            }, 3000);
+        } else if (targetDevice.mapLocation) {
+            if (!skipFly) {
+                this.flyToCoords(targetDevice.mapLocation.x, targetDevice.mapLocation.y, 2.0, 500);
+            }
+        }
     }
 
     // ------------------------------------------------------------------------
@@ -2009,8 +2132,9 @@ class FloorPlanManager {
         this.mapCanvas.style.height = `${canvasH}px`;
 
         this.scale = 1.0;
-        this.panX = 0;
-        this.panY = 0; // Starts at top edge, fills 100% width
+        const clamped = this.clampPan(0, 0, 1.0);
+        this.panX = clamped.x;
+        this.panY = clamped.y;
         this.updateTransform();
     }
 
@@ -2048,7 +2172,7 @@ class FloorPlanManager {
         this.zoomAtPoint(rect.left + rect.width / 2, rect.top + rect.height / 2, factor);
     }
 
-    // Precision Zoom directly toward mouse pointer (Google Maps / Figma algorithm)
+    // Precision Zoom directly toward mouse pointer (Google Maps / Figma algorithm with bounds clamping)
     zoomAtPoint(clientX, clientY, factor) {
         if (!this.mapViewport || !this.mapCanvas) return;
         const rect = this.mapViewport.getBoundingClientRect();
@@ -2060,9 +2184,13 @@ class FloorPlanManager {
         if (newScale === oldScale) return;
 
         // Shift pan so pixel directly under cursor remains anchored
-        this.panX = mouseX - (mouseX - this.panX) * (newScale / oldScale);
-        this.panY = mouseY - (mouseY - this.panY) * (newScale / oldScale);
+        const rawPanX = mouseX - (mouseX - this.panX) * (newScale / oldScale);
+        const rawPanY = mouseY - (mouseY - this.panY) * (newScale / oldScale);
         this.scale = parseFloat(newScale.toFixed(3));
+
+        const clamped = this.clampPan(rawPanX, rawPanY, this.scale);
+        this.panX = clamped.x;
+        this.panY = clamped.y;
         this.updateTransform();
     }
 
