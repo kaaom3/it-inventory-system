@@ -205,11 +205,11 @@ class FloorPlanManager {
                 </div>
 
                 <!-- Center Map Viewport (Immersive Full Black Area + Pan & Zoom Engine) -->
-                <div id="fp-viewport" class="flex-1 relative overflow-hidden bg-slate-950 flex items-center justify-center cursor-grab active:cursor-grabbing select-none">
+                <div id="fp-viewport" class="flex-1 relative overflow-hidden bg-slate-950 cursor-grab active:cursor-grabbing select-none">
                     
                     <!-- Map Canvas Container (Transformed via translate & scale from origin 0 0) -->
-                    <div id="fp-canvas" class="relative shadow-2xl origin-top-left will-change-transform" style="transform: translate(0px, 0px) scale(1);">
-                        <img id="fp-map-img" src="map.webp" alt="Floor Plan" class="w-full h-full object-fill block select-none pointer-events-none">
+                    <div id="fp-canvas" class="absolute top-0 left-0 shadow-2xl origin-top-left will-change-transform" style="transform: translate(0px, 0px) scale(1);">
+                        <img id="fp-map-img" src="map.webp" alt="Floor Plan" class="w-full h-full block select-none pointer-events-none">
                         
                         <!-- Zone Landmarks Layer (Labels for Buildings/Zones) -->
                         <div id="fp-zones-layer" class="absolute inset-0 pointer-events-auto z-15">
@@ -264,9 +264,17 @@ class FloorPlanManager {
         this.pinsContainer = document.getElementById('fp-pins-layer');
         this.zonesContainer = document.getElementById('fp-zones-layer');
 
-        this.mapImg.onload = () => {
+        const onImgReady = () => {
+            if (this.mapImg?.naturalWidth && this.mapImg?.naturalHeight) {
+                this.aspectRatio = this.mapImg.naturalWidth / this.mapImg.naturalHeight;
+            }
             this.fillWidth();
         };
+
+        this.mapImg.onload = onImgReady;
+        if (this.mapImg.complete && this.mapImg.naturalWidth) {
+            onImgReady();
+        }
     }
 
     bindEvents() {
@@ -2110,58 +2118,78 @@ class FloorPlanManager {
         const vpW = this.mapViewport.clientWidth;
         if (vpW <= 0) return;
 
-        const canvasW = vpW;
-        const canvasH = Math.round(vpW / this.aspectRatio);
+        if (this.mapImg && this.mapImg.naturalWidth && this.mapImg.naturalHeight) {
+            this.aspectRatio = this.mapImg.naturalWidth / this.mapImg.naturalHeight;
+        }
 
-        this.mapCanvas.style.width = `${canvasW}px`;
-        this.mapCanvas.style.height = `${canvasH}px`;
+        const baseW = vpW;
+        const baseH = Math.round(vpW / this.aspectRatio);
+
+        this.mapCanvas.style.width = `${baseW}px`;
+        this.mapCanvas.style.height = `${baseH}px`;
         this.updateTransform();
     }
 
-    // 📐 FILLS 100% OF THE BLACK VIEWPORT AREA (Zero black empty space on left/right!)
+    // 📐 FILLS 100% OF THE BLACK VIEWPORT AREA (Zero black empty space anywhere!)
     fillWidth() {
         if (!this.mapViewport || !this.mapCanvas) return;
         const vpW = this.mapViewport.clientWidth;
         const vpH = this.mapViewport.clientHeight;
         if (vpW <= 0 || vpH <= 0) return;
 
-        const canvasW = vpW;
-        const canvasH = Math.round(vpW / this.aspectRatio);
+        if (this.mapImg && this.mapImg.naturalWidth && this.mapImg.naturalHeight) {
+            this.aspectRatio = this.mapImg.naturalWidth / this.mapImg.naturalHeight;
+        }
 
-        this.mapCanvas.style.width = `${canvasW}px`;
-        this.mapCanvas.style.height = `${canvasH}px`;
+        const baseW = vpW;
+        const baseH = Math.round(vpW / this.aspectRatio);
 
-        this.scale = 1.0;
-        const clamped = this.clampPan(0, 0, 1.0);
-        this.panX = clamped.x;
-        this.panY = clamped.y;
+        this.mapCanvas.style.width = `${baseW}px`;
+        this.mapCanvas.style.height = `${baseH}px`;
+
+        // If baseH is smaller than vpH (on tall screens), scale up so height is completely covered
+        if (baseH < vpH) {
+            this.scale = parseFloat((vpH / baseH).toFixed(3));
+        } else {
+            this.scale = 1.0;
+        }
+
+        const renderedW = baseW * this.scale;
+        const renderedH = baseH * this.scale;
+
+        this.panX = Math.round((vpW - renderedW) / 2);
+        this.panY = 0; // Starts at top edge, perfectly aligned
+
         this.updateTransform();
     }
 
-    // 🖼️ FITS ENTIRE MAP INTO VIEWPORT (Bird's eye view)
+    // 🖼️ FITS ENTIRE MAP INTO VIEWPORT (Bird's eye view - see the whole map at once)
     fitScreen() {
         if (!this.mapViewport || !this.mapCanvas) return;
         const vpW = this.mapViewport.clientWidth;
         const vpH = this.mapViewport.clientHeight;
         if (vpW <= 0 || vpH <= 0) return;
 
-        let targetW, targetH;
-        if ((vpW / vpH) < this.aspectRatio) {
-            targetW = vpW;
-            targetH = vpW / this.aspectRatio;
-        } else {
-            targetH = vpH;
-            targetW = vpH * this.aspectRatio;
+        if (this.mapImg && this.mapImg.naturalWidth && this.mapImg.naturalHeight) {
+            this.aspectRatio = this.mapImg.naturalWidth / this.mapImg.naturalHeight;
         }
 
-        const canvasW = vpW;
-        const canvasH = Math.round(vpW / this.aspectRatio);
-        this.mapCanvas.style.width = `${canvasW}px`;
-        this.mapCanvas.style.height = `${canvasH}px`;
+        const baseW = vpW;
+        const baseH = Math.round(vpW / this.aspectRatio);
 
-        this.scale = parseFloat((targetW / canvasW).toFixed(3));
-        this.panX = Math.round((vpW - (canvasW * this.scale)) / 2);
-        this.panY = Math.round((vpH - (canvasH * this.scale)) / 2);
+        this.mapCanvas.style.width = `${baseW}px`;
+        this.mapCanvas.style.height = `${baseH}px`;
+
+        const scaleW = vpW / baseW;
+        const scaleH = vpH / baseH;
+        this.scale = parseFloat(Math.min(scaleW, scaleH).toFixed(3));
+
+        const renderedW = baseW * this.scale;
+        const renderedH = baseH * this.scale;
+
+        this.panX = Math.round((vpW - renderedW) / 2);
+        this.panY = Math.round((vpH - renderedH) / 2);
+
         this.updateTransform();
     }
 
