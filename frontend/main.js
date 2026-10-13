@@ -778,6 +778,8 @@ function generateDynamicPages() {
 }
 
 window.loadPage = function(pageName, navElement) {
+    const mc = document.getElementById('main-content');
+    if (mc) { if (pageName === 'FloorPlan') mc.classList.add('floorplan-active'); else mc.classList.remove('floorplan-active'); }
     if (pageName === 'SearchScan') window.buildSearchScanPage();
 
     document.querySelectorAll('.nav-link').forEach(l => { l.classList.remove('bg-indigo-50', 'text-indigo-600', 'dark:bg-gray-700', 'dark:text-white', 'font-semibold'); l.classList.add('text-gray-600', 'dark:text-gray-300'); });
@@ -804,7 +806,10 @@ window.loadPage = function(pageName, navElement) {
         else if (pageName === 'FloorPlan') { 
             pageDiv.style.display = 'flex'; 
             const mc = document.getElementById('main-content');
-            if (mc) mc.scrollTop = 0;
+            if (mc) {
+                mc.classList.add('floorplan-active');
+                mc.scrollTop = 0;
+            }
             if (window.floorPlan) window.floorPlan.init(); 
         }
         else if (pageName === 'Maintenance') window.buildMaintenancePage();

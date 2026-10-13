@@ -44,6 +44,21 @@
         ::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
         .tab-content { display: none; animation: fadeIn 0.2s; }
         .tab-content.active { display: block; }
+        #main-content.floorplan-active {
+            padding: 0 !important;
+            overflow: hidden !important;
+            height: calc(100vh - 3.75rem) !important;
+            height: calc(100dvh - 3.75rem) !important;
+            max-height: calc(100vh - 3.75rem) !important;
+            max-height: calc(100dvh - 3.75rem) !important;
+        }
+        @media (min-width: 768px) {
+            #main-content.floorplan-active {
+                padding: 0.75rem !important;
+                height: 100vh !important;
+                max-height: 100vh !important;
+            }
+        }
     </style>
 </head>
 <body class="bg-gray-50 dark:bg-gray-900 text-gray-800 dark:text-gray-200 transition-colors duration-300">

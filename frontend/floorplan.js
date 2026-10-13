@@ -61,7 +61,10 @@ class FloorPlanManager {
         this.container.style.setProperty('display', 'flex', 'important');
         this.container.style.setProperty('flex-direction', 'column', 'important');
         const mc = document.getElementById('main-content');
-        if (mc) mc.scrollTop = 0;
+        if (mc) {
+            mc.classList.add('floorplan-active');
+            mc.scrollTop = 0;
+        }
 
         if (!this.initialized) {
             this.renderLayout();
@@ -84,109 +87,126 @@ class FloorPlanManager {
     }
 
     renderLayout() {
-        this.container.className = 'page-content !flex flex-col h-[calc(100vh-5.5rem)] md:h-[calc(100vh-4.5rem)] p-1 md:p-3 overflow-hidden select-none';
+        this.container.className = 'page-content !flex flex-col h-full w-full p-1 sm:p-2 md:p-3 overflow-hidden select-none';
         this.container.style.setProperty('display', 'flex', 'important');
         this.container.style.setProperty('flex-direction', 'column', 'important');
         this.container.innerHTML = `
             <!-- Top Controls Toolbar -->
-            <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 p-2.5 md:p-3 mb-2 flex flex-wrap items-center justify-between gap-2.5 shrink-0">
-                <div class="flex items-center space-x-3">
-                    <div class="w-10 h-10 rounded-xl bg-indigo-50 dark:bg-indigo-900/40 text-indigo-600 dark:text-indigo-400 flex items-center justify-center text-lg shadow-inner">
+            <div class="bg-white dark:bg-gray-800 rounded-xl md:rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 p-2 md:p-2.5 mb-1.5 md:mb-2 flex items-center justify-between gap-2 shrink-0">
+                <div class="flex items-center space-x-2 md:space-x-3 min-w-0">
+                    <div class="w-8 h-8 md:w-9 md:h-9 rounded-xl bg-indigo-50 dark:bg-indigo-900/40 text-indigo-600 dark:text-indigo-400 flex items-center justify-center text-sm md:text-base shrink-0 shadow-inner">
                         <i class="fas fa-map-marked-alt"></i>
                     </div>
-                    <div>
-                        <h2 class="text-base md:text-lg font-bold text-gray-800 dark:text-white flex items-center">
-                            แผนผังพัสดุ & อาคารโซน
-                            <span id="fp-cat-badge" class="ml-2 px-2.5 py-0.5 text-xs bg-indigo-100 dark:bg-indigo-900/60 text-indigo-700 dark:text-indigo-300 rounded-full font-semibold max-w-[200px] truncate">
+                    <div class="min-w-0">
+                        <h2 class="text-xs md:text-base font-bold text-gray-800 dark:text-white flex items-center truncate">
+                            <span>แผนผังพัสดุ</span>
+                            <span id="fp-cat-badge" class="ml-1.5 md:ml-2 px-2 py-0.5 text-[10px] md:text-xs bg-indigo-100 dark:bg-indigo-900/60 text-indigo-700 dark:text-indigo-300 rounded-full font-semibold truncate max-w-[110px] md:max-w-[180px]">
                                 Computers
                             </span>
                         </h2>
-                        <p class="text-xs text-gray-500 dark:text-gray-400">คลิกที่ Location ของอุปกรณ์เพื่อบินไปยังตำแหน่งบนผัง หรือเลือกโซน/อาคารด้านล่าง</p>
+                        <p class="hidden sm:block text-[11px] text-gray-500 dark:text-gray-400 truncate">คลิกที่ Location ของอุปกรณ์เพื่อบินไปยังตำแหน่งบนผัง หรือเลือกโซน/อาคารด้านล่าง</p>
                     </div>
                 </div>
 
-                <div class="flex flex-wrap items-center gap-2">
+                <div class="flex items-center space-x-1.5 md:space-x-2 shrink-0">
                     <!-- Isolation Toggle -->
-                    <label class="flex items-center space-x-2 text-xs text-gray-700 dark:text-gray-300 bg-gray-50 dark:bg-gray-700/50 px-3 py-1.5 rounded-xl border border-gray-200 dark:border-gray-600 cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700 transition">
-                        <input type="checkbox" id="fp-isolate-toggle" checked class="rounded text-indigo-600 focus:ring-indigo-500 w-3.5 h-3.5">
-                        <span class="font-medium">👁️ ซ่อนหมวดอื่น (แสดงเฉพาะหมวดที่เลือก)</span>
+                    <label class="flex items-center space-x-1 md:space-x-1.5 text-[11px] md:text-xs text-gray-700 dark:text-gray-300 bg-gray-50 dark:bg-gray-700/50 px-2 md:px-2.5 py-1 md:py-1.5 rounded-lg md:rounded-xl border border-gray-200 dark:border-gray-600 cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700 transition">
+                        <input type="checkbox" id="fp-isolate-toggle" checked class="rounded text-indigo-600 focus:ring-indigo-500 w-3 h-3 md:w-3.5 md:h-3.5">
+                        <span class="font-medium hidden sm:inline">👁️ ซ่อนหมวดอื่น</span>
+                        <span class="font-medium sm:hidden">👁️ หมวดนี้</span>
                     </label>
 
                     <!-- Toggle Landmarks -->
-                    <label class="flex items-center space-x-2 text-xs text-gray-700 dark:text-gray-300 bg-gray-50 dark:bg-gray-700/50 px-3 py-1.5 rounded-xl border border-gray-200 dark:border-gray-600 cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700 transition">
-                        <input type="checkbox" id="fp-landmarks-toggle" checked class="rounded text-indigo-600 focus:ring-indigo-500 w-3.5 h-3.5">
-                        <span class="font-medium">🏷️ แสดงป้ายอาคาร</span>
+                    <label class="hidden xs:flex items-center space-x-1 md:space-x-1.5 text-[11px] md:text-xs text-gray-700 dark:text-gray-300 bg-gray-50 dark:bg-gray-700/50 px-2 md:px-2.5 py-1 md:py-1.5 rounded-lg md:rounded-xl border border-gray-200 dark:border-gray-600 cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700 transition">
+                        <input type="checkbox" id="fp-landmarks-toggle" checked class="rounded text-indigo-600 focus:ring-indigo-500 w-3 h-3 md:w-3.5 md:h-3.5">
+                        <span class="font-medium">🏷️ ป้ายอาคาร</span>
                     </label>
 
-                    <!-- Zoom & Pan Controls in Toolbar -->
-                    <div class="flex items-center bg-gray-100 dark:bg-gray-700/80 rounded-xl p-1 space-x-1 border border-gray-200 dark:border-gray-600 shadow-sm">
-                        <button id="fp-btn-zoom-out" class="w-7 h-7 rounded-lg flex items-center justify-center text-gray-700 dark:text-gray-300 hover:bg-white dark:hover:bg-gray-600 transition" title="ซูมออก">
-                            <i class="fas fa-search-minus text-xs"></i>
+                    <!-- Zoom Controls in Toolbar (Tablet & Desktop Only) -->
+                    <div class="hidden md:flex items-center bg-gray-100 dark:bg-gray-700/80 rounded-xl p-0.5 space-x-1 border border-gray-200 dark:border-gray-600 shadow-sm">
+                        <button id="fp-btn-zoom-out" class="w-6 h-6 rounded-lg flex items-center justify-center text-gray-700 dark:text-gray-300 hover:bg-white dark:hover:bg-gray-600 transition" title="ซูมออก">
+                            <i class="fas fa-search-minus text-[10px]"></i>
                         </button>
-                        <span class="fp-zoom-level-text text-xs font-bold text-gray-700 dark:text-gray-300 px-2 min-w-[45px] text-center">100%</span>
-                        <button id="fp-btn-zoom-in" class="w-7 h-7 rounded-lg flex items-center justify-center text-gray-700 dark:text-gray-300 hover:bg-white dark:hover:bg-gray-600 transition" title="ซูมเข้า">
-                            <i class="fas fa-search-plus text-xs"></i>
+                        <span class="fp-zoom-level-text text-[11px] font-bold text-gray-700 dark:text-gray-300 px-1.5 min-w-[38px] text-center">100%</span>
+                        <button id="fp-btn-zoom-in" class="w-6 h-6 rounded-lg flex items-center justify-center text-gray-700 dark:text-gray-300 hover:bg-white dark:hover:bg-gray-600 transition" title="ซูมเข้า">
+                            <i class="fas fa-search-plus text-[10px]"></i>
                         </button>
-                        <div class="w-px h-4 bg-gray-300 dark:bg-gray-600 my-auto"></div>
-                        <button id="fp-btn-fill" class="px-2.5 h-7 rounded-lg flex items-center justify-center text-xs font-bold text-indigo-600 dark:text-indigo-400 bg-white dark:bg-gray-600 shadow-sm hover:bg-indigo-50 transition" title="ขยายเต็มพื้นที่สีดำ">
-                            <i class="fas fa-expand mr-1"></i> เต็มพื้นที่
+                        <div class="w-px h-3.5 bg-gray-300 dark:bg-gray-600 my-auto"></div>
+                        <button id="fp-btn-fill" class="px-2 h-6 rounded-lg flex items-center justify-center text-[11px] font-bold text-indigo-600 dark:text-indigo-400 bg-white dark:bg-gray-600 shadow-sm hover:bg-indigo-50 transition" title="ขยายเต็มพื้นที่สีดำ">
+                            <i class="fas fa-expand mr-1 text-[10px]"></i> เต็มพื้นที่
                         </button>
-                        <button id="fp-btn-fit" class="px-2.5 h-7 rounded-lg flex items-center justify-center text-xs font-semibold text-gray-600 dark:text-gray-300 hover:bg-white dark:hover:bg-gray-600 transition" title="ย่อพอดีหน้าจอ">
-                            <i class="fas fa-compress-arrows-alt mr-1"></i> พอดีจอ
+                        <button id="fp-btn-fit" class="px-2 h-6 rounded-lg flex items-center justify-center text-[11px] font-semibold text-gray-600 dark:text-gray-300 hover:bg-white dark:hover:bg-gray-600 transition" title="ย่อพอดีหน้าจอ">
+                            <i class="fas fa-compress-arrows-alt mr-1 text-[10px]"></i> พอดีจอ
                         </button>
                     </div>
 
-                    <!-- Toggle Sidebar Visibility on small screens -->
-                    <button id="fp-toggle-tray" class="md:hidden px-3 py-1.5 bg-indigo-600 text-white rounded-xl text-xs font-bold shadow-sm">
-                        <i class="fas fa-list mr-1"></i> รายการอุปกรณ์
+                    <!-- Toggle Device Tray Button (Mobile & Small screens) -->
+                    <button id="fp-toggle-tray" class="md:hidden px-2.5 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold shadow-sm transition flex items-center">
+                        <i class="fas fa-boxes mr-1 text-[11px]"></i> รายการอุปกรณ์
+                        <span id="fp-mobile-tray-badge" class="ml-1 px-1.5 py-0.2 bg-indigo-700 text-[10px] rounded-full font-mono">0</span>
                     </button>
                 </div>
             </div>
 
-            <!-- Zone & Building Navigation Bar (NEW!) -->
-            <div id="fp-zone-bar" class="bg-white/95 dark:bg-gray-800/95 backdrop-blur-md rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 px-3 py-2 mb-2.5 flex items-center justify-between gap-2 overflow-x-auto custom-scrollbar shrink-0">
-                <div class="flex items-center space-x-2 shrink-0">
-                    <span class="text-xs font-extrabold text-gray-700 dark:text-gray-200 flex items-center">
-                        <i class="fas fa-city text-indigo-500 mr-1.5"></i>
-                        โซน/อาคาร:
+            <!-- Zone & Building Navigation Bar -->
+            <div id="fp-zone-bar" class="bg-white/95 dark:bg-gray-800/95 backdrop-blur-md rounded-xl md:rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 px-2.5 py-1.5 md:px-3 md:py-2 mb-1.5 md:mb-2 flex items-center justify-between gap-1.5 md:gap-2 overflow-x-auto custom-scrollbar shrink-0">
+                <div class="flex items-center space-x-1.5 shrink-0">
+                    <span class="text-[11px] md:text-xs font-extrabold text-gray-700 dark:text-gray-200 flex items-center">
+                        <i class="fas fa-city text-indigo-500 mr-1"></i>
+                        โซน:
                     </span>
                 </div>
-                <div id="fp-zone-pills" class="flex items-center space-x-2 flex-1 overflow-x-auto custom-scrollbar py-0.5">
+                <div id="fp-zone-pills" class="flex items-center space-x-1.5 flex-1 overflow-x-auto custom-scrollbar py-0.5">
                     <!-- Populated dynamically with [ทั้งหมด] [ตึกA] [ตึกB]... -->
                 </div>
-                <div class="flex items-center space-x-1.5 shrink-0 pl-2 border-l border-gray-200 dark:border-gray-700">
-                    <button id="fp-btn-manage-zones" class="px-3 py-1.5 text-xs font-bold bg-indigo-50 hover:bg-indigo-100 dark:bg-indigo-950/80 dark:hover:bg-indigo-900/80 text-indigo-600 dark:text-indigo-300 rounded-xl transition flex items-center shadow-sm border border-indigo-200/80 dark:border-indigo-800/80">
-                        <i class="fas fa-cog mr-1.5 text-indigo-500"></i> จัดการโซน/อาคาร
+                <div class="flex items-center space-x-1 shrink-0 pl-1.5 border-l border-gray-200 dark:border-gray-700">
+                    <button id="fp-btn-manage-zones" class="px-2.5 py-1 md:px-3 md:py-1.5 text-[11px] md:text-xs font-bold bg-indigo-50 hover:bg-indigo-100 dark:bg-indigo-950/80 dark:hover:bg-indigo-900/80 text-indigo-600 dark:text-indigo-300 rounded-lg md:rounded-xl transition flex items-center shadow-sm border border-indigo-200/80 dark:border-indigo-800/80 whitespace-nowrap">
+                        <i class="fas fa-cog mr-1 text-indigo-500"></i> จัดการโซน
                     </button>
                 </div>
             </div>
 
             <!-- Main Work Area: Left Sidebar + Center Map -->
-            <div class="flex-1 min-h-0 flex overflow-hidden rounded-2xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 shadow-sm relative" style="min-height: 0; flex: 1 1 0%;">
+            <div class="flex-1 min-h-0 flex overflow-hidden rounded-xl md:rounded-2xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 shadow-sm relative" style="min-height: 0; flex: 1 1 0%;">
                 
-                <!-- Left Panel: Category Tray & Device List -->
-                <div id="fp-tray" class="w-80 md:w-88 border-r border-gray-100 dark:border-gray-700 flex flex-col min-h-0 h-full bg-gray-50/50 dark:bg-gray-900/50 shrink-0 z-20 transition-transform duration-300" style="min-height: 0; height: 100%;">
+                <!-- Mobile Tray Backdrop Overlay -->
+                <div id="fp-tray-backdrop" class="fixed inset-0 bg-black/60 backdrop-blur-xs z-40 hidden md:hidden transition-opacity duration-300"></div>
+
+                <!-- Left Panel: Category Tray & Device List (Drawer on Mobile, Side Panel on Desktop) -->
+                <div id="fp-tray" class="fixed md:relative inset-y-0 left-0 z-50 md:z-20 w-80 max-w-[85vw] h-full flex flex-col bg-white dark:bg-gray-800 shadow-2xl md:shadow-none border-r border-gray-200 dark:border-gray-700 transform -translate-x-full md:translate-x-0 transition-transform duration-300 ease-in-out shrink-0" style="min-height: 0; height: 100%;">
                     
+                    <!-- Mobile Drawer Header with Close Button -->
+                    <div class="p-3 border-b border-gray-200/80 dark:border-gray-700 bg-gray-50/90 dark:bg-gray-900/60 flex justify-between items-center shrink-0">
+                        <div>
+                            <span class="text-xs font-bold text-gray-800 dark:text-white flex items-center">
+                                <i class="fas fa-boxes mr-1.5 text-indigo-500"></i> อุปกรณ์ในหมวด
+                            </span>
+                            <span id="fp-total-cat-count" class="text-[11px] text-indigo-600 font-semibold block">0 รายการ</span>
+                        </div>
+                        <button id="fp-btn-close-tray" class="md:hidden w-7 h-7 rounded-lg bg-gray-200 dark:bg-gray-700 text-gray-600 dark:text-gray-300 flex items-center justify-center text-xs hover:bg-gray-300 transition" title="ปิดหน้ารายการ">
+                            <i class="fas fa-times"></i>
+                        </button>
+                    </div>
+
                     <!-- Category Selector Header -->
                     <div class="p-3 border-b border-gray-200/80 dark:border-gray-700 bg-white dark:bg-gray-800 shrink-0">
                         <label class="block text-[11px] font-bold text-gray-500 uppercase tracking-wider mb-1.5 flex justify-between items-center">
                             <span>หมวดหมู่อุปกรณ์ & เมนูย่อย</span>
-                            <span id="fp-total-cat-count" class="text-indigo-600 font-bold">0 รายการ</span>
                         </label>
-                        <select id="fp-cat-select" class="w-full px-3 py-2 text-sm bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-xl font-medium text-gray-800 dark:text-white outline-none focus:ring-2 focus:ring-indigo-500/50 cursor-pointer shadow-sm">
+                        <select id="fp-cat-select" class="w-full px-2.5 py-1.5 text-xs md:text-sm bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-xl font-medium text-gray-800 dark:text-white outline-none focus:ring-2 focus:ring-indigo-500/50 cursor-pointer shadow-sm">
                             <!-- Populated with optgroups dynamically -->
                         </select>
                     </div>
 
                     <!-- Search & Filter Options -->
-                    <div class="p-3 border-b border-gray-200/80 dark:border-gray-700 space-y-2 shrink-0">
+                    <div class="p-3 border-b border-gray-200/80 dark:border-gray-700 space-y-2 shrink-0 bg-white dark:bg-gray-800">
                         <div class="relative">
                             <i class="fas fa-search absolute left-3 top-2.5 text-xs text-gray-400"></i>
-                            <input type="text" id="fp-search" placeholder="ค้นหาชื่อ, SN, หรือ IP..." class="w-full pl-8 pr-3 py-1.5 text-xs bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-600 rounded-xl outline-none focus:ring-2 focus:ring-indigo-500/40 text-gray-800 dark:text-white">
+                            <input type="text" id="fp-search" placeholder="ค้นหาชื่อ, SN, หรือ IP..." class="w-full pl-8 pr-3 py-1.5 text-xs bg-gray-50 dark:bg-gray-700/60 border border-gray-200 dark:border-gray-600 rounded-xl outline-none focus:ring-2 focus:ring-indigo-500/40 text-gray-800 dark:text-white">
                         </div>
                         
                         <!-- Filter Chips -->
-                        <div class="flex rounded-lg bg-gray-200/70 dark:bg-gray-800 p-0.5 text-[11px] font-medium">
+                        <div class="flex rounded-lg bg-gray-200/70 dark:bg-gray-700/60 p-0.5 text-[11px] font-medium">
                             <button class="fp-filter-btn flex-1 py-1 rounded-md text-center transition bg-white dark:bg-gray-700 text-indigo-600 dark:text-white shadow-sm" data-filter="all">ทั้งหมด</button>
                             <button class="fp-filter-btn flex-1 py-1 rounded-md text-center transition text-gray-600 dark:text-gray-400 hover:text-gray-900" data-filter="unpinned">⚪ ยังไม่วาง</button>
                             <button class="fp-filter-btn flex-1 py-1 rounded-md text-center transition text-gray-600 dark:text-gray-400 hover:text-gray-900" data-filter="pinned">📍 วางแล้ว</button>
@@ -194,21 +214,21 @@ class FloorPlanManager {
                     </div>
 
                     <!-- Device Card List -->
-                    <div id="fp-device-list" class="flex-1 min-h-0 overflow-y-auto p-3 space-y-2.5 custom-scrollbar" style="min-height: 0; flex: 1 1 0%; overflow-y: auto; -webkit-overflow-scrolling: touch;">
+                    <div id="fp-device-list" class="flex-1 min-h-0 overflow-y-auto p-3 space-y-2.5 custom-scrollbar bg-gray-50/50 dark:bg-gray-900/40" style="min-height: 0; flex: 1 1 0%; overflow-y: auto; -webkit-overflow-scrolling: touch;">
                         <!-- Devices injected here -->
                     </div>
 
                     <!-- Tray Footer Stats -->
-                    <div id="fp-tray-stats" class="p-2.5 border-t border-gray-200/80 dark:border-gray-700 bg-white dark:bg-gray-800 text-[11px] text-gray-500 dark:text-gray-400 flex justify-between items-center px-4 shrink-0">
+                    <div id="fp-tray-stats" class="p-2.5 border-t border-gray-200/80 dark:border-gray-700 bg-white dark:bg-gray-800 text-[10.5px] text-gray-500 dark:text-gray-400 flex justify-between items-center px-3 shrink-0">
                         <span>โหลดอุปกรณ์...</span>
                     </div>
                 </div>
 
                 <!-- Center Map Viewport (Immersive Full Black Area + Pan & Zoom Engine) -->
-                <div id="fp-viewport" class="flex-1 relative overflow-hidden bg-slate-950 cursor-grab active:cursor-grabbing select-none">
+                <div id="fp-viewport" class="flex-1 relative overflow-hidden bg-slate-950 cursor-grab active:cursor-grabbing select-none" style="touch-action: none;">
                     
                     <!-- Map Canvas Container (Transformed via translate & scale from origin 0 0) -->
-                    <div id="fp-canvas" class="absolute top-0 left-0 shadow-2xl origin-top-left will-change-transform" style="transform: translate(0px, 0px) scale(1);">
+                    <div id="fp-canvas" class="absolute top-0 left-0 shadow-2xl origin-top-left will-change-transform" style="transform: translate(0px, 0px) scale(1); touch-action: none;">
                         <img id="fp-map-img" src="map.webp" alt="Floor Plan" class="w-full h-full block select-none pointer-events-none">
                         
                         <!-- Zone Landmarks Layer (Labels for Buildings/Zones) -->
@@ -223,34 +243,34 @@ class FloorPlanManager {
                     </div>
 
                     <!-- Floating Glassmorphism Controls HUD (Bottom-Right) -->
-                    <div class="absolute bottom-4 right-4 flex items-center bg-gray-900/90 backdrop-blur-md rounded-2xl p-1.5 space-x-1.5 shadow-2xl border border-white/10 z-30 select-none">
-                        <button id="fp-hud-zoom-out" class="w-8 h-8 rounded-xl bg-white/10 hover:bg-white/20 text-white flex items-center justify-center transition" title="ซูมออก">
-                            <i class="fas fa-minus text-xs"></i>
+                    <div class="absolute bottom-3 right-3 sm:bottom-4 sm:right-4 flex items-center bg-gray-900/90 backdrop-blur-md rounded-xl sm:rounded-2xl p-1 sm:p-1.5 space-x-1 sm:space-x-1.5 shadow-2xl border border-white/10 z-30 select-none">
+                        <button id="fp-hud-zoom-out" class="w-7 h-7 sm:w-8 sm:h-8 rounded-lg sm:rounded-xl bg-white/10 hover:bg-white/20 text-white flex items-center justify-center transition" title="ซูมออก">
+                            <i class="fas fa-minus text-[10px] sm:text-xs"></i>
                         </button>
-                        <span class="fp-zoom-level-text text-xs font-bold text-yellow-300 px-2 min-w-[45px] text-center">100%</span>
-                        <button id="fp-hud-zoom-in" class="w-8 h-8 rounded-xl bg-white/10 hover:bg-white/20 text-white flex items-center justify-center transition" title="ซูมเข้า">
-                            <i class="fas fa-plus text-xs"></i>
+                        <span class="fp-zoom-level-text text-[10px] sm:text-xs font-bold text-yellow-300 px-1.5 sm:px-2 min-w-[36px] sm:min-w-[45px] text-center">100%</span>
+                        <button id="fp-hud-zoom-in" class="w-7 h-7 sm:w-8 sm:h-8 rounded-lg sm:rounded-xl bg-white/10 hover:bg-white/20 text-white flex items-center justify-center transition" title="ซูมเข้า">
+                            <i class="fas fa-plus text-[10px] sm:text-xs"></i>
                         </button>
-                        <div class="w-px h-5 bg-white/20 my-auto"></div>
-                        <button id="fp-hud-fill" class="px-3 h-8 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold flex items-center transition shadow-sm" title="เต็มพื้นที่สีดำ">
-                            <i class="fas fa-expand mr-1.5"></i> เต็มพื้นที่
+                        <div class="w-px h-4 sm:h-5 bg-white/20 my-auto"></div>
+                        <button id="fp-hud-fill" class="px-2 sm:px-3 h-7 sm:h-8 rounded-lg sm:rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-[11px] sm:text-xs font-bold flex items-center transition shadow-sm" title="ขยายเต็มพื้นที่สีดำ">
+                            <i class="fas fa-expand mr-1 sm:mr-1.5"></i> <span class="hidden sm:inline">เต็มพื้นที่</span><span class="sm:hidden">เต็ม</span>
                         </button>
-                        <button id="fp-hud-fit" class="px-3 h-8 rounded-xl bg-white/10 hover:bg-white/20 text-white text-xs font-semibold flex items-center transition" title="พอดีจอ">
-                            <i class="fas fa-compress-arrows-alt mr-1.5"></i> พอดีจอ
+                        <button id="fp-hud-fit" class="px-2 sm:px-3 h-7 sm:h-8 rounded-lg sm:rounded-xl bg-white/10 hover:bg-white/20 text-white text-[11px] sm:text-xs font-semibold flex items-center transition" title="ย่อพอดีหน้าจอ">
+                            <i class="fas fa-compress-arrows-alt mr-1 sm:mr-1.5"></i> <span class="hidden sm:inline">พอดีจอ</span><span class="sm:hidden">พอดี</span>
                         </button>
                     </div>
 
                     <!-- Floating Help Tip (Bottom-Left) -->
-                    <div id="fp-hint-bar" class="hidden sm:flex absolute bottom-4 left-4 bg-black/75 backdrop-blur-md text-white text-[11px] px-3.5 py-1.5 rounded-full shadow-lg pointer-events-none items-center space-x-2 border border-white/10 z-10 transition-all">
+                    <div id="fp-hint-bar" class="hidden md:flex absolute bottom-4 left-4 bg-black/75 backdrop-blur-md text-white text-[11px] px-3.5 py-1.5 rounded-full shadow-lg pointer-events-none items-center space-x-2 border border-white/10 z-10 transition-all">
                         <i class="fas fa-mouse text-indigo-400"></i>
-                        <span>คลิกลากเพื่อเลื่อนผัง | หมุนลูกกลิ้งเมาส์เพื่อซูม | คลิกที่ Location ของอุปกรณ์เพื่อบินไปยังอาคาร</span>
+                        <span>คลิกลากเพื่อเลื่อนผัง | หมุนลูกกลิ้งเมาส์เพื่อซูม | แตะเพื่อดูข้อมูลอุปกรณ์</span>
                     </div>
 
-                    <!-- Coordinate Picker Banner (Active when setting Zone point) -->
-                    <div id="fp-picker-banner" class="hidden absolute top-4 left-1/2 -translate-x-1/2 bg-amber-500 text-slate-900 font-bold text-xs px-4 py-2 rounded-2xl shadow-2xl flex items-center space-x-2 z-40 animate-bounce">
-                        <i class="fas fa-crosshairs text-base"></i>
-                        <span id="fp-picker-text">คลิกบนตำแหน่งอาคารในแผนผังเพื่อกำหนดพิกัด...</span>
-                        <button id="fp-btn-cancel-pick" class="ml-2 px-2 py-0.5 bg-black/20 hover:bg-black/30 rounded-lg text-[11px]">ยกเลิก</button>
+                    <!-- Coordinate Picker Banner (Active when setting Zone point or placing Device) -->
+                    <div id="fp-picker-banner" class="hidden absolute top-3 sm:top-4 left-1/2 -translate-x-1/2 bg-amber-500 text-slate-900 font-bold text-xs px-3 sm:px-4 py-1.5 sm:py-2 rounded-xl sm:rounded-2xl shadow-2xl flex items-center space-x-2 z-40 animate-bounce max-w-[90vw]">
+                        <i class="fas fa-crosshairs text-sm sm:text-base shrink-0"></i>
+                        <span id="fp-picker-text" class="truncate">แตะบนตำแหน่งในแผนผังเพื่อกำหนดพิกัด...</span>
+                        <button id="fp-btn-cancel-pick" class="ml-1 sm:ml-2 px-2 py-0.5 bg-black/20 hover:bg-black/30 rounded-lg text-[10px] sm:text-[11px] shrink-0">ยกเลิก</button>
                     </div>
 
                 </div>
@@ -311,20 +331,13 @@ class FloorPlanManager {
         document.getElementById('fp-hud-fill')?.addEventListener('click', () => this.fillWidth());
         document.getElementById('fp-hud-fit')?.addEventListener('click', () => this.fitScreen());
 
-        // Mobile Tray Toggle
-        if (toggleTrayBtn) {
-            toggleTrayBtn.addEventListener('click', () => {
-                const tray = document.getElementById('fp-tray');
-                if (tray) {
-                    tray.classList.toggle('hidden');
-                    tray.classList.toggle('absolute');
-                    tray.classList.toggle('inset-y-0');
-                    tray.classList.toggle('left-0');
-                    tray.classList.toggle('z-50');
-                    tray.classList.toggle('shadow-2xl');
-                }
-            });
-        }
+        // Mobile Drawer Toggle & Backdrop
+        const closeTrayBtn = document.getElementById('fp-btn-close-tray');
+        const trayBackdrop = document.getElementById('fp-tray-backdrop');
+
+        toggleTrayBtn?.addEventListener('click', () => this.toggleMobileTray());
+        closeTrayBtn?.addEventListener('click', () => this.closeMobileTray());
+        trayBackdrop?.addEventListener('click', () => this.closeMobileTray());
 
         // Category Select
         catSelect.addEventListener('change', (e) => {
@@ -407,46 +420,81 @@ class FloorPlanManager {
             this.zoomAtPoint(e.clientX, e.clientY, factor);
         }, { passive: false });
 
-        // 📱 TOUCH PAN & PINCH-TO-ZOOM SUPPORT
+        // 📱 TOUCH PAN & PINCH-TO-ZOOM SUPPORT (With Mobile Coordinate Picking & Smooth Gestures)
         this.mapViewport.addEventListener('touchstart', (e) => {
+            // 1. Mobile coordinate picking mode takes precedence
+            if (this.isPickingCoords && e.touches.length === 1) {
+                const touch = e.touches[0];
+                const rect = this.pinsContainer.getBoundingClientRect();
+                const rawX = ((touch.clientX - rect.left) / rect.width) * 100;
+                const rawY = ((touch.clientY - rect.top) / rect.height) * 100;
+                const xPercent = parseFloat(Math.max(0, Math.min(100, rawX)).toFixed(2));
+                const yPercent = parseFloat(Math.max(0, Math.min(100, rawY)).toFixed(2));
+                
+                if (typeof this.pickingCallback === 'function') {
+                    this.pickingCallback(xPercent, yPercent);
+                }
+                this.cancelCoordPicking();
+                if (e.cancelable) e.preventDefault();
+                return;
+            }
+
+            // 2. Ignore touches on interactive buttons/elements
+            if (e.target.closest('.fp-pin') || e.target.closest('.fp-popover') || e.target.closest('.fp-zone-landmark') || 
+                e.target.closest('#fp-hud-zoom-in') || e.target.closest('#fp-hud-zoom-out') || 
+                e.target.closest('#fp-hud-fill') || e.target.closest('#fp-hud-fit') || 
+                e.target.closest('#fp-btn-cancel-pick')) {
+                return;
+            }
+
             if (e.touches.length === 1) {
-                if (e.target.closest('.fp-pin') || e.target.closest('.fp-popover')) return;
                 this.isPanning = true;
                 this.startX = e.touches[0].clientX - this.panX;
                 this.startY = e.touches[0].clientY - this.panY;
             } else if (e.touches.length === 2) {
                 this.isPanning = false;
-                this.touchStartDist = Math.hypot(
+                this.lastTouchDist = Math.hypot(
                     e.touches[0].clientX - e.touches[1].clientX,
                     e.touches[0].clientY - e.touches[1].clientY
                 );
-                this.touchStartScale = this.scale;
             }
-        }, { passive: true });
+        }, { passive: false });
 
         this.mapViewport.addEventListener('touchmove', (e) => {
             if (e.touches.length === 1 && this.isPanning) {
+                if (e.cancelable) e.preventDefault();
                 const targetX = e.touches[0].clientX - this.startX;
                 const targetY = e.touches[0].clientY - this.startY;
                 const clamped = this.clampPan(targetX, targetY, this.scale);
                 this.panX = clamped.x;
                 this.panY = clamped.y;
                 this.updateTransform();
-            } else if (e.touches.length === 2 && this.touchStartDist) {
+            } else if (e.touches.length === 2 && this.lastTouchDist) {
+                if (e.cancelable) e.preventDefault();
                 const currentDist = Math.hypot(
                     e.touches[0].clientX - e.touches[1].clientX,
                     e.touches[0].clientY - e.touches[1].clientY
                 );
-                const ratio = currentDist / this.touchStartDist;
-                const midX = (e.touches[0].clientX + e.touches[1].clientX) / 2;
-                const midY = (e.touches[0].clientY + e.touches[1].clientY) / 2;
-                this.zoomAtPoint(midX, midY, ratio > 1 ? 1.04 : 0.96);
+                if (this.lastTouchDist > 0 && currentDist > 0) {
+                    const factor = currentDist / this.lastTouchDist;
+                    this.lastTouchDist = currentDist;
+                    const midX = (e.touches[0].clientX + e.touches[1].clientX) / 2;
+                    const midY = (e.touches[0].clientY + e.touches[1].clientY) / 2;
+                    this.zoomAtPoint(midX, midY, factor);
+                }
             }
-        }, { passive: true });
+        }, { passive: false });
 
-        this.mapViewport.addEventListener('touchend', () => {
-            this.isPanning = false;
-            this.touchStartDist = null;
+        this.mapViewport.addEventListener('touchend', (e) => {
+            if (e.touches.length === 0) {
+                this.isPanning = false;
+                this.lastTouchDist = null;
+            } else if (e.touches.length === 1) {
+                this.isPanning = true;
+                this.startX = e.touches[0].clientX - this.panX;
+                this.startY = e.touches[0].clientY - this.panY;
+                this.lastTouchDist = null;
+            }
         });
 
         // Window resize
@@ -491,6 +539,49 @@ class FloorPlanManager {
                 this.closePopover();
             }
         });
+    }
+
+    // 📱 Mobile Drawer Management
+    openMobileTray() {
+        const tray = document.getElementById('fp-tray');
+        const backdrop = document.getElementById('fp-tray-backdrop');
+        if (tray) tray.classList.remove('-translate-x-full');
+        if (backdrop) backdrop.classList.remove('hidden');
+    }
+
+    closeMobileTray() {
+        const tray = document.getElementById('fp-tray');
+        const backdrop = document.getElementById('fp-tray-backdrop');
+        if (tray) tray.classList.add('-translate-x-full');
+        if (backdrop) backdrop.classList.add('hidden');
+    }
+
+    toggleMobileTray() {
+        const tray = document.getElementById('fp-tray');
+        if (tray && tray.classList.contains('-translate-x-full')) {
+            this.openMobileTray();
+        } else {
+            this.closeMobileTray();
+        }
+    }
+
+    // 📍 Mobile / Touch-friendly Device Pinning (แตะบนผังเพื่อวาง)
+    startDevicePlacement(deviceId, col, deviceName) {
+        if (window.innerWidth < 768) {
+            this.closeMobileTray();
+        }
+        const banner = document.getElementById('fp-picker-banner');
+        const bannerText = document.getElementById('fp-picker-text');
+        if (banner && bannerText) {
+            bannerText.innerText = `📌 แตะบนแผนผังเพื่อวาง: ${deviceName}`;
+            banner.classList.remove('hidden');
+        }
+        if (this.mapViewport) this.mapViewport.style.cursor = 'crosshair';
+        this.isPickingCoords = true;
+        this.pickingCallback = (x, y) => {
+            this.savePinLocation(deviceId, col, x, y);
+        };
+        this.showToastNotification(`แตะบนแผนผังตรงตำแหน่งที่ต้องการวาง "${deviceName}"`, 'info');
     }
 
     // ------------------------------------------------------------------------
@@ -848,12 +939,14 @@ class FloorPlanManager {
                 }
 
                 if (foundDevice.mapLocation && typeof foundDevice.mapLocation.x === 'number') {
+                    if (window.innerWidth < 768) this.closeMobileTray();
                     this.flyToCoords(foundDevice.mapLocation.x, foundDevice.mapLocation.y, 2.0, 600);
                     setTimeout(() => this.highlightPin(deviceId, true), 620);
                     this.showToastNotification(`📍 บินมายังตำแหน่งของเครื่อง: ${this.getDeviceDisplayName(foundDevice)}`, 'success');
                     return;
                 } else {
-                    // Device is unpinned, highlight it in the left tray so user can drag it!
+                    // Device is unpinned, open tray and highlight it so user can place it!
+                    if (window.innerWidth < 768) this.openMobileTray();
                     setTimeout(() => {
                         const card = this.container?.querySelector(`.fp-card[data-id="${deviceId}"]`);
                         if (card) {
@@ -1556,6 +1649,8 @@ class FloorPlanManager {
         if (statsEl) {
             statsEl.innerHTML = `<span>ในโซนนี้: <strong>${total}</strong> เครื่อง</span><span>วางแล้ว: <strong>${pinnedCount}</strong> | ว่าง: <strong>${unpinnedCount}</strong></span>`;
         }
+        const mobileBadge = document.getElementById('fp-mobile-tray-badge');
+        if (mobileBadge) mobileBadge.innerText = total;
 
         if (devices.length === 0) {
             listContainer.innerHTML = '<div class="text-center text-gray-400 py-10 text-xs italic">ไม่พบอุปกรณ์ที่ตรงตามเงื่อนไข</div>';
@@ -1602,7 +1697,10 @@ class FloorPlanManager {
                         </div>
                         ${isPinned 
                             ? `<button class="fp-locate-btn text-[11px] text-indigo-600 hover:text-indigo-800 dark:text-indigo-400 font-bold flex items-center bg-indigo-50 dark:bg-indigo-950/60 px-2 py-0.5 rounded-md transition hover:bg-indigo-100" data-id="${d._id}"><i class="fas fa-crosshairs mr-1"></i>ดูจุด</button>`
-                            : `<span class="text-[10.5px] text-indigo-600 dark:text-indigo-300 font-bold flex items-center bg-indigo-50 dark:bg-indigo-900/50 px-2 py-0.5 rounded-md border border-indigo-200 dark:border-indigo-700"><i class="fas fa-grip-vertical mr-1 text-indigo-400"></i>ลากไปวาง</span>`
+                            : `<div class="flex items-center space-x-1">
+                                 <button class="fp-tap-place-btn text-[10.5px] text-indigo-600 dark:text-indigo-300 font-bold flex items-center bg-indigo-50 dark:bg-indigo-900/50 hover:bg-indigo-100 px-2 py-0.5 rounded-md border border-indigo-200 dark:border-indigo-700 transition" data-id="${d._id}" data-col="${colName}" data-name="${primaryName.replace(/"/g, '&quot;')}"><i class="fas fa-map-pin mr-1 text-indigo-500"></i>แตะวางบนผัง</button>
+                                 <span class="hidden md:inline-flex text-[10px] text-gray-400 items-center"><i class="fas fa-grip-vertical mr-0.5"></i>ลาก</span>
+                               </div>`
                         }
                     </div>
 
@@ -1677,15 +1775,27 @@ class FloorPlanManager {
             });
         });
 
+        // Tap to place buttons (Mobile & Click friendly)
+        listContainer.querySelectorAll('.fp-tap-place-btn').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                this.startDevicePlacement(btn.dataset.id, btn.dataset.col, btn.dataset.name);
+            });
+        });
+
         // Locate pin buttons
         listContainer.querySelectorAll('.fp-locate-btn').forEach(btn => {
-            btn.addEventListener('click', () => this.highlightPin(btn.dataset.id));
+            btn.addEventListener('click', () => {
+                if (window.innerWidth < 768) this.closeMobileTray();
+                this.highlightPin(btn.dataset.id);
+            });
         });
 
         // 🌟 Clickable Location buttons (Fly to Building/Pin!)
         listContainer.querySelectorAll('.fp-nav-loc-btn').forEach(btn => {
             btn.addEventListener('click', (e) => {
                 e.stopPropagation();
+                if (window.innerWidth < 768) this.closeMobileTray();
                 this.navigateToLocation(btn.dataset.loc, btn.dataset.id);
             });
         });
@@ -2057,6 +2167,7 @@ class FloorPlanManager {
     // Smoothly pan & center on a pin with a highlight ring and popover
     highlightPin(id, skipFly = false) {
         if (!id) return;
+        if (window.innerWidth < 768) this.closeMobileTray();
 
         // 1. Locate pin DOM element robustly
         let pin = this.pinsContainer?.querySelector(`.fp-pin[data-id="${id}"]`);
