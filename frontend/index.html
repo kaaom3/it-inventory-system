@@ -27,6 +27,7 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.3.2/papaparse.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/qrcode/build/qrcode.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
     
@@ -225,11 +226,14 @@
 
             <!-- Disposed Assets Page -->
             <div id="disposedassets-page" class="page-content hidden">
-                <div class="flex justify-between items-center mb-6">
+                <div class="flex flex-wrap justify-between items-center gap-2 mb-6">
                     <div>
                         <h2 class="text-2xl font-bold text-red-600"><i class="fas fa-trash-alt mr-2"></i><span data-i18n="disposed_assets">Disposed Assets</span></h2>
                         <p class="text-sm text-gray-500 mt-1" data-i18n="disposed_assets_desc">รายการอุปกรณ์ที่ถูกแทงจำหน่าย (มีเอกสารแนบ)</p>
                     </div>
+                    <button onclick="window.exportDisposedAssets()" class="bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-2 px-4 rounded-lg shadow-sm flex items-center transition-colors">
+                        <i class="fas fa-file-export mr-2"></i><span data-i18n="export_data">Export Data</span>
+                    </button>
                 </div>
                 <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm overflow-hidden border border-gray-100 dark:border-gray-700">
                     <table class="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
@@ -603,6 +607,96 @@
             </div>
             <div class="p-4 border-t dark:border-gray-700 flex justify-end bg-gray-50 dark:bg-gray-800 rounded-b-xl">
                 <button onclick="window.processCsvImport()" class="px-6 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg font-bold shadow-sm transition-colors" data-i18n="import_data">Import Data</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Export Data Modal -->
+    <div id="exportModal" class="modal opacity-0 pointer-events-none fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
+        <div class="modal-content bg-white dark:bg-gray-800 rounded-xl w-full max-w-md shadow-xl overflow-hidden">
+            <div class="p-5 border-b dark:border-gray-700 flex justify-between items-center bg-gray-50 dark:bg-gray-900/50">
+                <div class="flex items-center space-x-2.5">
+                    <div class="w-8 h-8 rounded-lg bg-emerald-100 dark:bg-emerald-900/40 text-emerald-600 dark:text-emerald-400 flex items-center justify-center shadow-sm">
+                        <i class="fas fa-file-export"></i>
+                    </div>
+                    <h3 id="exportModalTitle" class="font-bold text-lg dark:text-white">Export Data</h3>
+                </div>
+                <button onclick="window.hideModal('exportModal')" class="text-gray-400 hover:text-red-500 transition-colors"><i class="fas fa-times"></i></button>
+            </div>
+            <div class="p-5 space-y-4 text-gray-700 dark:text-gray-300">
+                <!-- Export Scope -->
+                <div>
+                    <label class="block text-sm font-semibold mb-2 text-gray-800 dark:text-gray-200" data-i18n="export_scope">Export Scope</label>
+                    <div class="space-y-2">
+                        <label class="flex items-center p-2.5 rounded-lg border border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700/50 cursor-pointer transition">
+                            <input type="radio" name="exportScope" value="all" checked class="text-emerald-600 focus:ring-emerald-500">
+                            <span class="ml-3 text-sm font-medium flex-1 flex justify-between items-center">
+                                <span data-i18n="export_all">All Items in Category</span>
+                                <span id="exportCountAll" class="text-xs bg-gray-100 dark:bg-gray-700 px-2 py-0.5 rounded font-mono text-gray-500 dark:text-gray-400">(0)</span>
+                            </span>
+                        </label>
+                        <label class="flex items-center p-2.5 rounded-lg border border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700/50 cursor-pointer transition">
+                            <input type="radio" name="exportScope" value="filtered" class="text-emerald-600 focus:ring-emerald-500">
+                            <span class="ml-3 text-sm font-medium flex-1 flex justify-between items-center">
+                                <span data-i18n="export_filtered">Current Filter / Search Results</span>
+                                <span id="exportCountFiltered" class="text-xs bg-gray-100 dark:bg-gray-700 px-2 py-0.5 rounded font-mono text-gray-500 dark:text-gray-400">(0)</span>
+                            </span>
+                        </label>
+                        <label id="exportScopeSelectedLabel" class="flex items-center p-2.5 rounded-lg border border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700/50 cursor-pointer transition">
+                            <input type="radio" name="exportScope" value="selected" class="text-emerald-600 focus:ring-emerald-500">
+                            <span class="ml-3 text-sm font-medium flex-1 flex justify-between items-center">
+                                <span data-i18n="export_selected_items">Selected Items Only</span>
+                                <span id="exportCountSelected" class="text-xs bg-emerald-100 dark:bg-emerald-900/50 text-emerald-700 dark:text-emerald-300 px-2 py-0.5 rounded font-mono font-bold">(0)</span>
+                            </span>
+                        </label>
+                    </div>
+                </div>
+
+                <!-- Export Format -->
+                <div>
+                    <label class="block text-sm font-semibold mb-2 text-gray-800 dark:text-gray-200" data-i18n="export_format">File Format</label>
+                    <div class="grid grid-cols-2 gap-3">
+                        <label id="formatXlsxCard" class="flex items-center p-3 rounded-lg border-2 border-emerald-500 bg-emerald-50/40 dark:bg-emerald-950/20 cursor-pointer transition">
+                            <input type="radio" name="exportFormat" value="xlsx" checked class="text-emerald-600 focus:ring-emerald-500" onchange="window.updateExportFormatUI()">
+                            <div class="ml-2.5">
+                                <div class="text-sm font-bold text-gray-800 dark:text-white flex items-center">
+                                    <i class="fas fa-file-excel text-green-600 mr-1.5"></i> Excel (.xlsx)
+                                </div>
+                                <div class="text-[11px] text-gray-500 dark:text-gray-400" data-i18n="excel_desc">Recommended</div>
+                            </div>
+                        </label>
+                        <label id="formatCsvCard" class="flex items-center p-3 rounded-lg border border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700/50 cursor-pointer transition">
+                            <input type="radio" name="exportFormat" value="csv" class="text-emerald-600 focus:ring-emerald-500" onchange="window.updateExportFormatUI()">
+                            <div class="ml-2.5">
+                                <div class="text-sm font-bold text-gray-800 dark:text-white flex items-center">
+                                    <i class="fas fa-file-csv text-blue-500 mr-1.5"></i> CSV (.csv)
+                                </div>
+                                <div class="text-[11px] text-gray-500 dark:text-gray-400" data-i18n="csv_desc">UTF-8 with BOM</div>
+                            </div>
+                        </label>
+                    </div>
+                </div>
+
+                <!-- Columns to Include -->
+                <div>
+                    <label class="block text-sm font-semibold mb-2 text-gray-800 dark:text-gray-200" data-i18n="export_columns">Columns to Include</label>
+                    <div class="grid grid-cols-2 gap-3">
+                        <label class="flex items-center p-2.5 rounded-lg border border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700/50 cursor-pointer transition">
+                            <input type="radio" name="exportColumns" value="all" checked class="text-emerald-600 focus:ring-emerald-500">
+                            <span class="ml-2 text-xs font-medium" data-i18n="export_cols_all">All Fields & Specs</span>
+                        </label>
+                        <label class="flex items-center p-2.5 rounded-lg border border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700/50 cursor-pointer transition">
+                            <input type="radio" name="exportColumns" value="displayed" class="text-emerald-600 focus:ring-emerald-500">
+                            <span class="ml-2 text-xs font-medium" data-i18n="export_cols_table">Table Columns Only</span>
+                        </label>
+                    </div>
+                </div>
+            </div>
+            <div class="p-4 border-t dark:border-gray-700 flex justify-end gap-2 bg-gray-50 dark:bg-gray-800 rounded-b-xl">
+                <button type="button" onclick="window.hideModal('exportModal')" class="px-4 py-2 border rounded-lg dark:border-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 font-medium" data-i18n="cancel">Cancel</button>
+                <button type="button" onclick="window.executeExport()" class="px-6 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg font-bold shadow-sm transition-colors flex items-center">
+                    <i class="fas fa-download mr-2"></i><span data-i18n="download_file">Download</span>
+                </button>
             </div>
         </div>
     </div>

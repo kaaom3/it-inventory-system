@@ -167,7 +167,23 @@ const translations = {
         found_device: "Device Found!",
         no_device_found: "No device found with this information.",
         go_to_device: "View Device Details",
-        search_results: "Search Results"
+        search_results: "Search Results",
+        export_data: "Export Data",
+        export_selected: "Export Selected",
+        export_scope: "Export Scope",
+        export_all: "All Items in Category",
+        export_filtered: "Current Filter / Search Results",
+        export_selected_items: "Selected Items Only",
+        export_format: "File Format",
+        excel_desc: "Recommended / Excel",
+        csv_desc: "UTF-8 with BOM",
+        export_columns: "Columns to Include",
+        export_cols_all: "All Fields & Specs",
+        export_cols_table: "Table Columns Only",
+        download_file: "Download",
+        no_items_to_export: "No items available to export",
+        export_success: "Export Successful",
+        export_file_downloaded: "File exported successfully."
     },
     th: {
         app_title: "ระบบคลังอุปกรณ์",
@@ -327,7 +343,23 @@ const translations = {
         found_device: "พบอุปกรณ์ในระบบ!",
         no_device_found: "ไม่พบข้อมูลอุปกรณ์นี้ในระบบ",
         go_to_device: "ดูรายละเอียดอุปกรณ์",
-        search_results: "ผลการค้นหา"
+        search_results: "ผลการค้นหา",
+        export_data: "ส่งออกข้อมูล",
+        export_selected: "ส่งออกที่เลือก",
+        export_scope: "ขอบเขตการส่งออก",
+        export_all: "อุปกรณ์ทั้งหมดในหมวดนี้",
+        export_filtered: "เฉพาะที่ค้นหา / กรองอยู่",
+        export_selected_items: "เฉพาะรายการที่เลือกไว้",
+        export_format: "รูปแบบไฟล์",
+        excel_desc: "แนะนำสำหรับ Excel (.xlsx)",
+        csv_desc: "UTF-8 รองรับภาษาไทย (.csv)",
+        export_columns: "คอลัมน์ที่ต้องการ",
+        export_cols_all: "ทุกฟิลด์และสเปกทั้งหมด",
+        export_cols_table: "เฉพาะคอลัมน์ในตาราง",
+        download_file: "ดาวน์โหลด",
+        no_items_to_export: "ไม่มีรายการข้อมูลที่จะส่งออก",
+        export_success: "ส่งออกข้อมูลสำเร็จ",
+        export_file_downloaded: "ส่งออกไฟล์เรียบร้อยแล้ว"
     }
 };
 
@@ -773,7 +805,7 @@ function generateDynamicPages() {
         const pageId = `${colName.toLowerCase()}-page`;
         const displayName = config.isCustom ? config.displayName : t(colName.toLowerCase()) || config.displayName || colName;
         const statusOptions = config.dropdowns.Status ? config.dropdowns.Status.map(s => `<option value="${s}">${t(s.toLowerCase().replace(' ', '_')) || s}</option>`).join('') : '';
-        container.innerHTML += `<div id="${pageId}" class="page-content hidden"><div class="flex flex-wrap justify-between items-center gap-2 mb-6"><h2 class="text-2xl md:text-3xl font-bold text-gray-900 dark:text-white">${displayName}</h2><div class="flex gap-2"><button onclick="window.openRapidEntryModal('${colName}')" class="bg-blue-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-blue-700 shadow-sm flex items-center transition-colors"><i class="fas fa-barcode mr-2"></i>${t('rapid_scan')}</button><button onclick="window.openImportModal('${colName}')" class="bg-green-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-green-700 shadow-sm"><i class="fas fa-file-import mr-2"></i>${t('import_csv')}</button><button onclick="window.openModal('add', '${colName}')" class="bg-indigo-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-indigo-700 shadow-sm"><i class="fas fa-plus mr-2"></i>${t('add_new')}</button></div></div><div class="grid grid-cols-2 md:grid-cols-5 gap-4 mb-6" id="${colName}SummaryCards"></div><div class="mb-4 flex flex-col md:flex-row gap-2"><div class="w-full md:w-1/4"><select onchange="window.handleStatusFilter('${colName}', this.value)" class="w-full px-4 py-2 border rounded-lg dark:bg-gray-700 dark:border-gray-600 dark:text-gray-200"><option value="">${t('all_statuses')}</option>${statusOptions}</select></div><div class="w-full md:w-3/4"><input type="text" id="${colName.toLowerCase()}SearchInput" onkeyup="window.handleSearch('${colName}', this.value)" placeholder="${t('search')}" class="w-full px-4 py-2 border rounded-lg dark:bg-gray-700 dark:border-gray-600 dark:placeholder-gray-400"></div></div><div id="${colName}BulkActions" class="hidden mb-4 p-3 bg-indigo-50 dark:bg-indigo-900/30 border border-indigo-200 dark:border-indigo-700 rounded-lg flex items-center justify-between"><div class="text-indigo-800 dark:text-indigo-200 text-sm font-semibold"><i class="fas fa-check-square mr-1"></i> <span class="selected-count">0 ${t('items')}</span></div><div class="flex space-x-2"><button onclick="window.openBulkEditModal('${colName}')" class="px-3 py-1.5 bg-indigo-600 text-white text-sm rounded hover:bg-indigo-700 shadow-sm"><i class="fas fa-edit mr-1"></i>${t('bulk_edit')}</button><button onclick="window.bulkDelete('${colName}')" class="px-3 py-1.5 bg-red-600 text-white text-sm rounded hover:bg-red-700 shadow-sm"><i class="fas fa-trash mr-1"></i>${t('bulk_delete')}</button></div></div><div class="bg-white dark:bg-gray-800 rounded-lg shadow-sm overflow-hidden border border-gray-100 dark:border-gray-700"><div class="overflow-x-auto"><table id="${colName}Table" class="min-w-full table-fixed"></table></div></div><div id="${colName}Pagination" class="flex items-center justify-between mt-4 text-sm text-gray-600 dark:text-gray-300"></div></div>`;
+        container.innerHTML += `<div id="${pageId}" class="page-content hidden"><div class="flex flex-wrap justify-between items-center gap-2 mb-6"><h2 class="text-2xl md:text-3xl font-bold text-gray-900 dark:text-white">${displayName}</h2><div class="flex gap-2"><button onclick="window.openRapidEntryModal('${colName}')" class="bg-blue-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-blue-700 shadow-sm flex items-center transition-colors"><i class="fas fa-barcode mr-2"></i>${t('rapid_scan')}</button><button onclick="window.openImportModal('${colName}')" class="bg-green-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-green-700 shadow-sm"><i class="fas fa-file-import mr-2"></i>${t('import_csv')}</button><button onclick="window.openExportModal('${colName}')" class="bg-emerald-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-emerald-700 shadow-sm flex items-center transition-colors"><i class="fas fa-file-export mr-2"></i>${t('export_data')}</button><button onclick="window.openModal('add', '${colName}')" class="bg-indigo-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-indigo-700 shadow-sm"><i class="fas fa-plus mr-2"></i>${t('add_new')}</button></div></div><div class="grid grid-cols-2 md:grid-cols-5 gap-4 mb-6" id="${colName}SummaryCards"></div><div class="mb-4 flex flex-col md:flex-row gap-2"><div class="w-full md:w-1/4"><select onchange="window.handleStatusFilter('${colName}', this.value)" class="w-full px-4 py-2 border rounded-lg dark:bg-gray-700 dark:border-gray-600 dark:text-gray-200"><option value="">${t('all_statuses')}</option>${statusOptions}</select></div><div class="w-full md:w-3/4"><input type="text" id="${colName.toLowerCase()}SearchInput" onkeyup="window.handleSearch('${colName}', this.value)" placeholder="${t('search')}" class="w-full px-4 py-2 border rounded-lg dark:bg-gray-700 dark:border-gray-600 dark:placeholder-gray-400"></div></div><div id="${colName}BulkActions" class="hidden mb-4 p-3 bg-indigo-50 dark:bg-indigo-900/30 border border-indigo-200 dark:border-indigo-700 rounded-lg flex items-center justify-between"><div class="text-indigo-800 dark:text-indigo-200 text-sm font-semibold"><i class="fas fa-check-square mr-1"></i> <span class="selected-count">0 ${t('items')}</span></div><div class="flex space-x-2"><button onclick="window.openExportModal('${colName}', true)" class="px-3 py-1.5 bg-emerald-600 text-white text-sm rounded hover:bg-emerald-700 shadow-sm flex items-center"><i class="fas fa-file-export mr-1"></i>${t('export_selected')}</button><button onclick="window.openBulkEditModal('${colName}')" class="px-3 py-1.5 bg-indigo-600 text-white text-sm rounded hover:bg-indigo-700 shadow-sm"><i class="fas fa-edit mr-1"></i>${t('bulk_edit')}</button><button onclick="window.bulkDelete('${colName}')" class="px-3 py-1.5 bg-red-600 text-white text-sm rounded hover:bg-red-700 shadow-sm"><i class="fas fa-trash mr-1"></i>${t('bulk_delete')}</button></div></div><div class="bg-white dark:bg-gray-800 rounded-lg shadow-sm overflow-hidden border border-gray-100 dark:border-gray-700"><div class="overflow-x-auto"><table id="${colName}Table" class="min-w-full table-fixed"></table></div></div><div id="${colName}Pagination" class="flex items-center justify-between mt-4 text-sm text-gray-600 dark:text-gray-300"></div></div>`;
     });
 }
 
@@ -1411,6 +1443,253 @@ window.processCsvImport = function() {
     const file = document.getElementById('csvFileInput').files[0]; if (!file) { showNotificationModal('warning', 'No File', 'Please select a file.'); return; }
     Papa.parse(file, { header: true, skipEmptyLines: true, encoding: document.getElementById('csvEncoding').value, complete: async (results) => { try { if(results.data.length === 0) throw new Error("Empty CSV"); await apiRequest(`/api/inventory/${currentImportCollection}/bulk`, 'POST', results.data); showNotificationModal('success', 'Imported', `Imported ${results.data.length} items.`); window.hideModal('importModal'); refreshAllData(); } catch (e) { showNotificationModal('warning', 'Error', e.message); } }});
 };
+
+
+window.currentExportCollection = null;
+
+window.updateExportFormatUI = function() {
+    const checked = document.querySelector('input[name="exportFormat"]:checked');
+    const isXlsx = (checked ? checked.value : 'xlsx') === 'xlsx';
+    const xlsxCard = document.getElementById('formatXlsxCard');
+    const csvCard = document.getElementById('formatCsvCard');
+    if (xlsxCard && csvCard) {
+        if (isXlsx) {
+            xlsxCard.className = 'flex items-center p-3 rounded-lg border-2 border-emerald-500 bg-emerald-50/40 dark:bg-emerald-950/20 cursor-pointer transition';
+            csvCard.className = 'flex items-center p-3 rounded-lg border border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700/50 cursor-pointer transition';
+        } else {
+            csvCard.className = 'flex items-center p-3 rounded-lg border-2 border-emerald-500 bg-emerald-50/40 dark:bg-emerald-950/20 cursor-pointer transition';
+            xlsxCard.className = 'flex items-center p-3 rounded-lg border border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700/50 cursor-pointer transition';
+        }
+    }
+};
+
+window.openExportModal = function(collectionName, selectedOnly = false) {
+    window.currentExportCollection = collectionName;
+    const config = collectionConfigs[collectionName];
+    const dispName = config ? (config.isCustom ? config.displayName : (t(collectionName.toLowerCase()) || config.displayName || collectionName)) : collectionName;
+
+    const titleEl = document.getElementById('exportModalTitle');
+    if (titleEl) {
+        titleEl.innerHTML = `${t('export_data')} &bull; <span class="text-emerald-600 dark:text-emerald-400">${dispName}</span>`;
+    }
+
+    const fullData = (allData[collectionName] || []).filter(i => i.Status !== 'Disposed');
+    const state = paginationState[collectionName] || {};
+    let filteredData = fullData;
+    if (state.statusFilter) filteredData = filteredData.filter(i => i.Status === state.statusFilter);
+    if (state.categoryFilter && config && config.categoryFilterField) filteredData = filteredData.filter(item => item[config.categoryFilterField] === state.categoryFilter);
+    if (state.filterText) filteredData = filteredData.filter(i => JSON.stringify(Object.values(i)).toUpperCase().includes(state.filterText.toUpperCase()));
+
+    const selIds = selectedItems[collectionName] || [];
+    const selectedCount = selIds.length;
+
+    const countAllEl = document.getElementById('exportCountAll');
+    if (countAllEl) countAllEl.textContent = `(${fullData.length})`;
+
+    const countFilteredEl = document.getElementById('exportCountFiltered');
+    if (countFilteredEl) countFilteredEl.textContent = `(${filteredData.length})`;
+
+    const countSelectedEl = document.getElementById('exportCountSelected');
+    if (countSelectedEl) countSelectedEl.textContent = `(${selectedCount})`;
+
+    const selectedRadio = document.querySelector('input[name="exportScope"][value="selected"]');
+    const selectedLabel = document.getElementById('exportScopeSelectedLabel');
+    if (selectedRadio && selectedLabel) {
+        if (selectedCount === 0) {
+            selectedRadio.disabled = true;
+            selectedLabel.classList.add('opacity-40', 'cursor-not-allowed');
+            selectedLabel.classList.remove('cursor-pointer');
+            const allRadio = document.querySelector('input[name="exportScope"][value="all"]');
+            if (allRadio) allRadio.checked = true;
+        } else {
+            selectedRadio.disabled = false;
+            selectedLabel.classList.remove('opacity-40', 'cursor-not-allowed');
+            selectedLabel.classList.add('cursor-pointer');
+            if (selectedOnly) {
+                selectedRadio.checked = true;
+            } else {
+                const allRadio = document.querySelector('input[name="exportScope"][value="all"]');
+                if (allRadio) allRadio.checked = true;
+            }
+        }
+    }
+
+    window.updateExportFormatUI();
+    window.openModalWindow('exportModal');
+};
+
+window.downloadDataAsFile = function(rows, filename, format = 'xlsx', sheetName = 'Inventory') {
+    if (!rows || rows.length === 0) {
+        window.showNotificationModal('warning', t('export_data'), t('no_items_to_export'));
+        return;
+    }
+
+    const safeFilename = (filename || 'export').replace(/[/\\?%*:|"<>]/g, '_');
+
+    if (format === 'xlsx' && typeof XLSX !== 'undefined') {
+        const ws = XLSX.utils.json_to_sheet(rows);
+        
+        // Auto calculate column width
+        const colKeys = Object.keys(rows[0] || {});
+        const colWidths = colKeys.map(key => {
+            let maxLen = key.length;
+            for (let i = 0; i < Math.min(rows.length, 100); i++) {
+                const val = rows[i][key];
+                if (val !== null && val !== undefined) {
+                    const strLen = String(val).length;
+                    if (strLen > maxLen) maxLen = strLen;
+                }
+            }
+            return { wch: Math.min(Math.max(maxLen + 3, 10), 45) };
+        });
+        ws['!cols'] = colWidths;
+
+        const wb = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(wb, ws, (sheetName || 'Inventory').substring(0, 31));
+        XLSX.writeFile(wb, `${safeFilename}.xlsx`);
+    } else {
+        // CSV with UTF-8 BOM
+        const csv = (typeof Papa !== 'undefined') ? Papa.unparse(rows) : (function(data) {
+            const headers = Object.keys(data[0] || {});
+            const lines = [headers.join(',')];
+            data.forEach(item => {
+                lines.push(headers.map(h => `"${String(item[h] ?? '').replace(/"/g, '""')}"`).join(','));
+            });
+            return lines.join('\r\n');
+        })(rows);
+
+        const blob = new Blob(["\uFEFF" + csv], { type: 'text/csv;charset=utf-8;' });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement("a");
+        link.href = url;
+        link.download = `${safeFilename}.csv`;
+        link.click();
+        setTimeout(() => URL.revokeObjectURL(url), 1000);
+    }
+};
+
+window.executeExport = function() {
+    const colName = window.currentExportCollection;
+    if (!colName) {
+        window.hideModal('exportModal');
+        return;
+    }
+
+    const scopeRadio = document.querySelector('input[name="exportScope"]:checked');
+    const scope = scopeRadio ? scopeRadio.value : 'all';
+
+    const formatRadio = document.querySelector('input[name="exportFormat"]:checked');
+    const format = formatRadio ? formatRadio.value : 'xlsx';
+
+    const columnsRadio = document.querySelector('input[name="exportColumns"]:checked');
+    const columnsMode = columnsRadio ? columnsRadio.value : 'all';
+
+    const fullData = (allData[colName] || []).filter(i => i.Status !== 'Disposed');
+    const state = paginationState[colName] || {};
+    const config = collectionConfigs[colName];
+
+    let targetItems = [];
+    if (scope === 'selected') {
+        const selIds = selectedItems[colName] || [];
+        targetItems = (allData[colName] || []).filter(i => selIds.includes(String(i._id || i.id)));
+    } else if (scope === 'filtered') {
+        let filtered = fullData;
+        if (state.statusFilter) filtered = filtered.filter(i => i.Status === state.statusFilter);
+        if (state.categoryFilter && config && config.categoryFilterField) filtered = filtered.filter(item => item[config.categoryFilterField] === state.categoryFilter);
+        if (state.filterText) filtered = filtered.filter(i => JSON.stringify(Object.values(i)).toUpperCase().includes(state.filterText.toUpperCase()));
+        targetItems = filtered;
+    } else {
+        targetItems = fullData;
+    }
+
+    if (!targetItems || targetItems.length === 0) {
+        window.showNotificationModal('warning', t('export_data'), t('no_items_to_export'));
+        return;
+    }
+
+    // Determine field keys to export
+    let exportFieldKeys = [];
+    if (columnsMode === 'displayed' && config && config.headers && config.headers.length > 0) {
+        exportFieldKeys = config.headers;
+    } else {
+        const fieldSet = new Set();
+        if (config && config.headers) config.headers.forEach(h => fieldSet.add(h));
+        if (config && config.formFields) config.formFields.forEach(f => fieldSet.add(f));
+        targetItems.slice(0, 20).forEach(item => {
+            Object.keys(item).forEach(k => {
+                if (!['_id', '__v', 'disposedFile', 'disposedFileType', 'password'].includes(k)) {
+                    fieldSet.add(k);
+                }
+            });
+        });
+        exportFieldKeys = Array.from(fieldSet);
+    }
+
+    // Remove internal database / binary keys
+    exportFieldKeys = exportFieldKeys.filter(k => !['_id', '__v', 'disposedFile', 'disposedFileType', 'password'].includes(k));
+
+    // Map rows with friendly headers
+    const rows = targetItems.map(item => {
+        const row = {};
+        exportFieldKeys.forEach(key => {
+            const fieldDef = AVAILABLE_FIELDS.find(f => f.id === key);
+            const headerLabel = fieldDef ? fieldDef.label : (t(key.toLowerCase()) || key);
+            let val = item[key];
+            if (val === undefined || val === null) {
+                val = '';
+            } else if (val instanceof Date) {
+                val = val.toLocaleDateString('th-TH');
+            } else if (typeof val === 'object') {
+                val = JSON.stringify(val);
+            }
+            row[headerLabel] = val;
+        });
+        return row;
+    });
+
+    const dateStr = new Date().toISOString().slice(0, 10);
+    const fileName = `${colName}_Export_${dateStr}`;
+    window.downloadDataAsFile(rows, fileName, format, colName);
+
+    window.hideModal('exportModal');
+    window.showNotificationModal('success', t('export_success'), `${t('export_file_downloaded')} (${rows.length} ${t('items')})`);
+};
+
+window.exportDisposedAssets = function() {
+    let disposedItems = [];
+    for (const [collection, items] of Object.entries(allData)) {
+        if (['Staff', 'CustomMenus', 'TransactionHistory', 'admins', 'LoanHistory', 'Maintenance Log'].includes(collection)) continue;
+        if (!Array.isArray(items)) continue;
+        items.forEach(item => {
+            if (item.Status === 'Disposed') {
+                const name = item.ItemName || item.ComputerName || item.DeviceName || item.Name || '-';
+                const sn = item.SerialNumber || item.MonitorSerial || '-';
+                const date = item.DisposedDate ? new Date(item.DisposedDate).toLocaleDateString('th-TH') : '-';
+                const reason = item.DisposedReason || '-';
+                const user = item.UserName || '-';
+                disposedItems.push({
+                    'Category': collection,
+                    'Item Name': name,
+                    'Serial Number': sn,
+                    'User / Department': user,
+                    'Disposed Date': date,
+                    'Disposed Reason': reason,
+                    'Has Evidence Document': item.disposedFile ? 'Yes' : 'No'
+                });
+            }
+        });
+    }
+
+    if (disposedItems.length === 0) {
+        window.showNotificationModal('info', t('disposed_assets'), t('no_items_to_export'));
+        return;
+    }
+
+    const dateStr = new Date().toISOString().slice(0, 10);
+    window.downloadDataAsFile(disposedItems, `Disposed_Assets_${dateStr}`, 'xlsx', 'Disposed Assets');
+    window.showNotificationModal('success', t('export_success'), `${t('export_file_downloaded')} (${disposedItems.length} ${t('items')})`);
+};
+
 
 window.showQrModal = function(sn, name) { document.getElementById('qrModalTitle').innerText = name; QRCode.toCanvas(document.getElementById('qrCanvas'), `${window.location.origin}/details.html?sn=${sn}`, { width: 200 }); window.openModalWindow('qrModal'); };
 
