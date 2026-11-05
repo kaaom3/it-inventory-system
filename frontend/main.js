@@ -690,11 +690,40 @@ async function convertFileToBase64(file) {
     });
 }
 
-window.viewDisposalEvidence = function(base64Data) {
-    if (!base64Data) return alert("ไม่พบเอกสารแนบในระบบ");
+window.viewDisposalEvidence = async function(firstArg, secondArg) {
+    if (!firstArg) return alert("ไม่พบเอกสารแนบในระบบ");
+    
+    let base64Data = null;
+    if (typeof firstArg === 'string' && (firstArg.startsWith('data:') || firstArg.startsWith('http') || firstArg.startsWith('blob:'))) {
+        base64Data = firstArg;
+    } else if (firstArg && secondArg) {
+        try {
+            let res;
+            try {
+                res = await apiRequest(`/api/inventory/evidence/${firstArg}/${secondArg}`);
+            } catch (e) {
+                res = await apiRequest(`/api/inventory/item/${firstArg}/${secondArg}`);
+            }
+            if (res && res.DisposalEvidence) {
+                base64Data = res.DisposalEvidence;
+            } else {
+                return alert("ไม่พบเอกสารแนบในระบบ");
+            }
+        } catch (e) {
+            console.error("Failed to load evidence:", e);
+            return alert("เกิดข้อผิดพลาดในการโหลดเอกสารแนบ");
+        }
+    } else {
+        return alert("ไม่พบเอกสารแนบในระบบ");
+    }
+
     const newWindow = window.open();
-    if (base64Data.startsWith('data:application/pdf')) newWindow.document.write(`<iframe src="${base64Data}" frameborder="0" style="border:0; top:0px; left:0px; bottom:0px; right:0px; width:100%; height:100%;" allowfullscreen></iframe>`);
-    else newWindow.document.write(`<div style="display:flex; justify-content:center; align-items:center; min-height:100vh; background:#333;"><img src="${base64Data}" style="max-width:100%; max-height:100vh; box-shadow:0 0 20px rgba(0,0,0,0.5);" /></div>`);
+    if (!newWindow) return alert("กรุณาอนุญาตให้เบราว์เซอร์เปิดหน้าต่างใหม่ (Pop-up) เพื่อดูเอกสาร");
+    if (base64Data.startsWith('data:application/pdf')) {
+        newWindow.document.write(`<iframe src="${base64Data}" frameborder="0" style="border:0; top:0px; left:0px; bottom:0px; right:0px; width:100%; height:100%; position:fixed;" allowfullscreen></iframe>`);
+    } else {
+        newWindow.document.write(`<div style="display:flex; justify-content:center; align-items:center; min-height:100vh; background:#333;"><img src="${base64Data}" style="max-width:100%; max-height:100vh; box-shadow:0 0 20px rgba(0,0,0,0.5);" /></div>`);
+    }
 };
 
 window.renderDisposedAssets = function() {
@@ -712,8 +741,12 @@ window.renderDisposedAssets = function() {
             const name = item[nameField] || item.ComputerName || item.ItemName || 'Unknown Device';
             const serial = item.SerialNumber || item.MonitorSerial || 'N/A';
             const date = item.DisposalDate ? new Date(item.DisposalDate).toLocaleDateString('th-TH') : '-';
+            const hasEvidence = Boolean(item.hasDisposalEvidence || item.DisposalEvidence);
             let evidenceBtn = '<span class="text-gray-400 text-xs italic">ไม่มีเอกสาร</span>';
-            if (item.DisposalEvidence) evidenceBtn = `<button onclick="window.viewDisposalEvidence(this.getAttribute('data-file'))" data-file="${item.DisposalEvidence}" class="px-3 py-1 bg-red-100 text-red-700 hover:bg-red-200 rounded-md text-xs font-bold shadow-sm transition"><i class="fas fa-file-pdf mr-1"></i> ${t('view_evidence')}</button>`;
+            if (hasEvidence) {
+                const itemId = item._id || item.id;
+                evidenceBtn = `<button onclick="window.viewDisposalEvidence('${collection}', '${itemId}')" class="px-3 py-1 bg-red-100 text-red-700 hover:bg-red-200 rounded-md text-xs font-bold shadow-sm transition"><i class="fas fa-file-pdf mr-1"></i> ${t('view_evidence')}</button>`;
+            }
             html += `<tr class="hover:bg-red-50 dark:hover:bg-red-900/10 transition-colors"><td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 dark:text-gray-100"><i class="fas fa-box text-red-400 mr-2"></i> ${name}<div class="text-xs text-gray-500 font-normal ml-6 mt-1">From: ${collection}</div></td><td class="px-6 py-4 whitespace-nowrap text-sm text-gray-600 dark:text-gray-400">${serial}</td><td class="px-6 py-4 whitespace-nowrap text-sm text-gray-600 dark:text-gray-400">${date}</td><td class="px-6 py-4 whitespace-nowrap text-center">${evidenceBtn}</td></tr>`;
         });
     }
@@ -1118,8 +1151,8 @@ window.saveData = async function() {
     const formData = new FormData(document.getElementById('editForm')); const data = Object.fromEntries(formData.entries()); const { mode, collection, id } = currentEdit;
     const statusInput = document.getElementById('edit-Status'); const fileInput = document.getElementById('disposalFileInput'); const hiddenBase64 = document.getElementById('hiddenEvidenceBase64');
     if (statusInput && statusInput.value === 'Disposed') {
-        if (fileInput && fileInput.files.length > 0) { const file = fileInput.files[0]; if (file.size > 2 * 1024 * 1024) return alert("ไฟล์เอกสารต้องมีขนาดไม่เกิน 2MB"); try { data.DisposalEvidence = await convertFileToBase64(file); data.DisposalDate = new Date().toISOString(); } catch (err) { return alert("เกิดข้อผิดพลาดในการอ่านไฟล์"); } } else if (hiddenBase64 && hiddenBase64.value) data.DisposalEvidence = hiddenBase64.value; else { if (!confirm("คุณกำลังเปลี่ยนสถานะเป็น 'Disposed' แต่ไม่ได้แนบเอกสาร ต้องการดำเนินการต่อหรือไม่?")) return; data.DisposalDate = new Date().toISOString(); }
-    } else if (statusInput && statusInput.value !== 'Disposed') { data.DisposalEvidence = null; data.DisposalDate = null; }
+        if (fileInput && fileInput.files.length > 0) { const file = fileInput.files[0]; if (file.size > 2 * 1024 * 1024) return alert("ไฟล์เอกสารต้องมีขนาดไม่เกิน 2MB"); try { data.DisposalEvidence = await convertFileToBase64(file); data.hasDisposalEvidence = true; data.DisposalDate = new Date().toISOString(); } catch (err) { return alert("เกิดข้อผิดพลาดในการอ่านไฟล์"); } } else if (hiddenBase64 && hiddenBase64.value) { data.DisposalEvidence = hiddenBase64.value; data.hasDisposalEvidence = true; } else { if (!confirm("คุณกำลังเปลี่ยนสถานะเป็น 'Disposed' แต่ไม่ได้แนบเอกสาร ต้องการดำเนินการต่อหรือไม่?")) return; data.hasDisposalEvidence = false; data.DisposalDate = new Date().toISOString(); }
+    } else if (statusInput && statusInput.value !== 'Disposed') { data.DisposalEvidence = null; data.hasDisposalEvidence = false; data.DisposalDate = null; }
     try { if (mode === 'edit') await apiRequest(`/api/inventory/${collection}/${id}`, 'PUT', data); else await apiRequest(`/api/inventory/${collection}`, 'POST', data); showNotificationModal('success', 'Success', `Data saved successfully.`); window.hideModal('editModal'); await refreshAllData(); window.buildTable(collection); window.updateDashboard(currentDashboardFolder); } catch (error) { showNotificationModal('warning', 'Save Failed', error.message); }
 };
 
@@ -1674,7 +1707,7 @@ window.exportDisposedAssets = function() {
                     'User / Department': user,
                     'Disposed Date': date,
                     'Disposed Reason': reason,
-                    'Has Evidence Document': item.disposedFile ? 'Yes' : 'No'
+                    'Has Evidence Document': (item.hasDisposalEvidence || item.DisposalEvidence || item.disposedFile) ? 'Yes' : 'No'
                 });
             }
         });

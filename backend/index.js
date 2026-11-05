@@ -562,6 +562,9 @@ app.put('/api/inventory/:collection/bulk-update', verifyToken, async (req, res) 
     try {
         const { ids, updateData } = req.body; applyAutoStatus(updateData);
         if (!Array.isArray(ids) || ids.length === 0 || !updateData) return res.status(400).json({ message: "Invalid payload" });
+        if ('DisposalEvidence' in updateData) {
+            updateData.hasDisposalEvidence = Boolean(updateData.DisposalEvidence && updateData.DisposalEvidence.length > 0);
+        }
         
         
         const oldDocs = await db.collection(req.params.collection).find(buildBulkIdQuery(ids)).toArray();
@@ -737,6 +740,17 @@ app.get('/api/inventory/item/:collectionName/:id', verifyToken, async (req, res)
     } catch (error) { res.status(500).json({ message: error.message }); }
 });
 
+app.get('/api/inventory/evidence/:collectionName/:id', verifyToken, async (req, res) => {
+    if (!db) return res.status(500).json({ message: "Database not connected" });
+    try {
+        const col = req.params.collectionName;
+        const id = req.params.id;
+        let item = await db.collection(col).findOne(buildIdQuery(id), { projection: { DisposalEvidence: 1 } });
+        if (!item || !item.DisposalEvidence) return res.status(404).json({ message: 'Evidence not found' });
+        res.json({ DisposalEvidence: item.DisposalEvidence });
+    } catch (error) { res.status(500).json({ message: error.message }); }
+});
+
 app.get('/api/inventory/all', verifyToken, async (req, res) => {
     if (!db) return res.status(500).json({ message: "Database not connected" });
     try {
@@ -799,6 +813,9 @@ app.post('/api/inventory/:collection', verifyToken, async (req, res) => {
     if (!db) return res.status(500).json({ message: "Database not connected" });
     try {
         const data = req.body; data.Timestamp = new Date();
+        if ('DisposalEvidence' in data) {
+            data.hasDisposalEvidence = Boolean(data.DisposalEvidence && data.DisposalEvidence.length > 0);
+        }
         const result = await db.collection(req.params.collection).insertOne(data);
         res.status(201).json(result);
     } catch (error) { res.status(500).json({ message: error.message }); }
@@ -807,7 +824,10 @@ app.post('/api/inventory/:collection', verifyToken, async (req, res) => {
 app.put('/api/inventory/:collection/:id', verifyToken, async (req, res) => {
     if (!db) return res.status(500).json({ message: "Database not connected" });
     try {
-        const data = req.body; delete data._id; applyAutoStatus(data); 
+        const data = req.body; delete data._id; applyAutoStatus(data);
+        if ('DisposalEvidence' in data) {
+            data.hasDisposalEvidence = Boolean(data.DisposalEvidence && data.DisposalEvidence.length > 0);
+        } 
         
         const oldData = await db.collection(req.params.collection).findOne(buildIdQuery(req.params.id));
         await db.collection(req.params.collection).updateOne(buildIdQuery(req.params.id), { $set: data });
