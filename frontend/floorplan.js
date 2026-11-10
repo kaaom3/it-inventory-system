@@ -24,6 +24,14 @@ class FloorPlanManager {
         this.searchQuery = '';
         this.isolateCategory = true;
         this.selectedZone = 'all'; // 'all' or zone id
+
+        // 🎯 Custom Multi-Selection & Advanced Display Filter State
+        this.activeCategories = new Set(); // If non-empty, show only these categories
+        this.selectedDeviceIds = new Set(); // Explicitly user-checked devices
+        this.showOnlySelectedDevices = false; // Toggle to isolate checked devices
+        this.statusFilter = 'all'; // 'all', 'Active', 'Storage', 'Repair', 'Damaged'
+        this.filterPinsByZone = true; // When zone is selected, filter map pins to that zone
+        this.filterPinsBySearch = true; // When typing search, filter map pins in real time
         
         // Pan & Zoom Engine State
         this.scale = 1.0;
@@ -109,6 +117,14 @@ class FloorPlanManager {
                 </div>
 
                 <div class="flex items-center space-x-1.5 md:space-x-2 shrink-0">
+                    <!-- 🎯 Filter Equipment Button (เลือกอุปกรณ์/หมวดหมู่ที่ต้องการโชว์) -->
+                    <button id="fp-btn-filter-modal" class="px-2 md:px-2.5 py-1 md:py-1.5 text-[11px] md:text-xs font-bold bg-indigo-50 hover:bg-indigo-100 dark:bg-indigo-950/80 dark:hover:bg-indigo-900/80 text-indigo-700 dark:text-indigo-300 rounded-lg md:rounded-xl border border-indigo-200/80 dark:border-indigo-800/80 transition flex items-center shadow-sm whitespace-nowrap group" title="เลือกอุปกรณ์หรือหมวดหมู่ที่ต้องการโชว์ในแผนที่">
+                        <i class="fas fa-filter text-indigo-500 mr-1 sm:mr-1.5 group-hover:scale-110 transition-transform"></i>
+                        <span class="hidden sm:inline">เลือกอุปกรณ์โชว์</span>
+                        <span class="sm:hidden">ตัวกรอง</span>
+                        <span id="fp-filter-active-badge" class="hidden ml-1 px-1.5 py-0.2 text-[9.5px] bg-indigo-600 text-white rounded-full font-mono font-bold leading-none">0</span>
+                    </button>
+
                     <!-- Isolation Toggle -->
                     <label class="flex items-center space-x-1 md:space-x-1.5 text-[11px] md:text-xs text-gray-700 dark:text-gray-300 bg-gray-50 dark:bg-gray-700/50 px-2 md:px-2.5 py-1 md:py-1.5 rounded-lg md:rounded-xl border border-gray-200 dark:border-gray-600 cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700 transition">
                         <input type="checkbox" id="fp-isolate-toggle" checked class="rounded text-indigo-600 focus:ring-indigo-500 w-3 h-3 md:w-3.5 md:h-3.5">
@@ -211,6 +227,24 @@ class FloorPlanManager {
                             <button class="fp-filter-btn flex-1 py-1 rounded-md text-center transition text-gray-600 dark:text-gray-400 hover:text-gray-900" data-filter="unpinned">⚪ ยังไม่วาง</button>
                             <button class="fp-filter-btn flex-1 py-1 rounded-md text-center transition text-gray-600 dark:text-gray-400 hover:text-gray-900" data-filter="pinned">📍 วางแล้ว</button>
                         </div>
+
+                        <!-- 👁️ Device Selection Action Bar (ดูเฉพาะที่เลือก) -->
+                        <div id="fp-selection-bar" class="flex items-center justify-between bg-indigo-50/70 dark:bg-indigo-950/40 border border-indigo-100 dark:border-indigo-900/60 rounded-xl px-2.5 py-1.5 text-[11px]">
+                            <div class="flex items-center space-x-1.5">
+                                <input type="checkbox" id="fp-select-all-cb" class="rounded text-indigo-600 focus:ring-indigo-500 w-3.5 h-3.5 cursor-pointer" title="เลือก/ยกเลิกทั้งหมดในรายการ">
+                                <label for="fp-select-all-cb" class="font-bold text-indigo-900 dark:text-indigo-200 cursor-pointer select-none">
+                                    เลือก (<span id="fp-selected-count">0</span>)
+                                </label>
+                            </div>
+                            <div class="flex items-center space-x-1">
+                                <button id="fp-btn-only-selected" class="px-2 py-0.5 rounded-lg font-bold text-[10.5px] transition bg-white dark:bg-gray-800 text-indigo-600 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-700 shadow-xs hover:bg-indigo-50 dark:hover:bg-gray-700" title="แสดงเฉพาะอุปกรณ์ที่เลือกบนแผนที่และรายการ">
+                                    <i class="fas fa-eye mr-1"></i>ดูเฉพาะที่เลือก
+                                </button>
+                                <button id="fp-btn-clear-selection" class="px-1.5 py-0.5 text-gray-400 hover:text-red-500 text-[10px] hidden" title="ยกเลิกการเลือกทั้งหมด">
+                                    <i class="fas fa-times"></i>
+                                </button>
+                            </div>
+                        </div>
                     </div>
 
                     <!-- Device Card List -->
@@ -226,6 +260,19 @@ class FloorPlanManager {
 
                 <!-- Center Map Viewport (Immersive Full Black Area + Pan & Zoom Engine) -->
                 <div id="fp-viewport" class="flex-1 relative overflow-hidden bg-slate-950 cursor-grab active:cursor-grabbing select-none" style="touch-action: none;">
+                    
+                    <!-- Floating Map Filter Status Indicator (Top-Left) -->
+                    <div id="fp-map-filter-indicator" class="absolute top-3 left-3 bg-gray-900/85 backdrop-blur-md text-white text-[11px] px-3 py-1.5 rounded-xl shadow-xl border border-white/15 flex items-center space-x-2 z-30 select-none">
+                        <div class="flex items-center space-x-1.5 text-indigo-300 font-bold">
+                            <i class="fas fa-map-pin text-rose-400 text-xs"></i>
+                            <span id="fp-map-pin-count">0 หมุด</span>
+                        </div>
+                        <span class="text-white/30">|</span>
+                        <span id="fp-map-filter-label" class="text-gray-200 truncate max-w-[130px] sm:max-w-[220px]">ทั้งหมด</span>
+                        <button id="fp-btn-reset-filters" class="hidden text-rose-300 hover:text-rose-100 font-bold text-[10px] bg-rose-950/80 hover:bg-rose-900 px-2 py-0.5 rounded-lg border border-rose-700/60 transition ml-1" title="ล้างตัวกรองและแสดงทั้งหมด">
+                            <i class="fas fa-undo mr-1"></i>รีเซ็ต
+                        </button>
+                    </div>
                     
                     <!-- Map Canvas Container (Transformed via translate & scale from origin 0 0) -->
                     <div id="fp-canvas" class="absolute top-0 left-0 shadow-2xl origin-top-left will-change-transform" style="transform: translate(0px, 0px) scale(1); touch-action: none;">
@@ -339,25 +386,52 @@ class FloorPlanManager {
         closeTrayBtn?.addEventListener('click', () => this.closeMobileTray());
         trayBackdrop?.addEventListener('click', () => this.closeMobileTray());
 
-        // Category Select
+        // 🎯 Filter Modal & Reset Buttons
+        document.getElementById('fp-btn-filter-modal')?.addEventListener('click', () => this.openFilterModal());
+        document.getElementById('fp-btn-reset-filters')?.addEventListener('click', () => this.resetAllFilters());
+
+        // 👁️ Selection Controls
+        document.getElementById('fp-select-all-cb')?.addEventListener('change', (e) => {
+            if (e.target.checked) this.selectAllCurrentDevices();
+            else this.clearAllSelections();
+        });
+        document.getElementById('fp-btn-only-selected')?.addEventListener('click', () => this.toggleOnlySelectedMode());
+        document.getElementById('fp-btn-clear-selection')?.addEventListener('click', () => this.clearAllSelections());
+
+        // Category Select (Supports All & Custom Filter)
         catSelect.addEventListener('change', (e) => {
-            this.selectedCategory = e.target.value;
-            const selectedText = catSelect.options[catSelect.selectedIndex]?.text.split('(')[0].trim() || this.selectedCategory;
-            document.getElementById('fp-cat-badge').innerText = selectedText;
+            if (e.target.value === 'custom') {
+                this.openFilterModal();
+                return;
+            }
+            if (e.target.value === 'all') {
+                this.selectedCategory = 'all';
+                this.activeCategories.clear();
+                document.getElementById('fp-cat-badge').innerText = 'ทุกหมวดหมู่';
+            } else {
+                this.selectedCategory = e.target.value;
+                this.activeCategories.clear();
+                const selectedText = catSelect.options[catSelect.selectedIndex]?.text.split('(')[0].trim() || this.selectedCategory;
+                document.getElementById('fp-cat-badge').innerText = selectedText;
+            }
             this.renderDeviceCards();
             this.renderPins();
+            this.updateFilterBadge();
         });
 
         // Isolation Toggle
         isolateToggle.addEventListener('change', (e) => {
             this.isolateCategory = e.target.checked;
             this.renderPins();
+            this.updateFilterBadge();
         });
 
-        // Search Input
+        // Search Input (Real-time updates to BOTH cards AND map pins!)
         searchInput.addEventListener('input', (e) => {
             this.searchQuery = e.target.value.toLowerCase().trim();
             this.renderDeviceCards();
+            this.renderPins();
+            this.updateFilterBadge();
         });
 
         // Filter Tabs
@@ -753,6 +827,8 @@ class FloorPlanManager {
         if (zoneId === 'all') {
             this.fillWidth();
             this.renderDeviceCards();
+            this.renderPins();
+            this.updateFilterBadge();
             return;
         }
 
@@ -764,6 +840,8 @@ class FloorPlanManager {
         }
 
         this.renderDeviceCards();
+        this.renderPins();
+        this.updateFilterBadge();
     }
 
     // Render floating building badges on the map
@@ -1298,6 +1376,11 @@ class FloorPlanManager {
         let html = '';
         let totalCount = 0;
 
+        // 0. Quick Views (All / Custom Filter)
+        html += `<option value="all" ${this.selectedCategory === 'all' ? 'selected' : ''}>🌐 แสดงทุกหมวดหมู่ (All Categories)</option>`;
+        html += `<option value="custom">🎯 กำหนดหมวดหมู่เอง... (Filter Layers)</option>`;
+        html += `<optgroup label="────────────────────────"></optgroup>`;
+
         // 1. Core Categories Group
         html += `<optgroup label="💻 หมวดหมู่อุปกรณ์หลัก (Core)">`;
         coreCategories.forEach(col => {
@@ -1587,32 +1670,44 @@ class FloorPlanManager {
         if (!window.allData) return [];
 
         const customMenus = window.allData.CustomMenus || [];
-        const isParentWithChildren = customMenus.some(m => m.parentId === catName);
-        const directItems = window.allData[catName] || [];
+        const skip = ['Staff', 'CustomMenus', 'TransactionHistory', 'LoanHistory', 'Maintenance Log', 'Maintenance', 'admins', 'Software', 'Accessory', 'FloorPlanZones'];
 
         let aggregated = [];
 
-        if (isParentWithChildren) {
-            if (Array.isArray(directItems)) {
-                aggregated.push(...directItems.map(d => ({ ...d, _collectionName: catName })));
-            }
-            const children = customMenus.filter(m => m.parentId === catName);
-            children.forEach(child => {
-                const childItems = window.allData[child.name];
-                if (Array.isArray(childItems)) {
-                    aggregated.push(...childItems.map(d => ({
-                        ...d,
-                        _collectionName: child.name,
-                        _subCategoryName: child.displayName || child.name
-                    })));
+        if (catName === 'all') {
+            Object.keys(window.allData).forEach(col => {
+                if (skip.includes(col)) return;
+                const list = window.allData[col];
+                if (Array.isArray(list)) {
+                    aggregated.push(...list.map(d => ({ ...d, _collectionName: col })));
                 }
             });
         } else {
-            aggregated = Array.isArray(directItems) ? directItems.map(d => ({ ...d, _collectionName: catName })) : [];
+            const isParentWithChildren = customMenus.some(m => m.parentId === catName);
+            const directItems = window.allData[catName] || [];
+
+            if (isParentWithChildren) {
+                if (Array.isArray(directItems)) {
+                    aggregated.push(...directItems.map(d => ({ ...d, _collectionName: catName })));
+                }
+                const children = customMenus.filter(m => m.parentId === catName);
+                children.forEach(child => {
+                    const childItems = window.allData[child.name];
+                    if (Array.isArray(childItems)) {
+                        aggregated.push(...childItems.map(d => ({
+                            ...d,
+                            _collectionName: child.name,
+                            _subCategoryName: child.displayName || child.name
+                        })));
+                    }
+                });
+            } else {
+                aggregated = Array.isArray(directItems) ? directItems.map(d => ({ ...d, _collectionName: catName })) : [];
+            }
         }
 
-        // Filter by selectedZone if active
-        if (this.selectedZone && this.selectedZone !== 'all') {
+        // Filter by selectedZone if active and filterPinsByZone is true
+        if (this.filterPinsByZone && this.selectedZone && this.selectedZone !== 'all') {
             const z = this.zones.find(item => item.id === this.selectedZone);
             if (z) {
                 const zKey = (z.locationKey || z.name).toLowerCase();
@@ -1628,7 +1723,26 @@ class FloorPlanManager {
         const statsEl = document.getElementById('fp-tray-stats');
         if (!listContainer) return;
 
-        const rawDevices = this.getDevicesForCategory(this.selectedCategory);
+        let rawDevices = [];
+        if (this.activeCategories && this.activeCategories.size > 0) {
+            this.activeCategories.forEach(col => {
+                rawDevices.push(...this.getDevicesForCategory(col));
+            });
+            const seen = new Set();
+            rawDevices = rawDevices.filter(d => {
+                const id = String(d._id || d.id || '');
+                if (!id || seen.has(id)) return false;
+                seen.add(id);
+                return true;
+            });
+        } else {
+            rawDevices = this.getDevicesForCategory(this.selectedCategory);
+        }
+
+        // Apply status filter if active
+        if (this.statusFilter && this.statusFilter !== 'all') {
+            rawDevices = rawDevices.filter(d => (d.Status || 'In Storage').toLowerCase() === this.statusFilter.toLowerCase());
+        }
 
         let devices = rawDevices.filter(d => {
             const name = (d.ItemName || d.Model || d.ComputerName || d.DeviceName || d.name || '').toLowerCase();
@@ -1643,21 +1757,46 @@ class FloorPlanManager {
             return matchesSearch;
         });
 
+        // If isolate selected devices mode is ON
+        if (this.showOnlySelectedDevices) {
+            devices = devices.filter(d => this.selectedDeviceIds.has(String(d._id || d.id)));
+        }
+
+        this.currentVisibleDevices = devices;
+
         const total = rawDevices.length;
         const pinnedCount = rawDevices.filter(d => d.mapLocation && typeof d.mapLocation.x === 'number').length;
         const unpinnedCount = total - pinnedCount;
         if (statsEl) {
-            statsEl.innerHTML = `<span>ในโซนนี้: <strong>${total}</strong> เครื่อง</span><span>วางแล้ว: <strong>${pinnedCount}</strong> | ว่าง: <strong>${unpinnedCount}</strong></span>`;
+            statsEl.innerHTML = `<span>แสดง: <strong>${devices.length}</strong> / <strong>${total}</strong> เครื่อง</span><span>วางแล้ว: <strong>${pinnedCount}</strong></span>`;
         }
         const mobileBadge = document.getElementById('fp-mobile-tray-badge');
-        if (mobileBadge) mobileBadge.innerText = total;
+        if (mobileBadge) mobileBadge.innerText = devices.length;
+
+        this.updateSelectionUI();
 
         if (devices.length === 0) {
-            listContainer.innerHTML = '<div class="text-center text-gray-400 py-10 text-xs italic">ไม่พบอุปกรณ์ที่ตรงตามเงื่อนไข</div>';
+            listContainer.innerHTML = `
+                ${this.showOnlySelectedDevices ? `
+                    <div class="p-3 bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800 rounded-xl text-center">
+                        <p class="text-xs font-bold text-amber-800 dark:text-amber-200 mb-1.5"><i class="fas fa-info-circle mr-1"></i>ยังไม่ได้ติ๊กเลือกอุปกรณ์ใดๆ</p>
+                        <button onclick="window.floorPlan.toggleOnlySelectedMode()" class="px-2.5 py-1 bg-amber-600 hover:bg-amber-700 text-white text-[11px] font-bold rounded-lg shadow-sm">ดูอุปกรณ์ทั้งหมด</button>
+                    </div>` : '<div class="text-center text-gray-400 py-10 text-xs italic">ไม่พบอุปกรณ์ที่ตรงตามเงื่อนไข</div>'}
+            `;
             return;
         }
 
-        listContainer.innerHTML = devices.map(d => {
+        let onlySelectedBanner = '';
+        if (this.showOnlySelectedDevices) {
+            onlySelectedBanner = `
+                <div class="p-2 mb-2 bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800/80 rounded-xl flex items-center justify-between text-xs text-amber-800 dark:text-amber-200 shrink-0">
+                    <span class="flex items-center font-bold text-[11px]"><i class="fas fa-eye text-amber-600 mr-1.5"></i>ดูเฉพาะ ${devices.length} เครื่องที่เลือก</span>
+                    <button id="fp-banner-exit-only-selected" class="text-[10.5px] bg-white dark:bg-gray-800 text-amber-800 dark:text-amber-300 font-bold px-2 py-0.5 rounded-lg border border-amber-300 hover:bg-amber-100 transition shadow-xs"><i class="fas fa-times mr-1"></i>ดูทั้งหมด</button>
+                </div>
+            `;
+        }
+
+        listContainer.innerHTML = onlySelectedBanner + devices.map(d => {
             const isPinned = !!(d.mapLocation && typeof d.mapLocation.x === 'number');
             const primaryName = this.getDeviceDisplayName(d);
             const secondarySpec = this.getDeviceSecondaryInfo(d);
@@ -1683,15 +1822,18 @@ class FloorPlanManager {
                 sn: sn
             });
 
+            const isSelected = this.selectedDeviceIds.has(String(d._id || d.id));
+
             return `
-                <div class="fp-card bg-white dark:bg-gray-800 p-3 rounded-2xl border ${isPinned ? 'border-gray-200 dark:border-gray-700' : 'border-indigo-300 dark:border-indigo-700/80 shadow-sm'} transition-all hover:shadow-md relative group cursor-grab active:cursor-grabbing"
+                <div class="fp-card bg-white dark:bg-gray-800 p-3 rounded-2xl border ${isSelected ? 'border-indigo-500 ring-2 ring-indigo-400/50 bg-indigo-50/30 dark:bg-indigo-950/20' : (isPinned ? 'border-gray-200 dark:border-gray-700' : 'border-indigo-300 dark:border-indigo-700/80 shadow-sm')} transition-all hover:shadow-md relative group cursor-grab active:cursor-grabbing"
                      draggable="${!isPinned}"
                      data-id="${d._id || d.id}"
                      data-device='${payload.replace(/'/g, "&apos;")}'>
                     
-                    <!-- Header: Status + Action -->
+                    <!-- Header: Checkbox + Status + Action -->
                     <div class="flex justify-between items-center mb-1.5">
-                        <div class="flex items-center space-x-1">
+                        <div class="flex items-center space-x-1.5 min-w-0">
+                            <input type="checkbox" class="fp-device-cb w-3.5 h-3.5 rounded text-indigo-600 focus:ring-indigo-500 cursor-pointer shrink-0" data-id="${d._id || d.id}" ${isSelected ? 'checked' : ''} title="ติ๊กเพื่อเลือกแสดงบนแผนผัง">
                             <span class="text-[10px] font-bold px-2 py-0.5 rounded-full ${statusColor}">${status}</span>
                             ${subBadge}
                         </div>
@@ -1775,6 +1917,19 @@ class FloorPlanManager {
             });
         });
 
+        // Exit only-selected mode button in banner
+        document.getElementById('fp-banner-exit-only-selected')?.addEventListener('click', () => {
+            this.toggleOnlySelectedMode();
+        });
+
+        // Device Checkboxes (ติ๊กเลือกอุปกรณ์)
+        listContainer.querySelectorAll('.fp-device-cb').forEach(cb => {
+            cb.addEventListener('click', (e) => e.stopPropagation());
+            cb.addEventListener('change', (e) => {
+                this.toggleDeviceSelection(cb.dataset.id, cb.checked);
+            });
+        });
+
         // Tap to place buttons (Mobile & Click friendly)
         listContainer.querySelectorAll('.fp-tap-place-btn').forEach(btn => {
             btn.addEventListener('click', (e) => {
@@ -1809,31 +1964,81 @@ class FloorPlanManager {
     // ------------------------------------------------------------------------
     // 📍 Pins Rendering (Dynamic Device-Specific Icon, Color, Tag, and Image)
     // ------------------------------------------------------------------------
+    // ------------------------------------------------------------------------
+    // 🌐 Advanced Device Aggregator for Map Pins
+    // ------------------------------------------------------------------------
+    getAllActiveDevices() {
+        let devices = [];
+        
+        // 1. Determine which categories to include
+        if (this.activeCategories && this.activeCategories.size > 0) {
+            // User selected specific categories in the filter modal
+            this.activeCategories.forEach(col => {
+                devices.push(...this.getDevicesForCategory(col));
+            });
+        } else if (this.selectedCategory === 'all' || !this.isolateCategory) {
+            devices = this.getDevicesForCategory('all');
+        } else {
+            devices = this.getDevicesForCategory(this.selectedCategory);
+        }
+
+        // Deduplicate devices by ID
+        const seen = new Set();
+        devices = devices.filter(d => {
+            const id = String(d._id || d.id || '');
+            if (!id || seen.has(id)) return false;
+            seen.add(id);
+            return true;
+        });
+
+        // 2. Filter by status if status filter is applied
+        if (this.statusFilter && this.statusFilter !== 'all') {
+            devices = devices.filter(d => (d.Status || 'In Storage').toLowerCase() === this.statusFilter.toLowerCase());
+        }
+
+        // 3. Filter by search query if enabled
+        if (this.filterPinsBySearch && this.searchQuery) {
+            devices = devices.filter(d => {
+                const name = (d.ItemName || d.Model || d.ComputerName || d.DeviceName || d.name || '').toLowerCase();
+                const sn = (d.SerialNumber || d.MonitorSerial || '').toLowerCase();
+                const ip = (d.IPAddress || '').toLowerCase();
+                const loc = (d.Location || '').toLowerCase();
+                return name.includes(this.searchQuery) || sn.includes(this.searchQuery) || ip.includes(this.searchQuery) || loc.includes(this.searchQuery);
+            });
+        }
+
+        // 4. If showOnlySelectedDevices is enabled, filter strictly to user's checked devices!
+        if (this.showOnlySelectedDevices) {
+            devices = devices.filter(d => this.selectedDeviceIds.has(String(d._id || d.id)));
+        }
+
+        return devices;
+    }
+
     renderPins() {
         if (!this.pinsContainer) return;
         this.pinsContainer.innerHTML = '';
 
-        if (this.isolateCategory) {
-            const devices = this.getDevicesForCategory(this.selectedCategory);
-            devices.forEach(d => {
-                if (!d.mapLocation || typeof d.mapLocation.x !== 'number') return;
-                const pinEl = this.createPinElement(d, d._collectionName || this.selectedCategory);
-                this.pinsContainer.appendChild(pinEl);
-            });
-        } else {
-            Object.keys(window.allData || {}).forEach(col => {
-                const list = window.allData[col];
-                if (!Array.isArray(list)) return;
-                list.forEach(d => {
-                    if (!d.mapLocation || typeof d.mapLocation.x !== 'number') return;
-                    const pinEl = this.createPinElement(d, col);
-                    this.pinsContainer.appendChild(pinEl);
-                });
-            });
+        const devices = this.getAllActiveDevices();
+        let renderedCount = 0;
+
+        devices.forEach(d => {
+            if (!d.mapLocation || typeof d.mapLocation.x !== 'number') return;
+            const isSelected = this.selectedDeviceIds.has(String(d._id || d.id));
+            const pinEl = this.createPinElement(d, d._collectionName || this.selectedCategory, isSelected);
+            this.pinsContainer.appendChild(pinEl);
+            renderedCount++;
+        });
+
+        // Update pin count badge in map indicator
+        const pinCountBadge = document.getElementById('fp-map-pin-count');
+        if (pinCountBadge) {
+            pinCountBadge.textContent = `${renderedCount} หมุด`;
         }
+        this.updateFilterBadge();
     }
 
-    createPinElement(device, collectionName) {
+    createPinElement(device, collectionName, isSelected = false) {
         const pin = document.createElement('div');
         pin.className = 'fp-pin absolute -translate-x-1/2 -translate-y-full cursor-pointer transition-transform hover:scale-115 z-20 group';
         pin.style.left = `${device.mapLocation.x}%`;
@@ -1859,7 +2064,14 @@ class FloorPlanManager {
                 <div class="relative flex items-center justify-center">
                     ${ip ? `<span class="animate-ping absolute inline-flex h-8 w-8 rounded-full bg-emerald-400 opacity-60"></span>` : ''}
                     
-                    <div class="w-8 h-8 rounded-full ${visual.color} border-2 ${visual.borderColor} text-white flex items-center justify-center shadow-lg relative z-10 overflow-hidden group-hover:ring-2 group-hover:ring-white">
+                    ${isSelected ? `
+                        <!-- Selected Device Star Marker Badge -->
+                        <div class="absolute -top-3 -left-2.5 w-5 h-5 bg-yellow-400 text-yellow-950 rounded-full flex items-center justify-center text-[9px] font-black shadow-lg z-30 border border-white animate-bounce">
+                            <i class="fas fa-check"></i>
+                        </div>
+                    ` : ''}
+
+                    <div class="w-8 h-8 rounded-full ${visual.color} border-2 ${isSelected ? 'border-yellow-400 ring-4 ring-yellow-400/60 shadow-[0_0_15px_rgba(250,204,21,0.9)]' : visual.borderColor} text-white flex items-center justify-center shadow-lg relative z-10 overflow-hidden group-hover:ring-2 group-hover:ring-white">
                         ${visual.photoUrl 
                             ? `<img src="${visual.photoUrl}" alt="${deviceName}" class="w-full h-full object-cover">`
                             : `<i class="fas ${visual.icon} text-xs"></i>`
@@ -1870,12 +2082,12 @@ class FloorPlanManager {
                     <div class="w-2.5 h-2.5 ${statusDotBg} rounded-full absolute -top-0.5 -right-0.5 border border-white z-20 shadow-sm" title="${status}"></div>
 
                     <!-- Pin Pointer Arrow -->
-                    <div class="w-2.5 h-2.5 ${visual.color} rotate-45 absolute -bottom-1 shadow-md border-r-2 border-b-2 ${visual.borderColor} z-0"></div>
+                    <div class="w-2.5 h-2.5 ${visual.color} rotate-45 absolute -bottom-1 shadow-md border-r-2 border-b-2 ${isSelected ? 'border-yellow-400' : visual.borderColor} z-0"></div>
                 </div>
 
                 <!-- Name Label Tag (Clearly displays machine name right on map) -->
-                <div class="mt-1 px-1.5 py-0.5 rounded text-[10px] font-bold tracking-tight shadow-md whitespace-nowrap border pointer-events-none transition-all ${visual.tagColor} max-w-[110px] truncate">
-                    ${deviceName}
+                <div class="mt-1 px-1.5 py-0.5 rounded text-[10px] font-bold tracking-tight shadow-md whitespace-nowrap border pointer-events-none transition-all ${isSelected ? 'bg-yellow-300 text-yellow-950 border-yellow-500 font-extrabold shadow-yellow-500/50' : visual.tagColor} max-w-[110px] truncate">
+                    ${isSelected ? '★ ' : ''}${deviceName}
                 </div>
             </div>
 
@@ -2331,6 +2543,475 @@ class FloorPlanManager {
         this.panX = clamped.x;
         this.panY = clamped.y;
         this.updateTransform();
+    }
+
+
+    // ------------------------------------------------------------------------
+    // 🎯 Interactive Multi-Selection & Advanced Filter Methods
+    // ------------------------------------------------------------------------
+    getCurrentVisibleDevices() {
+        return this.currentVisibleDevices || [];
+    }
+
+    toggleDeviceSelection(deviceId, forceState = null) {
+        const idStr = String(deviceId);
+        if (forceState === true) {
+            this.selectedDeviceIds.add(idStr);
+        } else if (forceState === false) {
+            this.selectedDeviceIds.delete(idStr);
+        } else {
+            if (this.selectedDeviceIds.has(idStr)) {
+                this.selectedDeviceIds.delete(idStr);
+            } else {
+                this.selectedDeviceIds.add(idStr);
+            }
+        }
+
+        this.updateSelectionUI();
+        if (this.showOnlySelectedDevices) {
+            this.renderDeviceCards();
+        }
+        this.renderPins();
+    }
+
+    selectAllCurrentDevices() {
+        const visible = this.getCurrentVisibleDevices();
+        visible.forEach(d => {
+            this.selectedDeviceIds.add(String(d._id || d.id));
+        });
+        this.updateSelectionUI();
+        if (this.showOnlySelectedDevices) {
+            this.renderDeviceCards();
+        }
+        this.renderPins();
+        this.showToastNotification(`เลือก ${visible.length} เครื่องในรายการแล้ว`, 'info');
+    }
+
+    clearAllSelections() {
+        this.selectedDeviceIds.clear();
+        this.showOnlySelectedDevices = false;
+        this.updateSelectionUI();
+        this.renderDeviceCards();
+        this.renderPins();
+        this.showToastNotification("ยกเลิกการเลือกทั้งหมดแล้ว", 'info');
+    }
+
+    toggleOnlySelectedMode() {
+        if (this.selectedDeviceIds.size === 0 && !this.showOnlySelectedDevices) {
+            this.showToastNotification("กรุณาติ๊กเลือกอุปกรณ์ในรายการอย่างน้อย 1 เครื่องก่อน", "info");
+            return;
+        }
+        this.showOnlySelectedDevices = !this.showOnlySelectedDevices;
+        this.updateSelectionUI();
+        this.renderDeviceCards();
+        this.renderPins();
+        if (this.showOnlySelectedDevices) {
+            this.showToastNotification(`👁️ กำลังแสดงเฉพาะ ${this.selectedDeviceIds.size} เครื่องที่เลือก`, 'info');
+        } else {
+            this.showToastNotification("แสดงอุปกรณ์ทั้งหมดตามปกติ", 'info');
+        }
+    }
+
+    updateSelectionUI() {
+        const count = this.selectedDeviceIds.size;
+        const countEl = document.getElementById('fp-selected-count');
+        if (countEl) countEl.innerText = count;
+
+        const clearBtn = document.getElementById('fp-btn-clear-selection');
+        if (clearBtn) clearBtn.classList.toggle('hidden', count === 0);
+
+        const onlySelectedBtn = document.getElementById('fp-btn-only-selected');
+        if (onlySelectedBtn) {
+            if (this.showOnlySelectedDevices) {
+                onlySelectedBtn.className = 'px-2 py-0.5 rounded-lg font-bold text-[10.5px] transition bg-emerald-600 text-white border border-emerald-500 shadow-sm animate-pulse';
+                onlySelectedBtn.innerHTML = `<i class="fas fa-check-circle mr-1"></i>ดูเฉพาะที่เลือก (${count})`;
+            } else {
+                onlySelectedBtn.className = 'px-2 py-0.5 rounded-lg font-bold text-[10.5px] transition bg-white dark:bg-gray-800 text-indigo-600 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-700 shadow-xs hover:bg-indigo-50 dark:hover:bg-gray-700';
+                onlySelectedBtn.innerHTML = `<i class="fas fa-eye mr-1"></i>ดูเฉพาะที่เลือก`;
+            }
+        }
+
+        const selectAllCb = document.getElementById('fp-select-all-cb');
+        if (selectAllCb) {
+            const visible = this.getCurrentVisibleDevices();
+            selectAllCb.checked = visible.length > 0 && visible.every(d => this.selectedDeviceIds.has(String(d._id || d.id)));
+        }
+
+        // Update card visual selection state in DOM
+        document.querySelectorAll('.fp-device-cb').forEach(cb => {
+            const isChecked = this.selectedDeviceIds.has(String(cb.dataset.id));
+            cb.checked = isChecked;
+            const card = cb.closest('.fp-card');
+            if (card) {
+                if (isChecked) {
+                    card.classList.add('border-indigo-500', 'ring-2', 'ring-indigo-400/50', 'bg-indigo-50/30', 'dark:bg-indigo-950/20');
+                } else {
+                    card.classList.remove('border-indigo-500', 'ring-2', 'ring-indigo-400/50', 'bg-indigo-50/30', 'dark:bg-indigo-950/20');
+                }
+            }
+        });
+    }
+
+    updateFilterBadge() {
+        const badge = document.getElementById('fp-filter-active-badge');
+        const indicatorLabel = document.getElementById('fp-map-filter-label');
+        const resetBtn = document.getElementById('fp-btn-reset-filters');
+        
+        let filterCount = 0;
+        let labels = [];
+
+        if (this.activeCategories && this.activeCategories.size > 0) {
+            filterCount++;
+            labels.push(`${this.activeCategories.size} หมวด`);
+        } else if (this.selectedCategory === 'all') {
+            labels.push('ทุกหมวดหมู่');
+        } else {
+            const config = (window.collectionConfigs && window.collectionConfigs[this.selectedCategory]) || {};
+            labels.push(config.displayName || this.selectedCategory);
+        }
+
+        if (this.selectedZone && this.selectedZone !== 'all') {
+            filterCount++;
+            const z = this.zones.find(item => item.id === this.selectedZone);
+            labels.push(`โซน: ${z ? z.name.split('(')[0].trim() : this.selectedZone}`);
+        }
+
+        if (this.statusFilter && this.statusFilter !== 'all') {
+            filterCount++;
+            labels.push(`สถานะ: ${this.statusFilter}`);
+        }
+
+        if (this.showOnlySelectedDevices) {
+            filterCount++;
+            labels.push(`เฉพาะที่เลือก (${this.selectedDeviceIds.size})`);
+        }
+
+        if (this.searchQuery) {
+            filterCount++;
+            labels.push(`ค้นหา: "${this.searchQuery}"`);
+        }
+
+        if (badge) {
+            if (filterCount > 0) {
+                badge.classList.remove('hidden');
+                badge.textContent = filterCount;
+            } else {
+                badge.classList.add('hidden');
+            }
+        }
+
+        if (indicatorLabel) {
+            indicatorLabel.textContent = labels.join(' • ') || 'ทั้งหมด';
+        }
+
+        if (resetBtn) {
+            if (filterCount > 0 || this.selectedZone !== 'all' || this.selectedCategory !== 'Computers') {
+                resetBtn.classList.remove('hidden');
+            } else {
+                resetBtn.classList.add('hidden');
+            }
+        }
+    }
+
+    resetAllFilters() {
+        this.selectedCategory = 'Computers';
+        this.activeCategories.clear();
+        this.selectedZone = 'all';
+        this.statusFilter = 'all';
+        this.showOnlySelectedDevices = false;
+        this.filterMode = 'all';
+        this.searchQuery = '';
+
+        const catSelect = document.getElementById('fp-cat-select');
+        if (catSelect) catSelect.value = 'Computers';
+        const badge = document.getElementById('fp-cat-badge');
+        if (badge && catSelect) badge.innerText = catSelect.options[catSelect.selectedIndex]?.text.split('(')[0].trim() || 'Computers';
+
+        const searchInput = document.getElementById('fp-search');
+        if (searchInput) searchInput.value = '';
+
+        document.querySelectorAll('.fp-filter-btn').forEach(b => {
+            b.className = 'fp-filter-btn flex-1 py-1 rounded-md text-center transition text-gray-600 dark:text-gray-400 hover:text-gray-900';
+            if (b.dataset.filter === 'all') {
+                b.className = 'fp-filter-btn flex-1 py-1 rounded-md text-center transition bg-white dark:bg-gray-700 text-indigo-600 dark:text-white shadow-sm';
+            }
+        });
+
+        this.renderZoneBar();
+        this.renderDeviceCards();
+        this.renderPins();
+        this.updateFilterBadge();
+        this.showToastNotification("รีเซ็ตตัวกรองทั้งหมดแล้ว", 'info');
+    }
+
+    // ------------------------------------------------------------------------
+    // 🎯 Interactive Filter Modal: Select Categories, Zones, & Statuses
+    // ------------------------------------------------------------------------
+    openFilterModal() {
+        document.getElementById('fp-filter-modal')?.remove();
+
+        const modal = document.createElement('div');
+        modal.id = 'fp-filter-modal';
+        modal.className = 'fixed inset-0 bg-black/60 backdrop-blur-xs z-50 flex items-center justify-center p-3 select-none animate-fade-in';
+
+        // Gather all categories from window.allData
+        const skip = ['Staff', 'CustomMenus', 'TransactionHistory', 'LoanHistory', 'Maintenance Log', 'Maintenance', 'admins', 'Software', 'Accessory', 'FloorPlanZones'];
+        const allCategories = [];
+        
+        Object.keys(window.allData || {}).forEach(col => {
+            if (skip.includes(col)) return;
+            const items = window.allData[col];
+            if (!Array.isArray(items)) return;
+
+            const config = (window.collectionConfigs && window.collectionConfigs[col]) || {};
+            const visual = this.getDeviceVisualMeta({ Type: col }, col);
+            const pinnedCount = items.filter(d => d.mapLocation && typeof d.mapLocation.x === 'number').length;
+
+            allCategories.push({
+                id: col,
+                name: config.displayName || col,
+                count: items.length,
+                pinned: pinnedCount,
+                visual: visual
+            });
+        });
+
+        const isAllSelected = this.activeCategories.size === 0 && this.selectedCategory === 'all';
+        const activeCatSet = this.activeCategories.size > 0 ? this.activeCategories : (this.selectedCategory === 'all' ? new Set(allCategories.map(c => c.id)) : new Set([this.selectedCategory]));
+
+        modal.innerHTML = `
+            <div class="bg-white dark:bg-gray-800 rounded-2xl w-full max-w-xl shadow-2xl border border-gray-100 dark:border-gray-700 max-h-[92vh] flex flex-col overflow-hidden">
+                <!-- Header -->
+                <div class="p-4 border-b border-gray-100 dark:border-gray-700 flex justify-between items-center bg-gray-50/80 dark:bg-gray-900/60">
+                    <div class="flex items-center space-x-2.5">
+                        <div class="w-8 h-8 rounded-xl bg-indigo-100 dark:bg-indigo-900/60 text-indigo-600 dark:text-indigo-400 flex items-center justify-center shadow-inner">
+                            <i class="fas fa-filter text-sm"></i>
+                        </div>
+                        <div>
+                            <h3 class="font-bold text-sm md:text-base text-gray-900 dark:text-white">เลือกอุปกรณ์แสดงผลบนแผนผัง</h3>
+                            <p class="text-[11px] text-gray-500 dark:text-gray-400">เลือกโชว์เฉพาะหมวดหมู่ โซน หรืออุปกรณ์ที่ต้องการดู</p>
+                        </div>
+                    </div>
+                    <button class="fp-modal-close text-gray-400 hover:text-gray-600 dark:hover:text-white p-1.5 rounded-lg transition"><i class="fas fa-times text-base"></i></button>
+                </div>
+
+                <!-- Body (Scrollable) -->
+                <div class="p-4 overflow-y-auto space-y-4 custom-scrollbar flex-1 text-xs">
+                    
+                    <!-- Section 1: Categories Multi-selection -->
+                    <div>
+                        <div class="flex justify-between items-center mb-2">
+                            <span class="font-extrabold text-gray-800 dark:text-gray-200 uppercase tracking-wider text-[11px] flex items-center">
+                                <i class="fas fa-layer-group text-indigo-500 mr-1.5"></i>
+                                1. เลือกหมวดหมู่อุปกรณ์ที่ต้องการโชว์
+                            </span>
+                            <div class="flex space-x-1.5">
+                                <button type="button" id="fp-modal-sel-all-cats" class="px-2 py-0.5 rounded text-[10.5px] font-bold text-indigo-600 bg-indigo-50 hover:bg-indigo-100 dark:bg-indigo-900/40 dark:text-indigo-300 transition">เลือกทั้งหมด</button>
+                                <button type="button" id="fp-modal-clear-cats" class="px-2 py-0.5 rounded text-[10.5px] font-medium text-gray-500 hover:text-red-500 bg-gray-100 dark:bg-gray-700 transition">ล้าง</button>
+                            </div>
+                        </div>
+
+                        <div class="grid grid-cols-2 sm:grid-cols-3 gap-2" id="fp-modal-cats-grid">
+                            ${allCategories.map(cat => {
+                                const isChecked = activeCatSet.has(cat.id);
+                                return `
+                                    <label class="flex items-center p-2 rounded-xl border ${isChecked ? 'border-indigo-400 bg-indigo-50/50 dark:bg-indigo-950/40 text-indigo-950 dark:text-indigo-200' : 'border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700/50 text-gray-700 dark:text-gray-300'} cursor-pointer transition select-none">
+                                        <input type="checkbox" value="${cat.id}" class="fp-modal-cat-cb rounded text-indigo-600 focus:ring-indigo-500 w-3.5 h-3.5 mr-2 shrink-0 cursor-pointer" ${isChecked ? 'checked' : ''}>
+                                        <div class="w-6 h-6 rounded-lg ${cat.visual.color} text-white flex items-center justify-center text-xs mr-2 shrink-0 shadow-xs">
+                                            <i class="fas ${cat.visual.icon}"></i>
+                                        </div>
+                                        <div class="min-w-0 flex-1">
+                                            <div class="font-bold truncate text-[11.5px]">${cat.name}</div>
+                                            <div class="text-[9.5px] text-gray-400 dark:text-gray-400 flex justify-between">
+                                                <span>${cat.count} เครื่อง</span>
+                                                <span class="text-indigo-500 font-mono">📍 ${cat.pinned}</span>
+                                            </div>
+                                        </div>
+                                    </label>
+                                `;
+                            }).join('')}
+                        </div>
+                    </div>
+
+                    <!-- Section 2: Zone / Area Selection -->
+                    <div class="pt-3 border-t border-gray-100 dark:border-gray-700">
+                        <span class="font-extrabold text-gray-800 dark:text-gray-200 uppercase tracking-wider text-[11px] block mb-2 flex items-center">
+                            <i class="fas fa-city text-indigo-500 mr-1.5"></i>
+                            2. กรองตามโซน / อาคาร
+                        </span>
+                        <div class="flex flex-wrap gap-1.5">
+                            <label class="px-2.5 py-1 rounded-xl text-xs font-bold border cursor-pointer transition ${this.selectedZone === 'all' ? 'bg-indigo-600 text-white border-indigo-600 shadow-sm' : 'border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-50'}">
+                                <input type="radio" name="fpModalZone" value="all" class="hidden" ${this.selectedZone === 'all' ? 'checked' : ''}>
+                                <span>🌐 ทุกโซน / ทุกอาคาร</span>
+                            </label>
+                            ${this.zones.map(z => `
+                                <label class="px-2.5 py-1 rounded-xl text-xs font-bold border cursor-pointer transition flex items-center ${this.selectedZone === z.id ? 'bg-indigo-600 text-white border-indigo-600 shadow-sm' : 'border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-50'}">
+                                    <input type="radio" name="fpModalZone" value="${z.id}" class="hidden" ${this.selectedZone === z.id ? 'checked' : ''}>
+                                    <i class="fas ${z.icon || 'fa-building'} mr-1.5 text-[10px]" style="color: ${this.selectedZone === z.id ? '#ffffff' : (z.color || '#6366f1')}"></i>
+                                    <span>${z.name}</span>
+                                </label>
+                            `).join('')}
+                        </div>
+                    </div>
+
+                    <!-- Section 3: Status Filter -->
+                    <div class="pt-3 border-t border-gray-100 dark:border-gray-700">
+                        <span class="font-extrabold text-gray-800 dark:text-gray-200 uppercase tracking-wider text-[11px] block mb-2 flex items-center">
+                            <i class="fas fa-heartbeat text-indigo-500 mr-1.5"></i>
+                            3. กรองตามสถานะการใช้งาน
+                        </span>
+                        <div class="flex flex-wrap gap-1.5">
+                            ${[
+                                { val: 'all', label: 'ทุกสถานะ' },
+                                { val: 'Active', label: '🟢 กำลังใช้งาน (Active)' },
+                                { val: 'Storage', label: '🔵 ในคลัง (Storage)' },
+                                { val: 'Repair', label: '🔴 ส่งซ่อม (Repair)' },
+                                { val: 'Damaged', label: '⚠️ ชำรุด (Damaged)' }
+                            ].map(st => `
+                                <label class="px-2.5 py-1 rounded-xl text-xs font-bold border cursor-pointer transition ${this.statusFilter === st.val ? 'bg-indigo-600 text-white border-indigo-600 shadow-sm' : 'border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-50'}">
+                                    <input type="radio" name="fpModalStatus" value="${st.val}" class="hidden" ${this.statusFilter === st.val ? 'checked' : ''}>
+                                    <span>${st.label}</span>
+                                </label>
+                            `).join('')}
+                        </div>
+                    </div>
+
+                    <!-- Section 4: Display Options -->
+                    <div class="pt-3 border-t border-gray-100 dark:border-gray-700 space-y-2">
+                        <span class="font-extrabold text-gray-800 dark:text-gray-200 uppercase tracking-wider text-[11px] block mb-1 flex items-center">
+                            <i class="fas fa-sliders-h text-indigo-500 mr-1.5"></i>
+                            4. ตัวเลือกพิเศษ
+                        </span>
+                        
+                        <label class="flex items-center p-2.5 rounded-xl border border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700/40 cursor-pointer transition select-none">
+                            <input type="checkbox" id="fp-modal-opt-only-selected" class="rounded text-indigo-600 focus:ring-indigo-500 w-4 h-4 mr-2.5 cursor-pointer" ${this.showOnlySelectedDevices ? 'checked' : ''}>
+                            <div>
+                                <span class="font-bold text-gray-800 dark:text-gray-200 text-xs">👁️ แสดงเฉพาะอุปกรณ์ที่ติ๊กเลือกไว้ในรายการ</span>
+                                <p class="text-[10px] text-gray-400">ซ่อนอุปกรณ์อื่นๆ ทั้งหมดและโชว์เฉพาะเครื่องที่คุณติ๊กเลือก (${this.selectedDeviceIds.size} เครื่อง)</p>
+                            </div>
+                        </label>
+
+                        <label class="flex items-center p-2.5 rounded-xl border border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700/40 cursor-pointer transition select-none">
+                            <input type="checkbox" id="fp-modal-opt-pinned-only" class="rounded text-indigo-600 focus:ring-indigo-500 w-4 h-4 mr-2.5 cursor-pointer" ${this.filterMode === 'pinned' ? 'checked' : ''}>
+                            <div>
+                                <span class="font-bold text-gray-800 dark:text-gray-200 text-xs">📍 แสดงเฉพาะอุปกรณ์ที่วางบนผังแล้ว (ซ่อนเครื่องที่ยังไม่วาง)</span>
+                                <p class="text-[10px] text-gray-400">กรองรายการในแถบด้านซ้ายให้เหลือเฉพาะอุปกรณ์ที่มีหมุดแล้ว</p>
+                            </div>
+                        </label>
+                    </div>
+
+                </div>
+
+                <!-- Footer -->
+                <div class="p-3 border-t border-gray-100 dark:border-gray-700 bg-gray-50/80 dark:bg-gray-900/60 flex justify-between items-center">
+                    <button type="button" id="fp-modal-btn-reset" class="px-3 py-1.5 text-xs text-rose-600 hover:text-rose-800 dark:text-rose-400 font-bold flex items-center hover:bg-rose-50 rounded-lg transition">
+                        <i class="fas fa-undo mr-1.5"></i> ล้างตัวกรองทั้งหมด
+                    </button>
+                    <div class="flex space-x-2">
+                        <button type="button" class="fp-modal-close px-4 py-1.5 rounded-xl border border-gray-200 dark:border-gray-600 font-semibold text-gray-600 dark:text-gray-300 hover:bg-gray-100 transition">
+                            ยกเลิก
+                        </button>
+                        <button type="button" id="fp-modal-btn-apply" class="px-5 py-1.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold transition shadow-sm flex items-center">
+                            <i class="fas fa-check mr-1.5"></i> ใช้งานตัวกรอง
+                        </button>
+                    </div>
+                </div>
+            </div>
+        `;
+
+        document.body.appendChild(modal);
+
+        // Bind Close buttons
+        modal.querySelectorAll('.fp-modal-close').forEach(b => b.addEventListener('click', () => modal.remove()));
+        modal.addEventListener('click', (e) => {
+            if (e.target === modal) modal.remove();
+        });
+
+        // Quick select/clear categories buttons
+        document.getElementById('fp-modal-sel-all-cats')?.addEventListener('click', () => {
+            modal.querySelectorAll('.fp-modal-cat-cb').forEach(cb => {
+                cb.checked = true;
+                cb.closest('label').classList.add('border-indigo-400', 'bg-indigo-50/50', 'dark:bg-indigo-950/40');
+            });
+        });
+        document.getElementById('fp-modal-clear-cats')?.addEventListener('click', () => {
+            modal.querySelectorAll('.fp-modal-cat-cb').forEach(cb => {
+                cb.checked = false;
+                cb.closest('label').classList.remove('border-indigo-400', 'bg-indigo-50/50', 'dark:bg-indigo-950/40');
+            });
+        });
+
+        // Toggle checkbox label style on change
+        modal.querySelectorAll('.fp-modal-cat-cb').forEach(cb => {
+            cb.addEventListener('change', () => {
+                cb.closest('label').classList.toggle('border-indigo-400', cb.checked);
+                cb.closest('label').classList.toggle('bg-indigo-50/50', cb.checked);
+                cb.closest('label').classList.toggle('dark:bg-indigo-950/40', cb.checked);
+            });
+        });
+
+        // Reset All button
+        document.getElementById('fp-modal-btn-reset')?.addEventListener('click', () => {
+            modal.remove();
+            this.resetAllFilters();
+        });
+
+        // Apply Button
+        document.getElementById('fp-modal-btn-apply')?.addEventListener('click', () => {
+            const checkedCats = Array.from(modal.querySelectorAll('.fp-modal-cat-cb:checked')).map(cb => cb.value);
+            const selZone = modal.querySelector('input[name="fpModalZone"]:checked')?.value || 'all';
+            const selStatus = modal.querySelector('input[name="fpModalStatus"]:checked')?.value || 'all';
+            const optOnlySelected = document.getElementById('fp-modal-opt-only-selected')?.checked || false;
+            const optPinnedOnly = document.getElementById('fp-modal-opt-pinned-only')?.checked || false;
+
+            if (checkedCats.length === 0) {
+                alert("กรุณาเลือกหมวดหมู่อย่างน้อย 1 หมวด");
+                return;
+            }
+
+            if (checkedCats.length === allCategories.length) {
+                // All categories selected
+                this.selectedCategory = 'all';
+                this.activeCategories.clear();
+            } else if (checkedCats.length === 1) {
+                this.selectedCategory = checkedCats[0];
+                this.activeCategories.clear();
+            } else {
+                this.selectedCategory = 'custom';
+                this.activeCategories = new Set(checkedCats);
+            }
+
+            // Sync category dropdown
+            const catSelect = document.getElementById('fp-cat-select');
+            if (catSelect) catSelect.value = this.selectedCategory;
+            const badge = document.getElementById('fp-cat-badge');
+            if (badge) {
+                if (this.selectedCategory === 'all') badge.innerText = 'ทุกหมวดหมู่';
+                else if (this.selectedCategory === 'custom') badge.innerText = `${checkedCats.length} หมวด`;
+                else badge.innerText = (window.collectionConfigs?.[this.selectedCategory]?.displayName) || this.selectedCategory;
+            }
+
+            this.selectedZone = selZone;
+            this.statusFilter = selStatus;
+            this.showOnlySelectedDevices = optOnlySelected;
+            this.filterMode = optPinnedOnly ? 'pinned' : 'all';
+
+            // Sync filter buttons in tray
+            document.querySelectorAll('.fp-filter-btn').forEach(b => {
+                b.className = 'fp-filter-btn flex-1 py-1 rounded-md text-center transition text-gray-600 dark:text-gray-400 hover:text-gray-900';
+                if (b.dataset.filter === this.filterMode) {
+                    b.className = 'fp-filter-btn flex-1 py-1 rounded-md text-center transition bg-white dark:bg-gray-700 text-indigo-600 dark:text-white shadow-sm';
+                }
+            });
+
+            this.renderZoneBar();
+            this.renderDeviceCards();
+            this.renderPins();
+            this.updateFilterBadge();
+
+            modal.remove();
+            this.showToastNotification("อัปเดตตัวกรองบนแผนผังเรียบร้อยแล้ว", "success");
+        });
     }
 
     updateTransform() {
