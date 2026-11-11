@@ -125,6 +125,13 @@ class FloorPlanManager {
                         <span id="fp-filter-active-badge" class="hidden ml-1 px-1.5 py-0.2 text-[9.5px] bg-indigo-600 text-white rounded-full font-mono font-bold leading-none">0</span>
                     </button>
 
+                    <!-- 📸 Save Location Image Button (เซฟรูปภาพแผนที่ Location) -->
+                    <button id="fp-btn-export-image" class="px-2 md:px-2.5 py-1 md:py-1.5 text-[11px] md:text-xs font-bold bg-emerald-50 hover:bg-emerald-100 dark:bg-emerald-950/80 dark:hover:bg-emerald-900/80 text-emerald-700 dark:text-emerald-300 rounded-lg md:rounded-xl border border-emerald-200/80 dark:border-emerald-800/80 transition flex items-center shadow-sm whitespace-nowrap group" title="บันทึกแผนที่และตำแหน่งอุปกรณ์ที่เลือกเป็นรูปภาพ">
+                        <i class="fas fa-camera text-emerald-600 mr-1 sm:mr-1.5 group-hover:scale-110 transition-transform"></i>
+                        <span class="hidden sm:inline">เซฟรูปแผนที่</span>
+                        <span class="sm:hidden">เซฟรูป</span>
+                    </button>
+
                     <!-- Isolation Toggle -->
                     <label class="flex items-center space-x-1 md:space-x-1.5 text-[11px] md:text-xs text-gray-700 dark:text-gray-300 bg-gray-50 dark:bg-gray-700/50 px-2 md:px-2.5 py-1 md:py-1.5 rounded-lg md:rounded-xl border border-gray-200 dark:border-gray-600 cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700 transition">
                         <input type="checkbox" id="fp-isolate-toggle" checked class="rounded text-indigo-600 focus:ring-indigo-500 w-3 h-3 md:w-3.5 md:h-3.5">
@@ -240,6 +247,9 @@ class FloorPlanManager {
                                 <button id="fp-btn-only-selected" class="px-2 py-0.5 rounded-lg font-bold text-[10.5px] transition bg-white dark:bg-gray-800 text-indigo-600 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-700 shadow-xs hover:bg-indigo-50 dark:hover:bg-gray-700" title="แสดงเฉพาะอุปกรณ์ที่เลือกบนแผนที่และรายการ">
                                     <i class="fas fa-eye mr-1"></i>ดูเฉพาะที่เลือก
                                 </button>
+                                <button id="fp-btn-export-selected-img" class="px-2 py-0.5 rounded-lg font-bold text-[10.5px] transition bg-white dark:bg-gray-800 text-emerald-600 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-700 shadow-xs hover:bg-emerald-50 dark:hover:bg-gray-700 flex items-center" title="เซฟรูปแผนที่เฉพาะเครื่องที่เลือก">
+                                    <i class="fas fa-camera mr-1 text-emerald-500"></i>เซฟรูป
+                                </button>
                                 <button id="fp-btn-clear-selection" class="px-1.5 py-0.5 text-gray-400 hover:text-red-500 text-[10px] hidden" title="ยกเลิกการเลือกทั้งหมด">
                                     <i class="fas fa-times"></i>
                                 </button>
@@ -304,6 +314,10 @@ class FloorPlanManager {
                         </button>
                         <button id="fp-hud-fit" class="px-2 sm:px-3 h-7 sm:h-8 rounded-lg sm:rounded-xl bg-white/10 hover:bg-white/20 text-white text-[11px] sm:text-xs font-semibold flex items-center transition" title="ย่อพอดีหน้าจอ">
                             <i class="fas fa-compress-arrows-alt mr-1 sm:mr-1.5"></i> <span class="hidden sm:inline">พอดีจอ</span><span class="sm:hidden">พอดี</span>
+                        </button>
+                        <div class="w-px h-4 sm:h-5 bg-white/20 my-auto"></div>
+                        <button id="fp-hud-export-image" class="px-2 sm:px-2.5 h-7 sm:h-8 rounded-lg sm:rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-[11px] sm:text-xs font-bold flex items-center transition shadow-sm" title="บันทึกรูปภาพแผนที่ Location">
+                            <i class="fas fa-camera mr-1"></i> <span class="hidden sm:inline">เซฟรูป</span>
                         </button>
                     </div>
 
@@ -389,6 +403,11 @@ class FloorPlanManager {
         // 🎯 Filter Modal & Reset Buttons
         document.getElementById('fp-btn-filter-modal')?.addEventListener('click', () => this.openFilterModal());
         document.getElementById('fp-btn-reset-filters')?.addEventListener('click', () => this.resetAllFilters());
+
+        // 📸 Save Location Image Buttons
+        document.getElementById('fp-btn-export-image')?.addEventListener('click', () => this.openExportImageModal());
+        document.getElementById('fp-hud-export-image')?.addEventListener('click', () => this.openExportImageModal('current'));
+        document.getElementById('fp-btn-export-selected-img')?.addEventListener('click', () => this.openExportImageModal('focus'));
 
         // 👁️ Selection Controls
         document.getElementById('fp-select-all-cb')?.addEventListener('change', (e) => {
@@ -3012,6 +3031,740 @@ class FloorPlanManager {
             modal.remove();
             this.showToastNotification("อัปเดตตัวกรองบนแผนผังเรียบร้อยแล้ว", "success");
         });
+    }
+
+
+    // ------------------------------------------------------------------------
+    // 📸 Save / Export Location Map as Image (Canvas Image Generator)
+    // ------------------------------------------------------------------------
+    getCategoryHexColor(colName, type = '') {
+        const c = (colName || '').toLowerCase();
+        const t = (type || '').toLowerCase();
+        if (c.includes('pos') || t.includes('pos')) return '#059669'; // Emerald
+        if (c.includes('laptop') || t.includes('laptop') || t.includes('notebook')) return '#4f46e5'; // Indigo
+        if (c.includes('desktop') || c.includes('computer') || t.includes('pc')) return '#2563eb'; // Blue
+        if (c.includes('monitor') || t.includes('display')) return '#0d9488'; // Teal
+        if (c.includes('printer') || t.includes('printer')) return '#6366f1'; // Indigo
+        if (c.includes('network') || c.includes('switch') || t.includes('switch') || t.includes('router') || t.includes('firewall')) return '#9333ea'; // Purple
+        if (c.includes('wifi') || t.includes('access point') || t.includes('ap')) return '#0ea5e9'; // Sky
+        if (c.includes('tablet') || t.includes('ipad')) return '#0284c7'; // Sky
+        if (c.includes('storage') || c.includes('server') || t.includes('nas')) return '#0e7490'; // Cyan
+        if (c.includes('scanner') || t.includes('barcode')) return '#7c3aed'; // Violet
+        if (c.includes('ups') || t.includes('power')) return '#ca8a04'; // Yellow
+        if (c.includes('audio') || t.includes('speaker')) return '#c026d3'; // Fuchsia
+        if (c.includes('camera')) return '#e11d48'; // Rose
+        if (c.includes('projector') || t.includes('projector')) return '#ea580c'; // Orange
+        return '#475569'; // Slate
+    }
+
+    getCategoryAbbr(colName, type = '') {
+        const c = (colName || '').toLowerCase();
+        const t = (type || '').toLowerCase();
+        if (c.includes('pos') || t.includes('pos')) return 'POS';
+        if (c.includes('laptop') || t.includes('laptop')) return 'NB';
+        if (c.includes('desktop') || c.includes('computer')) return 'PC';
+        if (c.includes('monitor')) return 'MON';
+        if (c.includes('printer')) return 'PRN';
+        if (c.includes('switch')) return 'SW';
+        if (c.includes('wifi') || t.includes('access point')) return 'AP';
+        if (c.includes('tablet')) return 'TAB';
+        if (c.includes('server')) return 'SRV';
+        if (c.includes('scanner')) return 'SCN';
+        if (c.includes('ups')) return 'UPS';
+        if (c.includes('audio') || c.includes('speaker')) return 'AUD';
+        if (c.includes('camera')) return 'CAM';
+        if (c.includes('projector')) return 'PRJ';
+        return 'IT';
+    }
+
+    async generateLocationMapCanvas(options = {}) {
+        if (!this.mapImg || !this.mapImg.complete || this.mapImg.naturalWidth === 0) {
+            throw new Error("ภาพแผนผังยังโหลดไม่เสร็จสมบูรณ์");
+        }
+
+        const {
+            mode = 'current', // 'current', 'focus', 'full'
+            showLabels = true,
+            showZones = true,
+            showHeader = true,
+            highRes = true
+        } = options;
+
+        const natW = this.mapImg.naturalWidth;
+        const natH = this.mapImg.naturalHeight;
+        const vpW = this.mapViewport?.clientWidth || 1200;
+        const vpH = this.mapViewport?.clientHeight || 800;
+        const baseW = this.mapCanvas?.clientWidth || vpW;
+        const baseH = this.mapCanvas?.clientHeight || Math.round(baseW / this.aspectRatio);
+
+        // Get devices to render on the exported map
+        let devices = this.getAllActiveDevices().filter(d => d.mapLocation && typeof d.mapLocation.x === 'number');
+        if (this.selectedDeviceIds.size > 0 && mode === 'focus') {
+            const selOnly = devices.filter(d => this.selectedDeviceIds.has(String(d._id || d.id)));
+            if (selOnly.length > 0) devices = selOnly;
+        }
+
+        let outW, outH;
+        let sourceLeft, sourceTop, sourceWidth, sourceHeight;
+        let getDestCoords;
+
+        const scaleFactor = highRes ? 2 : 1;
+
+        if (mode === 'current') {
+            outW = Math.round(vpW * scaleFactor);
+            outH = Math.round(vpH * scaleFactor);
+
+            sourceLeft = (-this.panX / this.scale) / baseW * natW;
+            sourceTop = (-this.panY / this.scale) / baseH * natH;
+            sourceWidth = (vpW / this.scale) / baseW * natW;
+            sourceHeight = (vpH / this.scale) / baseH * natH;
+
+            getDestCoords = (locX, locY) => {
+                const screenX = (locX / 100 * baseW) * this.scale + this.panX;
+                const screenY = (locY / 100 * baseH) * this.scale + this.panY;
+                return {
+                    x: screenX * scaleFactor,
+                    y: screenY * scaleFactor
+                };
+            };
+        } else if (mode === 'focus' && devices.length > 0) {
+            let minX = 100, maxX = 0, minY = 100, maxY = 0;
+            devices.forEach(d => {
+                minX = Math.min(minX, d.mapLocation.x);
+                maxX = Math.max(maxX, d.mapLocation.x);
+                minY = Math.min(minY, d.mapLocation.y);
+                maxY = Math.max(maxY, d.mapLocation.y);
+            });
+
+            // Generous padding around the devices
+            const padX = Math.max((maxX - minX) * 0.4, 5);
+            const padY = Math.max((maxY - minY) * 0.4, 5);
+            let bMinX = Math.max(0, minX - padX);
+            let bMaxX = Math.min(100, maxX + padX);
+            let bMinY = Math.max(0, minY - padY);
+            let bMaxY = Math.min(100, maxY + padY);
+
+            // Maintain 16:9 aspect ratio
+            let spanX = bMaxX - bMinX;
+            let spanY = bMaxY - bMinY;
+            const targetAspect = 16 / 9;
+            const currentAspect = (spanX * natW) / (spanY * natH);
+
+            if (currentAspect < targetAspect) {
+                const neededSpanX = (spanY * natH * targetAspect) / natW;
+                const diff = (neededSpanX - spanX) / 2;
+                bMinX = Math.max(0, bMinX - diff);
+                bMaxX = Math.min(100, bMaxX + diff);
+            } else {
+                const neededSpanY = (spanX * natW / targetAspect) / natH;
+                const diff = (neededSpanY - spanY) / 2;
+                bMinY = Math.max(0, bMinY - diff);
+                bMaxY = Math.min(100, bMaxY + diff);
+            }
+
+            sourceLeft = (bMinX / 100) * natW;
+            sourceTop = (bMinY / 100) * natH;
+            sourceWidth = ((bMaxX - bMinX) / 100) * natW;
+            sourceHeight = ((bMaxY - bMinY) / 100) * natH;
+
+            outW = highRes ? 2560 : 1920;
+            outH = Math.round(outW * (sourceHeight / sourceWidth));
+
+            getDestCoords = (locX, locY) => ({
+                x: ((locX - bMinX) / (bMaxX - bMinX)) * outW,
+                y: ((locY - bMinY) / (bMaxY - bMinY)) * outH
+            });
+        } else {
+            // Full Map
+            outW = highRes ? 3200 : 2048;
+            outH = Math.round(outW / this.aspectRatio);
+
+            sourceLeft = 0;
+            sourceTop = 0;
+            sourceWidth = natW;
+            sourceHeight = natH;
+
+            getDestCoords = (locX, locY) => ({
+                x: (locX / 100) * outW,
+                y: (locY / 100) * outH
+            });
+        }
+
+        // Initialize Canvas
+        const canvas = document.createElement('canvas');
+        canvas.width = outW;
+        canvas.height = outH;
+        const ctx = canvas.getContext('2d');
+        ctx.imageSmoothingEnabled = true;
+        ctx.imageSmoothingQuality = 'high';
+
+        // Background
+        ctx.fillStyle = '#020617'; // slate-950
+        ctx.fillRect(0, 0, outW, outH);
+
+        // Draw Map Slice
+        ctx.drawImage(
+            this.mapImg,
+            Math.max(0, sourceLeft), Math.max(0, sourceTop), sourceWidth, sourceHeight,
+            0, 0, outW, outH
+        );
+
+        const pinScale = Math.max(0.75, Math.min(2.5, outW / 1400));
+
+        // Helper for rounded rectangle fallback
+        const drawRoundRect = (c, x, y, w, h, r) => {
+            if (typeof c.roundRect === 'function') {
+                c.roundRect(x, y, w, h, r);
+                return;
+            }
+            if (w < 2 * r) r = w / 2;
+            if (h < 2 * r) r = h / 2;
+            c.beginPath();
+            c.moveTo(x + r, y);
+            c.arcTo(x + w, y, x + w, y + h, r);
+            c.arcTo(x + w, y + h, x, y + h, r);
+            c.arcTo(x, y + h, x, y, r);
+            c.arcTo(x, y, x + w, y, r);
+            c.closePath();
+        };
+
+        // 1. Draw Building / Zone Landmarks (if enabled)
+        if (showZones && Array.isArray(this.zones)) {
+            this.zones.forEach(z => {
+                if (!z.coords || typeof z.coords.x !== 'number') return;
+                const pos = getDestCoords(z.coords.x, z.coords.y);
+                if (pos.x < -100 || pos.x > outW + 100 || pos.y < -100 || pos.y > outH + 100) return;
+
+                ctx.save();
+                const zLabel = z.name.split('(')[0].trim();
+                ctx.font = `bold ${Math.round(11 * pinScale)}px 'Inter', sans-serif`;
+                const textW = ctx.measureText(zLabel).width;
+                const bW = textW + 28 * pinScale;
+                const bH = 24 * pinScale;
+                
+                ctx.shadowColor = 'rgba(0, 0, 0, 0.5)';
+                ctx.shadowBlur = 6;
+                
+                drawRoundRect(ctx, pos.x - bW / 2, pos.y - bH / 2, bW, bH, 12 * pinScale);
+                ctx.fillStyle = 'rgba(15, 23, 42, 0.92)';
+                ctx.fill();
+                ctx.lineWidth = 1.5 * pinScale;
+                ctx.strokeStyle = z.color || '#6366f1';
+                ctx.stroke();
+
+                ctx.shadowColor = 'transparent';
+                ctx.fillStyle = '#fde047';
+                ctx.font = `bold ${Math.round(11 * pinScale)}px 'Inter', sans-serif`;
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
+                ctx.fillText(`🏢 ${zLabel}`, pos.x, pos.y);
+                ctx.restore();
+            });
+        }
+
+        // 2. Draw Pins & Labels
+        let drawnCount = 0;
+        devices.forEach(d => {
+            const pos = getDestCoords(d.mapLocation.x, d.mapLocation.y);
+            if (pos.x < -150 || pos.x > outW + 150 || pos.y < -150 || pos.y > outH + 150) return;
+            drawnCount++;
+
+            const colName = d._collectionName || this.selectedCategory;
+            const catColor = this.getCategoryHexColor(colName, d.Type);
+            const isSelected = this.selectedDeviceIds.has(String(d._id || d.id));
+            const status = d.Status || 'In Storage';
+
+            let statusDotColor = '#3b82f6';
+            if (status.includes('Active') || status.includes('Use') || status.includes('Loan')) statusDotColor = '#22c55e';
+            else if (status.includes('Repair') || status.includes('Issue')) statusDotColor = '#f97316';
+            else if (status.includes('Damaged')) statusDotColor = '#ef4444';
+
+            const pinRadius = Math.round(14 * pinScale);
+            const arrowH = Math.round(9 * pinScale);
+
+            ctx.save();
+
+            // Pointer shadow
+            ctx.shadowColor = 'rgba(0, 0, 0, 0.45)';
+            ctx.shadowBlur = 8;
+            ctx.shadowOffsetY = 4;
+
+            // Draw pointer triangle
+            ctx.beginPath();
+            ctx.moveTo(pos.x, pos.y);
+            ctx.lineTo(pos.x - pinRadius * 0.55, pos.y - arrowH);
+            ctx.lineTo(pos.x + pinRadius * 0.55, pos.y - arrowH);
+            ctx.closePath();
+            ctx.fillStyle = catColor;
+            ctx.fill();
+            ctx.lineWidth = 2 * pinScale;
+            ctx.strokeStyle = isSelected ? '#facc15' : '#ffffff';
+            ctx.stroke();
+
+            // Draw pin head circle
+            ctx.beginPath();
+            ctx.arc(pos.x, pos.y - arrowH - pinRadius * 0.6, pinRadius, 0, Math.PI * 2);
+            ctx.fillStyle = catColor;
+            ctx.fill();
+            ctx.lineWidth = 2.5 * pinScale;
+            ctx.strokeStyle = isSelected ? '#facc15' : '#ffffff';
+            ctx.stroke();
+
+            ctx.shadowColor = 'transparent';
+            ctx.shadowBlur = 0;
+            ctx.shadowOffsetY = 0;
+
+            // If Selected: Golden Halo Ring & Star
+            if (isSelected) {
+                ctx.beginPath();
+                ctx.arc(pos.x, pos.y - arrowH - pinRadius * 0.6, pinRadius + 5 * pinScale, 0, Math.PI * 2);
+                ctx.strokeStyle = 'rgba(250, 204, 21, 0.85)';
+                ctx.lineWidth = 3 * pinScale;
+                ctx.stroke();
+                
+                ctx.fillStyle = '#facc15';
+                ctx.font = `bold ${Math.round(11 * pinScale)}px sans-serif`;
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
+                ctx.fillText('★', pos.x - pinRadius * 0.9, pos.y - arrowH - pinRadius * 1.4);
+            }
+
+            // Status dot in top-right
+            ctx.beginPath();
+            ctx.arc(pos.x + pinRadius * 0.75, pos.y - arrowH - pinRadius * 1.3, 4.5 * pinScale, 0, Math.PI * 2);
+            ctx.fillStyle = statusDotColor;
+            ctx.fill();
+            ctx.lineWidth = 1.5 * pinScale;
+            ctx.strokeStyle = '#ffffff';
+            ctx.stroke();
+
+            // Category abbreviation inside pin head
+            ctx.fillStyle = '#ffffff';
+            ctx.font = `900 ${Math.round(9.5 * pinScale)}px 'Inter', sans-serif`;
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            const abbr = this.getCategoryAbbr(colName, d.Type);
+            ctx.fillText(abbr, pos.x, pos.y - arrowH - pinRadius * 0.6);
+
+            // 3. Label Tag Pill
+            if (showLabels) {
+                const primaryName = this.getDeviceDisplayName(d);
+                const sn = d.SerialNumber || d.MonitorSerial || '';
+                const ip = d.IPAddress || '';
+                const loc = d.Location || '';
+
+                ctx.font = `bold ${Math.round(11 * pinScale)}px 'Inter', sans-serif`;
+                const nameW = ctx.measureText(primaryName).width;
+                
+                let subText = '';
+                if (loc && sn) subText = `${loc} • SN: ${sn}`;
+                else if (loc) subText = loc;
+                else if (sn) subText = `SN: ${sn}`;
+                else if (ip) subText = `IP: ${ip}`;
+                
+                ctx.font = `${Math.round(9 * pinScale)}px 'Inter', sans-serif`;
+                const subW = subText ? ctx.measureText(subText).width : 0;
+                
+                const pillW = Math.max(nameW, subW) + 16 * pinScale;
+                const pillH = subText ? (28 * pinScale) : (18 * pinScale);
+                const pillX = pos.x - pillW / 2;
+                const pillY = pos.y + 4 * pinScale;
+
+                ctx.shadowColor = 'rgba(0, 0, 0, 0.5)';
+                ctx.shadowBlur = 6;
+                ctx.shadowOffsetY = 2;
+                
+                ctx.beginPath();
+                drawRoundRect(ctx, pillX, pillY, pillW, pillH, 6 * pinScale);
+                ctx.fillStyle = isSelected ? '#1e1b4b' : 'rgba(15, 23, 42, 0.92)';
+                ctx.fill();
+                ctx.lineWidth = 1.5 * pinScale;
+                ctx.strokeStyle = isSelected ? '#facc15' : 'rgba(255, 255, 255, 0.25)';
+                ctx.stroke();
+
+                ctx.shadowColor = 'transparent';
+
+                // Primary Name
+                ctx.fillStyle = isSelected ? '#fde047' : '#ffffff';
+                ctx.font = `bold ${Math.round(11 * pinScale)}px 'Inter', sans-serif`;
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'top';
+                ctx.fillText(primaryName, pos.x, pillY + 3 * pinScale);
+
+                // Subtitle
+                if (subText) {
+                    ctx.fillStyle = '#94a3b8';
+                    ctx.font = `${Math.round(9 * pinScale)}px 'Inter', sans-serif`;
+                    ctx.fillText(subText, pos.x, pillY + 15 * pinScale);
+                }
+            }
+
+            ctx.restore();
+        });
+
+        // 4. Header Title & Watermark Banner
+        if (showHeader) {
+            ctx.save();
+            const relScale = outW / 1400;
+            const bannerH = Math.round(52 * relScale);
+            const pad = Math.round(14 * relScale);
+            
+            // Gradient overlay
+            const grad = ctx.createLinearGradient(0, 0, 0, bannerH + pad * 2.5);
+            grad.addColorStop(0, 'rgba(2, 6, 23, 0.95)');
+            grad.addColorStop(1, 'rgba(2, 6, 23, 0.0)');
+            ctx.fillStyle = grad;
+            ctx.fillRect(0, 0, outW, bannerH + pad * 2.5);
+
+            // Container Box
+            const headerW = outW - pad * 2;
+            drawRoundRect(ctx, pad, pad, headerW, bannerH, 12 * relScale);
+            ctx.fillStyle = 'rgba(15, 23, 42, 0.92)';
+            ctx.fill();
+            ctx.lineWidth = 1.5;
+            ctx.strokeStyle = 'rgba(99, 102, 241, 0.4)';
+            ctx.stroke();
+
+            // App Title
+            ctx.fillStyle = '#ffffff';
+            ctx.font = `bold ${Math.round(13.5 * relScale)}px 'Inter', sans-serif`;
+            ctx.textAlign = 'left';
+            ctx.textBaseline = 'top';
+            ctx.fillText('IT ASSET LOCATION MAP • แผนผังตำแหน่งอุปกรณ์', pad + 16 * relScale, pad + 10 * relScale);
+
+            // Subtitle
+            ctx.fillStyle = '#94a3b8';
+            ctx.font = `${Math.round(10.5 * relScale)}px 'Inter', sans-serif`;
+            const zoneStr = this.selectedZone !== 'all' ? (this.zones.find(z => z.id === this.selectedZone)?.name || this.selectedZone) : 'ทุกโซน (All Zones)';
+            const catStr = this.selectedCategory !== 'all' ? (window.collectionConfigs?.[this.selectedCategory]?.displayName || this.selectedCategory) : 'ทุกหมวดหมู่';
+            ctx.fillText(`โซน: ${zoneStr}  |  หมวด: ${catStr}  |  แสดงผล: ${drawnCount} จุด`, pad + 16 * relScale, pad + 29 * relScale);
+
+            // Date & Watermark
+            ctx.fillStyle = '#cbd5e1';
+            ctx.font = `${Math.round(10.5 * relScale)}px 'Inter', sans-serif`;
+            ctx.textAlign = 'right';
+            const nowStr = new Date().toLocaleString('th-TH', { dateStyle: 'medium', timeStyle: 'short' });
+            ctx.fillText(`วันที่พิมพ์: ${nowStr}`, outW - pad - 16 * relScale, pad + 11 * relScale);
+
+            ctx.fillStyle = '#64748b';
+            ctx.font = `italic ${Math.round(9 * relScale)}px 'Inter', sans-serif`;
+            ctx.fillText('IT Inventory Management System', outW - pad - 16 * relScale, pad + 29 * relScale);
+
+            ctx.restore();
+        }
+
+        return canvas;
+    }
+
+    // ------------------------------------------------------------------------
+    // 📸 Interactive Save Location Image Modal
+    // ------------------------------------------------------------------------
+    openExportImageModal(initialMode = null) {
+        document.getElementById('fp-export-image-modal')?.remove();
+
+        const defaultMode = initialMode || (this.selectedDeviceIds.size > 0 ? 'focus' : 'current');
+
+        this.exportImageOptions = {
+            mode: defaultMode,
+            showLabels: true,
+            showZones: true,
+            showHeader: true,
+            highRes: true
+        };
+
+        const activeDevices = this.getAllActiveDevices().filter(d => d.mapLocation && typeof d.mapLocation.x === 'number');
+        const selectedCount = this.selectedDeviceIds.size;
+
+        // Suggest filename
+        const now = new Date();
+        const dateStr = now.toISOString().slice(0, 10);
+        let nameSlug = 'Location';
+        if (selectedCount === 1) {
+            const firstId = Array.from(this.selectedDeviceIds)[0];
+            const d = activeDevices.find(item => String(item._id || item.id) === String(firstId));
+            if (d) nameSlug = this.getDeviceDisplayName(d).replace(/[^a-zA-Z0-9_฀-๿-]/g, '_');
+        } else if (selectedCount > 1) {
+            nameSlug = `${selectedCount}_Selected_Devices`;
+        } else if (this.selectedZone !== 'all') {
+            const z = this.zones.find(item => item.id === this.selectedZone);
+            if (z) nameSlug = z.name.split('(')[0].trim().replace(/[^a-zA-Z0-9_฀-๿-]/g, '_');
+        } else if (this.selectedCategory !== 'all') {
+            nameSlug = this.selectedCategory;
+        }
+
+        const suggestedFilename = `Map_${nameSlug}_${dateStr}`;
+
+        const modal = document.createElement('div');
+        modal.id = 'fp-export-image-modal';
+        modal.className = 'fixed inset-0 bg-black/60 backdrop-blur-xs z-50 flex items-center justify-center p-3 select-none animate-fade-in';
+
+        modal.innerHTML = `
+            <div class="bg-white dark:bg-gray-800 rounded-2xl w-full max-w-2xl shadow-2xl border border-gray-100 dark:border-gray-700 max-h-[94vh] flex flex-col overflow-hidden">
+                <!-- Header -->
+                <div class="p-4 border-b border-gray-100 dark:border-gray-700 flex justify-between items-center bg-gray-50/80 dark:bg-gray-900/60 shrink-0">
+                    <div class="flex items-center space-x-2.5">
+                        <div class="w-8 h-8 rounded-xl bg-emerald-100 dark:bg-emerald-900/60 text-emerald-600 dark:text-emerald-400 flex items-center justify-center shadow-inner">
+                            <i class="fas fa-camera text-sm"></i>
+                        </div>
+                        <div>
+                            <h3 class="font-bold text-sm md:text-base text-gray-900 dark:text-white">บันทึกรูปภาพแผนที่ตำแหน่ง (Location Image)</h3>
+                            <p class="text-[11px] text-gray-500 dark:text-gray-400">เซฟภาพผังพร้อมตำแหน่งและชื่ออุปกรณ์ สำหรับส่งแชท พิมพ์ หรือบันทึกรายงาน</p>
+                        </div>
+                    </div>
+                    <button class="fp-modal-close text-gray-400 hover:text-gray-600 dark:hover:text-white p-1.5 rounded-lg transition"><i class="fas fa-times text-base"></i></button>
+                </div>
+
+                <!-- Body (Scrollable) -->
+                <div class="p-4 overflow-y-auto space-y-4 custom-scrollbar flex-1 text-xs">
+                    
+                    <!-- Live Image Preview Box -->
+                    <div>
+                        <div class="flex justify-between items-center mb-1.5">
+                            <span class="font-bold text-gray-700 dark:text-gray-300 uppercase tracking-wider text-[11px] flex items-center">
+                                <i class="fas fa-eye text-emerald-500 mr-1.5"></i> ตัวอย่างภาพที่จะได้ (Live Preview)
+                            </span>
+                            <span id="fp-export-res-badge" class="text-[10px] bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-300 px-2 py-0.5 rounded font-mono">กำลังประมวลผล...</span>
+                        </div>
+                        <div id="fp-export-preview-container" class="relative rounded-xl border border-gray-200 dark:border-gray-700 bg-slate-950 flex items-center justify-center min-h-[190px] max-h-[300px] overflow-hidden shadow-inner">
+                            <div id="fp-export-loading" class="flex flex-col items-center justify-center text-gray-400 py-8">
+                                <i class="fas fa-circle-notch fa-spin text-2xl text-emerald-500 mb-2"></i>
+                                <span>กำลังสร้างรูปภาพตัวอย่าง...</span>
+                            </div>
+                            <img id="fp-export-preview" class="w-full h-full max-h-[290px] object-contain hidden" alt="Export Preview">
+                        </div>
+                    </div>
+
+                    <!-- Options Grid -->
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2 border-t border-gray-100 dark:border-gray-700">
+                        
+                        <!-- Col 1: Capture Mode -->
+                        <div>
+                            <span class="font-bold text-gray-800 dark:text-gray-200 text-[11px] block mb-2 flex items-center">
+                                <i class="fas fa-crop-alt text-emerald-500 mr-1.5"></i> โหมดมุมมองการบันทึกภาพ
+                            </span>
+                            <div class="space-y-1.5">
+                                <label class="flex items-center p-2 rounded-xl border cursor-pointer transition select-none ${this.exportImageOptions.mode === 'current' ? 'border-emerald-500 bg-emerald-50/50 dark:bg-emerald-950/40 text-emerald-950 dark:text-emerald-200' : 'border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700/50'}">
+                                    <input type="radio" name="fpExportMode" value="current" class="text-emerald-600 focus:ring-emerald-500 w-3.5 h-3.5 mr-2" ${this.exportImageOptions.mode === 'current' ? 'checked' : ''}>
+                                    <div>
+                                        <div class="font-bold text-[11.5px]">🎯 มุมมองปัจจุบัน (ตามหน้าจอ)</div>
+                                        <div class="text-[9.5px] text-gray-400">บันทึกภาพบริเวณและระดับซูมที่กำลังดูอยู่ขณะนี้</div>
+                                    </div>
+                                </label>
+
+                                <label class="flex items-center p-2 rounded-xl border cursor-pointer transition select-none ${this.exportImageOptions.mode === 'focus' ? 'border-emerald-500 bg-emerald-50/50 dark:bg-emerald-950/40 text-emerald-950 dark:text-emerald-200' : 'border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700/50'}">
+                                    <input type="radio" name="fpExportMode" value="focus" class="text-emerald-600 focus:ring-emerald-500 w-3.5 h-3.5 mr-2" ${this.exportImageOptions.mode === 'focus' ? 'checked' : ''}>
+                                    <div>
+                                        <div class="font-bold text-[11.5px]">🔍 โฟกัสเฉพาะเครื่องที่เลือก / ในรายการ</div>
+                                        <div class="text-[9.5px] text-gray-400">ซูมและครอปพอดีกลุ่มอุปกรณ์ที่เลือกโดยอัตโนมัติ</div>
+                                    </div>
+                                </label>
+
+                                <label class="flex items-center p-2 rounded-xl border cursor-pointer transition select-none ${this.exportImageOptions.mode === 'full' ? 'border-emerald-500 bg-emerald-50/50 dark:bg-emerald-950/40 text-emerald-950 dark:text-emerald-200' : 'border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700/50'}">
+                                    <input type="radio" name="fpExportMode" value="full" class="text-emerald-600 focus:ring-emerald-500 w-3.5 h-3.5 mr-2" ${this.exportImageOptions.mode === 'full' ? 'checked' : ''}>
+                                    <div>
+                                        <div class="font-bold text-[11.5px]">🌐 แผนที่เต็มใบทั้งโครงการ</div>
+                                        <div class="text-[9.5px] text-gray-400">เห็นภาพรวมทั้งผังและตำแหน่งหมุดทั้งหมด</div>
+                                    </div>
+                                </label>
+                            </div>
+                        </div>
+
+                        <!-- Col 2: Content Toggles & Filename -->
+                        <div class="space-y-2.5">
+                            <span class="font-bold text-gray-800 dark:text-gray-200 text-[11px] block flex items-center">
+                                <i class="fas fa-sliders-h text-emerald-500 mr-1.5"></i> รายละเอียดในรูปภาพ
+                            </span>
+
+                            <div class="space-y-1.5">
+                                <label class="flex items-center p-1.5 rounded-lg border border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700/40 cursor-pointer select-none">
+                                    <input type="checkbox" id="fp-export-opt-labels" class="rounded text-emerald-600 focus:ring-emerald-500 w-3.5 h-3.5 mr-2" checked>
+                                    <span class="font-medium text-[11px]">🏷️ แสดงชื่อเครื่องและ Serial Number</span>
+                                </label>
+
+                                <label class="flex items-center p-1.5 rounded-lg border border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700/40 cursor-pointer select-none">
+                                    <input type="checkbox" id="fp-export-opt-zones" class="rounded text-emerald-600 focus:ring-emerald-500 w-3.5 h-3.5 mr-2" checked>
+                                    <span class="font-medium text-[11px]">🏢 แสดงป้ายชื่ออาคาร / โซน</span>
+                                </label>
+
+                                <label class="flex items-center p-1.5 rounded-lg border border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700/40 cursor-pointer select-none">
+                                    <input type="checkbox" id="fp-export-opt-header" class="rounded text-emerald-600 focus:ring-emerald-500 w-3.5 h-3.5 mr-2" checked>
+                                    <span class="font-medium text-[11px]">📋 แสดงแถบหัวเรื่องและวันที่</span>
+                                </label>
+
+                                <label class="flex items-center p-1.5 rounded-lg border border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700/40 cursor-pointer select-none">
+                                    <input type="checkbox" id="fp-export-opt-highres" class="rounded text-emerald-600 focus:ring-emerald-500 w-3.5 h-3.5 mr-2" checked>
+                                    <span class="font-medium text-[11px]">✨ คมชัดสูง 2x (Ultra Sharp Retina)</span>
+                                </label>
+                            </div>
+
+                            <div>
+                                <label class="block font-bold text-gray-700 dark:text-gray-300 text-[10.5px] mb-1">ชื่อไฟล์ที่จะดาวน์โหลด:</label>
+                                <div class="flex items-center space-x-1">
+                                    <input type="text" id="fp-export-filename" value="${suggestedFilename}" class="flex-1 px-2.5 py-1 text-xs bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-lg outline-none focus:ring-1 focus:ring-emerald-500 font-mono text-gray-800 dark:text-white">
+                                    <span class="text-gray-400 font-mono text-xs">.png</span>
+                                </div>
+                            </div>
+                        </div>
+
+                    </div>
+
+                </div>
+
+                <!-- Footer Actions -->
+                <div class="p-3 border-t border-gray-100 dark:border-gray-700 bg-gray-50/80 dark:bg-gray-900/60 flex flex-wrap justify-between items-center gap-2 shrink-0">
+                    <button type="button" id="fp-export-btn-print" class="px-3 py-1.5 text-xs text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700 font-semibold flex items-center rounded-xl transition">
+                        <i class="fas fa-external-link-alt mr-1.5"></i> ดูภาพขนาดเต็ม
+                    </button>
+                    
+                    <div class="flex items-center space-x-2">
+                        <button type="button" class="fp-modal-close px-3 py-1.5 rounded-xl border border-gray-200 dark:border-gray-600 font-semibold text-gray-600 dark:text-gray-300 hover:bg-gray-100 transition text-xs">
+                            ปิด
+                        </button>
+                        
+                        <button type="button" id="fp-export-btn-copy" class="px-3.5 py-1.5 rounded-xl bg-indigo-50 hover:bg-indigo-100 dark:bg-indigo-950/80 text-indigo-700 dark:text-indigo-300 border border-indigo-200/80 dark:border-indigo-800/80 font-bold transition flex items-center text-xs shadow-xs" title="คัดลอกรูปภาพสำหรับนำไปกดวาง Ctrl+V ในแชท">
+                            <i class="fas fa-copy mr-1.5 text-indigo-500"></i> คัดลอกภาพ
+                        </button>
+
+                        <button type="button" id="fp-export-btn-download" class="px-4 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold transition shadow-sm flex items-center text-xs">
+                            <i class="fas fa-download mr-1.5"></i> ดาวน์โหลดรูปภาพ (.PNG)
+                        </button>
+                    </div>
+                </div>
+            </div>
+        `;
+
+        document.body.appendChild(modal);
+
+        // Bind Close buttons
+        modal.querySelectorAll('.fp-modal-close').forEach(b => b.addEventListener('click', () => modal.remove()));
+        modal.addEventListener('click', (e) => {
+            if (e.target === modal) modal.remove();
+        });
+
+        // Mode radio changes
+        modal.querySelectorAll('input[name="fpExportMode"]').forEach(radio => {
+            radio.addEventListener('change', () => {
+                this.exportImageOptions.mode = radio.value;
+                modal.querySelectorAll('input[name="fpExportMode"]').forEach(r => {
+                    r.closest('label').classList.toggle('border-emerald-500', r.checked);
+                    r.closest('label').classList.toggle('bg-emerald-50/50', r.checked);
+                    r.closest('label').classList.toggle('dark:bg-emerald-950/40', r.checked);
+                });
+                this.updateExportImagePreview();
+            });
+        });
+
+        // Detail checkbox changes
+        const optLabels = document.getElementById('fp-export-opt-labels');
+        const optZones = document.getElementById('fp-export-opt-zones');
+        const optHeader = document.getElementById('fp-export-opt-header');
+        const optHighRes = document.getElementById('fp-export-opt-highres');
+
+        [optLabels, optZones, optHeader, optHighRes].forEach(cb => {
+            cb?.addEventListener('change', () => {
+                this.exportImageOptions.showLabels = optLabels.checked;
+                this.exportImageOptions.showZones = optZones.checked;
+                this.exportImageOptions.showHeader = optHeader.checked;
+                this.exportImageOptions.highRes = optHighRes.checked;
+                this.updateExportImagePreview();
+            });
+        });
+
+        // Actions
+        document.getElementById('fp-export-btn-download')?.addEventListener('click', () => {
+            this.downloadExportedImage();
+        });
+        document.getElementById('fp-export-btn-copy')?.addEventListener('click', () => {
+            this.copyExportedImageToClipboard();
+        });
+        document.getElementById('fp-export-btn-print')?.addEventListener('click', () => {
+            this.printOrOpenExportedImage();
+        });
+
+        // Initial preview render
+        this.updateExportImagePreview();
+    }
+
+    async updateExportImagePreview() {
+        const previewImg = document.getElementById('fp-export-preview');
+        const loadingEl = document.getElementById('fp-export-loading');
+        const badgeEl = document.getElementById('fp-export-res-badge');
+        if (!previewImg || !loadingEl) return;
+
+        previewImg.classList.add('hidden');
+        loadingEl.classList.remove('hidden');
+
+        try {
+            const canvas = await this.generateLocationMapCanvas(this.exportImageOptions);
+            const dataUrl = canvas.toDataURL('image/png');
+            previewImg.src = dataUrl;
+            previewImg.onload = () => {
+                loadingEl.classList.add('hidden');
+                previewImg.classList.remove('hidden');
+                if (badgeEl) badgeEl.innerText = `${canvas.width} × ${canvas.height} px (PNG)`;
+            };
+        } catch (err) {
+            console.error("Preview render failed:", err);
+            loadingEl.innerHTML = `<span class="text-rose-500"><i class="fas fa-exclamation-triangle mr-1"></i>${err.message}</span>`;
+        }
+    }
+
+    async downloadExportedImage() {
+        try {
+            const canvas = await this.generateLocationMapCanvas(this.exportImageOptions);
+            const rawName = document.getElementById('fp-export-filename')?.value || 'FloorPlan_Location';
+            const filename = (rawName.endsWith('.png') ? rawName : `${rawName}.png`);
+            const dataUrl = canvas.toDataURL('image/png');
+            
+            const a = document.createElement('a');
+            a.href = dataUrl;
+            a.download = filename;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+
+            this.showToastNotification(`💾 บันทึกรูปภาพ "${filename}" เรียบร้อยแล้ว`, "success");
+        } catch (e) {
+            console.error("Download Error:", e);
+            this.showToastNotification("เกิดข้อผิดพลาดในการดาวน์โหลดรูปภาพ: " + e.message, "warning");
+        }
+    }
+
+    async copyExportedImageToClipboard() {
+        try {
+            const canvas = await this.generateLocationMapCanvas(this.exportImageOptions);
+            canvas.toBlob(async (blob) => {
+                if (!blob) throw new Error("ไม่สามารถสร้างไฟล์รูปภาพได้");
+                try {
+                    await navigator.clipboard.write([
+                        new ClipboardItem({ 'image/png': blob })
+                    ]);
+                    this.showToastNotification("📋 คัดลอกรูปภาพแล้ว! สามารถกด Ctrl+V เพื่อวางใน LINE หรือเอกสารได้ทันที", "success");
+                } catch (err) {
+                    console.warn("Clipboard write failed, downloading instead:", err);
+                    this.downloadExportedImage();
+                    this.showToastNotification("เบราว์เซอร์ไม่อนุญาตให้คัดลอกรูปภาพโดยตรง ระบบจึงดาวน์โหลดไฟล์ให้แทน", "info");
+                }
+            }, 'image/png');
+        } catch (e) {
+            console.error("Export Error:", e);
+            this.showToastNotification("เกิดข้อผิดพลาดในการคัดลอกรูปภาพ: " + e.message, "warning");
+        }
+    }
+
+    async printOrOpenExportedImage() {
+        try {
+            const canvas = await this.generateLocationMapCanvas(this.exportImageOptions);
+            const dataUrl = canvas.toDataURL('image/png');
+            const win = window.open();
+            if (win) {
+                win.document.write(`<body style="margin:0; background:#020617; display:flex; align-items:center; justify-content:center; min-height:100vh;"><img src="${dataUrl}" style="max-width:100%; max-height:100vh; box-shadow:0 0 30px rgba(0,0,0,0.8);" /></body>`);
+            } else {
+                this.downloadExportedImage();
+            }
+        } catch (e) {
+            this.showToastNotification("ไม่สามารถเปิดภาพได้: " + e.message, "warning");
+        }
     }
 
     updateTransform() {
