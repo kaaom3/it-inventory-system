@@ -3084,10 +3084,14 @@ class FloorPlanManager {
 
         const {
             mode = 'current', // 'current', 'focus', 'full'
+            widthPreset = '2560', // '1280', '1920', '2560', '3840', 'custom'
+            customWidth = 2560,
+            labelEmphasis = 'name', // 'name', 'sn', 'both', 'none'
+            pinScaleMultiplier = 1.0, // 0.8, 1.0, 1.3, 1.6
+            highlightSelectedOnly = false, // dim unselected devices
             showLabels = true,
             showZones = true,
-            showHeader = true,
-            highRes = true
+            showHeader = true
         } = options;
 
         const natW = this.mapImg.naturalWidth;
@@ -3099,20 +3103,30 @@ class FloorPlanManager {
 
         // Get devices to render on the exported map
         let devices = this.getAllActiveDevices().filter(d => d.mapLocation && typeof d.mapLocation.x === 'number');
-        if (this.selectedDeviceIds.size > 0 && mode === 'focus') {
+        const hasSelections = this.selectedDeviceIds && this.selectedDeviceIds.size > 0;
+        if (hasSelections && mode === 'focus') {
             const selOnly = devices.filter(d => this.selectedDeviceIds.has(String(d._id || d.id)));
             if (selOnly.length > 0) devices = selOnly;
+        }
+
+        // Determine target width
+        let targetWidth = 2560;
+        if (widthPreset === 'custom') {
+            const p = parseInt(customWidth, 10);
+            targetWidth = (p >= 600 && p <= 7680) ? p : 2560;
+        } else {
+            const p = parseInt(widthPreset, 10);
+            targetWidth = p || 2560;
         }
 
         let outW, outH;
         let sourceLeft, sourceTop, sourceWidth, sourceHeight;
         let getDestCoords;
 
-        const scaleFactor = highRes ? 2 : 1;
-
         if (mode === 'current') {
-            outW = Math.round(vpW * scaleFactor);
-            outH = Math.round(vpH * scaleFactor);
+            const screenAspect = vpW / vpH;
+            outW = targetWidth;
+            outH = Math.round(targetWidth / screenAspect);
 
             sourceLeft = (-this.panX / this.scale) / baseW * natW;
             sourceTop = (-this.panY / this.scale) / baseH * natH;
@@ -3123,8 +3137,8 @@ class FloorPlanManager {
                 const screenX = (locX / 100 * baseW) * this.scale + this.panX;
                 const screenY = (locY / 100 * baseH) * this.scale + this.panY;
                 return {
-                    x: screenX * scaleFactor,
-                    y: screenY * scaleFactor
+                    x: (screenX / vpW) * outW,
+                    y: (screenY / vpH) * outH
                 };
             };
         } else if (mode === 'focus' && devices.length > 0) {
@@ -3167,8 +3181,8 @@ class FloorPlanManager {
             sourceWidth = ((bMaxX - bMinX) / 100) * natW;
             sourceHeight = ((bMaxY - bMinY) / 100) * natH;
 
-            outW = highRes ? 2560 : 1920;
-            outH = Math.round(outW * (sourceHeight / sourceWidth));
+            outW = targetWidth;
+            outH = Math.round(targetWidth * (sourceHeight / sourceWidth));
 
             getDestCoords = (locX, locY) => ({
                 x: ((locX - bMinX) / (bMaxX - bMinX)) * outW,
@@ -3176,8 +3190,8 @@ class FloorPlanManager {
             });
         } else {
             // Full Map
-            outW = highRes ? 3200 : 2048;
-            outH = Math.round(outW / this.aspectRatio);
+            outW = targetWidth;
+            outH = Math.round(targetWidth / this.aspectRatio);
 
             sourceLeft = 0;
             sourceTop = 0;
@@ -3209,7 +3223,8 @@ class FloorPlanManager {
             0, 0, outW, outH
         );
 
-        const pinScale = Math.max(0.75, Math.min(2.5, outW / 1400));
+        const basePinScale = Math.max(0.65, Math.min(3.2, outW / 1400));
+        const globalPinScale = basePinScale * (parseFloat(pinScaleMultiplier) || 1.0);
 
         // Helper for rounded rectangle fallback
         const drawRoundRect = (c, x, y, w, h, r) => {
@@ -3233,28 +3248,28 @@ class FloorPlanManager {
             this.zones.forEach(z => {
                 if (!z.coords || typeof z.coords.x !== 'number') return;
                 const pos = getDestCoords(z.coords.x, z.coords.y);
-                if (pos.x < -100 || pos.x > outW + 100 || pos.y < -100 || pos.y > outH + 100) return;
+                if (pos.x < -120 || pos.x > outW + 120 || pos.y < -120 || pos.y > outH + 120) return;
 
                 ctx.save();
                 const zLabel = z.name.split('(')[0].trim();
-                ctx.font = `bold ${Math.round(11 * pinScale)}px 'Inter', sans-serif`;
+                ctx.font = `bold ${Math.round(11 * globalPinScale)}px 'Inter', sans-serif`;
                 const textW = ctx.measureText(zLabel).width;
-                const bW = textW + 28 * pinScale;
-                const bH = 24 * pinScale;
+                const bW = textW + 28 * globalPinScale;
+                const bH = 24 * globalPinScale;
                 
                 ctx.shadowColor = 'rgba(0, 0, 0, 0.5)';
                 ctx.shadowBlur = 6;
                 
-                drawRoundRect(ctx, pos.x - bW / 2, pos.y - bH / 2, bW, bH, 12 * pinScale);
+                drawRoundRect(ctx, pos.x - bW / 2, pos.y - bH / 2, bW, bH, 12 * globalPinScale);
                 ctx.fillStyle = 'rgba(15, 23, 42, 0.92)';
                 ctx.fill();
-                ctx.lineWidth = 1.5 * pinScale;
+                ctx.lineWidth = 1.5 * globalPinScale;
                 ctx.strokeStyle = z.color || '#6366f1';
                 ctx.stroke();
 
                 ctx.shadowColor = 'transparent';
                 ctx.fillStyle = '#fde047';
-                ctx.font = `bold ${Math.round(11 * pinScale)}px 'Inter', sans-serif`;
+                ctx.font = `bold ${Math.round(11 * globalPinScale)}px 'Inter', sans-serif`;
                 ctx.textAlign = 'center';
                 ctx.textBaseline = 'middle';
                 ctx.fillText(`🏢 ${zLabel}`, pos.x, pos.y);
@@ -3264,14 +3279,24 @@ class FloorPlanManager {
 
         // 2. Draw Pins & Labels
         let drawnCount = 0;
-        devices.forEach(d => {
+
+        // Sort so selected devices render ON TOP of unselected ones
+        const sortedDevices = [...devices].sort((a, b) => {
+            const aSel = hasSelections && this.selectedDeviceIds.has(String(a._id || a.id));
+            const bSel = hasSelections && this.selectedDeviceIds.has(String(b._id || b.id));
+            if (aSel && !bSel) return 1;
+            if (!aSel && bSel) return -1;
+            return 0;
+        });
+
+        sortedDevices.forEach(d => {
             const pos = getDestCoords(d.mapLocation.x, d.mapLocation.y);
-            if (pos.x < -150 || pos.x > outW + 150 || pos.y < -150 || pos.y > outH + 150) return;
+            if (pos.x < -200 || pos.x > outW + 200 || pos.y < -200 || pos.y > outH + 200) return;
             drawnCount++;
 
             const colName = d._collectionName || this.selectedCategory;
             const catColor = this.getCategoryHexColor(colName, d.Type);
-            const isSelected = this.selectedDeviceIds.has(String(d._id || d.id));
+            const isSelected = hasSelections && this.selectedDeviceIds.has(String(d._id || d.id));
             const status = d.Status || 'In Storage';
 
             let statusDotColor = '#3b82f6';
@@ -3279,10 +3304,26 @@ class FloorPlanManager {
             else if (status.includes('Repair') || status.includes('Issue')) statusDotColor = '#f97316';
             else if (status.includes('Damaged')) statusDotColor = '#ef4444';
 
+            // Apply spotlight / dimming effect
+            let pinScale = globalPinScale;
+            let alpha = 1.0;
+            if (highlightSelectedOnly && hasSelections) {
+                if (isSelected) {
+                    pinScale = globalPinScale * 1.25;
+                    alpha = 1.0;
+                } else {
+                    pinScale = globalPinScale * 0.75;
+                    alpha = 0.35;
+                }
+            } else if (isSelected) {
+                pinScale = globalPinScale * 1.15;
+            }
+
             const pinRadius = Math.round(14 * pinScale);
             const arrowH = Math.round(9 * pinScale);
 
             ctx.save();
+            ctx.globalAlpha = alpha;
 
             // Pointer shadow
             ctx.shadowColor = 'rgba(0, 0, 0, 0.45)';
@@ -3314,19 +3355,27 @@ class FloorPlanManager {
             ctx.shadowBlur = 0;
             ctx.shadowOffsetY = 0;
 
-            // If Selected: Golden Halo Ring & Star
+            // If Selected: Golden Radiant Halo Ring & Star Badge
             if (isSelected) {
+                // Outer glow halo
                 ctx.beginPath();
-                ctx.arc(pos.x, pos.y - arrowH - pinRadius * 0.6, pinRadius + 5 * pinScale, 0, Math.PI * 2);
-                ctx.strokeStyle = 'rgba(250, 204, 21, 0.85)';
-                ctx.lineWidth = 3 * pinScale;
+                ctx.arc(pos.x, pos.y - arrowH - pinRadius * 0.6, pinRadius + 8 * pinScale, 0, Math.PI * 2);
+                ctx.fillStyle = 'rgba(250, 204, 21, 0.25)';
+                ctx.fill();
+
+                // Sharp golden ring
+                ctx.beginPath();
+                ctx.arc(pos.x, pos.y - arrowH - pinRadius * 0.6, pinRadius + 4.5 * pinScale, 0, Math.PI * 2);
+                ctx.strokeStyle = '#facc15';
+                ctx.lineWidth = 2.8 * pinScale;
                 ctx.stroke();
                 
+                // Star badge
                 ctx.fillStyle = '#facc15';
-                ctx.font = `bold ${Math.round(11 * pinScale)}px sans-serif`;
+                ctx.font = `bold ${Math.round(11.5 * pinScale)}px sans-serif`;
                 ctx.textAlign = 'center';
                 ctx.textBaseline = 'middle';
-                ctx.fillText('★', pos.x - pinRadius * 0.9, pos.y - arrowH - pinRadius * 1.4);
+                ctx.fillText('★', pos.x - pinRadius * 0.95, pos.y - arrowH - pinRadius * 1.4);
             }
 
             // Status dot in top-right
@@ -3346,56 +3395,115 @@ class FloorPlanManager {
             const abbr = this.getCategoryAbbr(colName, d.Type);
             ctx.fillText(abbr, pos.x, pos.y - arrowH - pinRadius * 0.6);
 
-            // 3. Label Tag Pill
-            if (showLabels) {
-                const primaryName = this.getDeviceDisplayName(d);
+            // 3. Label Tag Pill (Customized by labelEmphasis)
+            if (showLabels && labelEmphasis !== 'none') {
+                const primaryName = this.getDeviceDisplayName(d) || 'อุปกรณ์';
                 const sn = d.SerialNumber || d.MonitorSerial || '';
                 const ip = d.IPAddress || '';
                 const loc = d.Location || '';
 
-                ctx.font = `bold ${Math.round(11 * pinScale)}px 'Inter', sans-serif`;
-                const nameW = ctx.measureText(primaryName).width;
-                
-                let subText = '';
-                if (loc && sn) subText = `${loc} • SN: ${sn}`;
-                else if (loc) subText = loc;
-                else if (sn) subText = `SN: ${sn}`;
-                else if (ip) subText = `IP: ${ip}`;
-                
-                ctx.font = `${Math.round(9 * pinScale)}px 'Inter', sans-serif`;
-                const subW = subText ? ctx.measureText(subText).width : 0;
-                
-                const pillW = Math.max(nameW, subW) + 16 * pinScale;
-                const pillH = subText ? (28 * pinScale) : (18 * pinScale);
+                let line1 = '', line2 = '', line3 = '';
+                let line1Font = '', line2Font = '', line3Font = '';
+                let line1Color = '', line2Color = '', line3Color = '';
+
+                if (labelEmphasis === 'sn') {
+                    // 🏷️ เน้น Serial Number เป็นหลัก (ตัวใหญ่เด่นชัด สีทอง)
+                    line1 = sn ? `SN: ${sn}` : 'SN: ไม่ระบุ';
+                    line1Font = `bold ${Math.round(12 * pinScale)}px 'JetBrains Mono', 'Consolas', monospace`;
+                    line1Color = '#fde047'; // Bright Yellow
+
+                    const subParts = [];
+                    if (primaryName) subParts.push(primaryName);
+                    if (loc) subParts.push(loc);
+                    line2 = subParts.join(' • ');
+                    line2Font = `${Math.round(9 * pinScale)}px 'Inter', sans-serif`;
+                    line2Color = '#cbd5e1'; // Light Slate
+                } else if (labelEmphasis === 'both') {
+                    // 📋 เน้นทั้งชื่อเครื่องและ SN ชัดเจนคู่กัน
+                    line1 = primaryName;
+                    line1Font = `bold ${Math.round(11.5 * pinScale)}px 'Inter', sans-serif`;
+                    line1Color = '#ffffff';
+
+                    line2 = sn ? `SN: ${sn}` : (ip ? `IP: ${ip}` : '-');
+                    line2Font = `bold ${Math.round(10.5 * pinScale)}px 'JetBrains Mono', monospace`;
+                    line2Color = '#facc15'; // Gold
+
+                    if (loc) {
+                        line3 = loc;
+                        line3Font = `${Math.round(8.5 * pinScale)}px 'Inter', sans-serif`;
+                        line3Color = '#94a3b8';
+                    }
+                } else {
+                    // 🔤 เน้นชื่อเครื่องเป็นหลัก (Default 'name')
+                    line1 = primaryName;
+                    line1Font = `bold ${Math.round(11.5 * pinScale)}px 'Inter', sans-serif`;
+                    line1Color = isSelected ? '#fde047' : '#ffffff';
+
+                    const subParts = [];
+                    if (loc) subParts.push(loc);
+                    if (sn) subParts.push(`SN: ${sn}`);
+                    else if (ip) subParts.push(`IP: ${ip}`);
+                    line2 = subParts.join(' • ');
+                    line2Font = `${Math.round(9 * pinScale)}px 'Inter', sans-serif`;
+                    line2Color = '#94a3b8';
+                }
+
+                // Measure widths
+                ctx.font = line1Font;
+                const w1 = ctx.measureText(line1).width;
+
+                ctx.font = line2Font;
+                const w2 = line2 ? ctx.measureText(line2).width : 0;
+
+                let w3 = 0;
+                if (line3) {
+                    ctx.font = line3Font;
+                    w3 = ctx.measureText(line3).width;
+                }
+
+                const maxTextW = Math.max(w1, w2, w3);
+                const pillW = maxTextW + 18 * pinScale;
+
+                let pillH = 20 * pinScale;
+                if (line3) pillH = 40 * pinScale;
+                else if (line2) pillH = 29 * pinScale;
+
                 const pillX = pos.x - pillW / 2;
                 const pillY = pos.y + 4 * pinScale;
 
-                ctx.shadowColor = 'rgba(0, 0, 0, 0.5)';
+                ctx.shadowColor = 'rgba(0, 0, 0, 0.55)';
                 ctx.shadowBlur = 6;
                 ctx.shadowOffsetY = 2;
                 
                 ctx.beginPath();
                 drawRoundRect(ctx, pillX, pillY, pillW, pillH, 6 * pinScale);
-                ctx.fillStyle = isSelected ? '#1e1b4b' : 'rgba(15, 23, 42, 0.92)';
+                ctx.fillStyle = isSelected ? '#1e1b4b' : 'rgba(15, 23, 42, 0.94)';
                 ctx.fill();
-                ctx.lineWidth = 1.5 * pinScale;
-                ctx.strokeStyle = isSelected ? '#facc15' : 'rgba(255, 255, 255, 0.25)';
+                ctx.lineWidth = (isSelected ? 2 : 1.2) * pinScale;
+                ctx.strokeStyle = isSelected ? '#facc15' : 'rgba(255, 255, 255, 0.22)';
                 ctx.stroke();
 
                 ctx.shadowColor = 'transparent';
 
-                // Primary Name
-                ctx.fillStyle = isSelected ? '#fde047' : '#ffffff';
-                ctx.font = `bold ${Math.round(11 * pinScale)}px 'Inter', sans-serif`;
+                // Line 1
+                ctx.fillStyle = line1Color;
+                ctx.font = line1Font;
                 ctx.textAlign = 'center';
                 ctx.textBaseline = 'top';
-                ctx.fillText(primaryName, pos.x, pillY + 3 * pinScale);
+                ctx.fillText(line1, pos.x, pillY + 3.5 * pinScale);
 
-                // Subtitle
-                if (subText) {
-                    ctx.fillStyle = '#94a3b8';
-                    ctx.font = `${Math.round(9 * pinScale)}px 'Inter', sans-serif`;
-                    ctx.fillText(subText, pos.x, pillY + 15 * pinScale);
+                // Line 2
+                if (line2) {
+                    ctx.fillStyle = line2Color;
+                    ctx.font = line2Font;
+                    ctx.fillText(line2, pos.x, pillY + 16 * pinScale);
+                }
+
+                // Line 3
+                if (line3) {
+                    ctx.fillStyle = line3Color;
+                    ctx.font = line3Font;
+                    ctx.fillText(line3, pos.x, pillY + 28 * pinScale);
                 }
             }
 
@@ -3437,7 +3545,10 @@ class FloorPlanManager {
             ctx.font = `${Math.round(10.5 * relScale)}px 'Inter', sans-serif`;
             const zoneStr = this.selectedZone !== 'all' ? (this.zones.find(z => z.id === this.selectedZone)?.name || this.selectedZone) : 'ทุกโซน (All Zones)';
             const catStr = this.selectedCategory !== 'all' ? (window.collectionConfigs?.[this.selectedCategory]?.displayName || this.selectedCategory) : 'ทุกหมวดหมู่';
-            ctx.fillText(`โซน: ${zoneStr}  |  หมวด: ${catStr}  |  แสดงผล: ${drawnCount} จุด`, pad + 16 * relScale, pad + 29 * relScale);
+            let emphasisDesc = '';
+            if (labelEmphasis === 'sn') emphasisDesc = ' • [เน้น Serial Number]';
+            else if (labelEmphasis === 'both') emphasisDesc = ' • [เน้น ชื่อเครื่อง + SN]';
+            ctx.fillText(`โซน: ${zoneStr}  |  หมวด: ${catStr}  |  แสดงผล: ${drawnCount} จุด${emphasisDesc}`, pad + 16 * relScale, pad + 29 * relScale);
 
             // Date & Watermark
             ctx.fillStyle = '#cbd5e1';
@@ -3462,18 +3573,22 @@ class FloorPlanManager {
     openExportImageModal(initialMode = null) {
         document.getElementById('fp-export-image-modal')?.remove();
 
-        const defaultMode = initialMode || (this.selectedDeviceIds.size > 0 ? 'focus' : 'current');
+        const defaultMode = initialMode || (this.selectedDeviceIds && this.selectedDeviceIds.size > 0 ? 'focus' : 'current');
 
         this.exportImageOptions = {
             mode: defaultMode,
+            widthPreset: '2560', // '1280', '1920', '2560', '3840', 'custom'
+            customWidth: 2560,
+            labelEmphasis: 'name', // 'name', 'sn', 'both', 'none'
+            pinScaleMultiplier: 1.0, // 0.8, 1.0, 1.3, 1.6
+            highlightSelectedOnly: (this.selectedDeviceIds && this.selectedDeviceIds.size > 0),
             showLabels: true,
             showZones: true,
-            showHeader: true,
-            highRes: true
+            showHeader: true
         };
 
         const activeDevices = this.getAllActiveDevices().filter(d => d.mapLocation && typeof d.mapLocation.x === 'number');
-        const selectedCount = this.selectedDeviceIds.size;
+        const selectedCount = this.selectedDeviceIds ? this.selectedDeviceIds.size : 0;
 
         // Suggest filename
         const now = new Date();
@@ -3482,12 +3597,12 @@ class FloorPlanManager {
         if (selectedCount === 1) {
             const firstId = Array.from(this.selectedDeviceIds)[0];
             const d = activeDevices.find(item => String(item._id || item.id) === String(firstId));
-            if (d) nameSlug = this.getDeviceDisplayName(d).replace(/[^a-zA-Z0-9_฀-๿-]/g, '_');
+            if (d) nameSlug = this.getDeviceDisplayName(d).replace(/[^a-zA-Z0-9_\u0E00-\u0E7F-]/g, '_');
         } else if (selectedCount > 1) {
             nameSlug = `${selectedCount}_Selected_Devices`;
         } else if (this.selectedZone !== 'all') {
             const z = this.zones.find(item => item.id === this.selectedZone);
-            if (z) nameSlug = z.name.split('(')[0].trim().replace(/[^a-zA-Z0-9_฀-๿-]/g, '_');
+            if (z) nameSlug = z.name.split('(')[0].trim().replace(/[^a-zA-Z0-9_\u0E00-\u0E7F-]/g, '_');
         } else if (this.selectedCategory !== 'all') {
             nameSlug = this.selectedCategory;
         }
@@ -3496,26 +3611,26 @@ class FloorPlanManager {
 
         const modal = document.createElement('div');
         modal.id = 'fp-export-image-modal';
-        modal.className = 'fixed inset-0 bg-black/60 backdrop-blur-xs z-50 flex items-center justify-center p-3 select-none animate-fade-in';
+        modal.className = 'fixed inset-0 bg-black/60 backdrop-blur-xs z-50 flex items-center justify-center p-2 sm:p-4 select-none animate-fade-in';
 
         modal.innerHTML = `
-            <div class="bg-white dark:bg-gray-800 rounded-2xl w-full max-w-2xl shadow-2xl border border-gray-100 dark:border-gray-700 max-h-[94vh] flex flex-col overflow-hidden">
+            <div class="bg-white dark:bg-gray-800 rounded-2xl w-full max-w-3xl shadow-2xl border border-gray-100 dark:border-gray-700 max-h-[95vh] flex flex-col overflow-hidden">
                 <!-- Header -->
-                <div class="p-4 border-b border-gray-100 dark:border-gray-700 flex justify-between items-center bg-gray-50/80 dark:bg-gray-900/60 shrink-0">
+                <div class="px-4 py-3 sm:px-5 sm:py-3.5 border-b border-gray-100 dark:border-gray-700 flex justify-between items-center bg-gray-50/80 dark:bg-gray-900/60 shrink-0">
                     <div class="flex items-center space-x-2.5">
                         <div class="w-8 h-8 rounded-xl bg-emerald-100 dark:bg-emerald-900/60 text-emerald-600 dark:text-emerald-400 flex items-center justify-center shadow-inner">
                             <i class="fas fa-camera text-sm"></i>
                         </div>
                         <div>
-                            <h3 class="font-bold text-sm md:text-base text-gray-900 dark:text-white">บันทึกรูปภาพแผนที่ตำแหน่ง (Location Image)</h3>
-                            <p class="text-[11px] text-gray-500 dark:text-gray-400">เซฟภาพผังพร้อมตำแหน่งและชื่ออุปกรณ์ สำหรับส่งแชท พิมพ์ หรือบันทึกรายงาน</p>
+                            <h3 class="font-bold text-sm sm:text-base text-gray-900 dark:text-white">บันทึกรูปภาพแผนที่ตำแหน่ง (Location Image)</h3>
+                            <p class="text-[11px] text-gray-500 dark:text-gray-400">กำหนดขนาดความกว้าง เลือกเน้นชื่อเครื่อง หรือเน้นเลข Serial Number ได้อย่างอิสระ</p>
                         </div>
                     </div>
                     <button class="fp-modal-close text-gray-400 hover:text-gray-600 dark:hover:text-white p-1.5 rounded-lg transition"><i class="fas fa-times text-base"></i></button>
                 </div>
 
                 <!-- Body (Scrollable) -->
-                <div class="p-4 overflow-y-auto space-y-4 custom-scrollbar flex-1 text-xs">
+                <div class="p-3 sm:p-4 overflow-y-auto space-y-3.5 custom-scrollbar flex-1 text-xs">
                     
                     <!-- Live Image Preview Box -->
                     <div>
@@ -3523,95 +3638,203 @@ class FloorPlanManager {
                             <span class="font-bold text-gray-700 dark:text-gray-300 uppercase tracking-wider text-[11px] flex items-center">
                                 <i class="fas fa-eye text-emerald-500 mr-1.5"></i> ตัวอย่างภาพที่จะได้ (Live Preview)
                             </span>
-                            <span id="fp-export-res-badge" class="text-[10px] bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-300 px-2 py-0.5 rounded font-mono">กำลังประมวลผล...</span>
+                            <span id="fp-export-res-badge" class="text-[10px] bg-emerald-50 dark:bg-emerald-950/80 text-emerald-700 dark:text-emerald-300 border border-emerald-200/80 dark:border-emerald-800/80 px-2 py-0.5 rounded-md font-mono font-bold">กำลังประมวลผล...</span>
                         </div>
-                        <div id="fp-export-preview-container" class="relative rounded-xl border border-gray-200 dark:border-gray-700 bg-slate-950 flex items-center justify-center min-h-[190px] max-h-[300px] overflow-hidden shadow-inner">
+                        <div id="fp-export-preview-container" class="relative rounded-xl border border-gray-200 dark:border-gray-700 bg-slate-950 flex items-center justify-center min-h-[170px] max-h-[260px] overflow-hidden shadow-inner">
                             <div id="fp-export-loading" class="flex flex-col items-center justify-center text-gray-400 py-8">
                                 <i class="fas fa-circle-notch fa-spin text-2xl text-emerald-500 mb-2"></i>
                                 <span>กำลังสร้างรูปภาพตัวอย่าง...</span>
                             </div>
-                            <img id="fp-export-preview" class="w-full h-full max-h-[290px] object-contain hidden" alt="Export Preview">
+                            <img id="fp-export-preview" class="w-full h-full max-h-[250px] object-contain hidden" alt="Export Preview">
                         </div>
                     </div>
 
-                    <!-- Options Grid -->
-                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2 border-t border-gray-100 dark:border-gray-700">
+                    <!-- Options Grid (2 Columns on MD+) -->
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-3.5 pt-1 border-t border-gray-100 dark:border-gray-700">
                         
-                        <!-- Col 1: Capture Mode -->
-                        <div>
-                            <span class="font-bold text-gray-800 dark:text-gray-200 text-[11px] block mb-2 flex items-center">
-                                <i class="fas fa-crop-alt text-emerald-500 mr-1.5"></i> โหมดมุมมองการบันทึกภาพ
-                            </span>
-                            <div class="space-y-1.5">
-                                <label class="flex items-center p-2 rounded-xl border cursor-pointer transition select-none ${this.exportImageOptions.mode === 'current' ? 'border-emerald-500 bg-emerald-50/50 dark:bg-emerald-950/40 text-emerald-950 dark:text-emerald-200' : 'border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700/50'}">
-                                    <input type="radio" name="fpExportMode" value="current" class="text-emerald-600 focus:ring-emerald-500 w-3.5 h-3.5 mr-2" ${this.exportImageOptions.mode === 'current' ? 'checked' : ''}>
-                                    <div>
-                                        <div class="font-bold text-[11.5px]">🎯 มุมมองปัจจุบัน (ตามหน้าจอ)</div>
-                                        <div class="text-[9.5px] text-gray-400">บันทึกภาพบริเวณและระดับซูมที่กำลังดูอยู่ขณะนี้</div>
-                                    </div>
-                                </label>
-
-                                <label class="flex items-center p-2 rounded-xl border cursor-pointer transition select-none ${this.exportImageOptions.mode === 'focus' ? 'border-emerald-500 bg-emerald-50/50 dark:bg-emerald-950/40 text-emerald-950 dark:text-emerald-200' : 'border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700/50'}">
-                                    <input type="radio" name="fpExportMode" value="focus" class="text-emerald-600 focus:ring-emerald-500 w-3.5 h-3.5 mr-2" ${this.exportImageOptions.mode === 'focus' ? 'checked' : ''}>
-                                    <div>
-                                        <div class="font-bold text-[11.5px]">🔍 โฟกัสเฉพาะเครื่องที่เลือก / ในรายการ</div>
-                                        <div class="text-[9.5px] text-gray-400">ซูมและครอปพอดีกลุ่มอุปกรณ์ที่เลือกโดยอัตโนมัติ</div>
-                                    </div>
-                                </label>
-
-                                <label class="flex items-center p-2 rounded-xl border cursor-pointer transition select-none ${this.exportImageOptions.mode === 'full' ? 'border-emerald-500 bg-emerald-50/50 dark:bg-emerald-950/40 text-emerald-950 dark:text-emerald-200' : 'border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700/50'}">
-                                    <input type="radio" name="fpExportMode" value="full" class="text-emerald-600 focus:ring-emerald-500 w-3.5 h-3.5 mr-2" ${this.exportImageOptions.mode === 'full' ? 'checked' : ''}>
-                                    <div>
-                                        <div class="font-bold text-[11.5px]">🌐 แผนที่เต็มใบทั้งโครงการ</div>
-                                        <div class="text-[9.5px] text-gray-400">เห็นภาพรวมทั้งผังและตำแหน่งหมุดทั้งหมด</div>
-                                    </div>
-                                </label>
-                            </div>
-                        </div>
-
-                        <!-- Col 2: Content Toggles & Filename -->
-                        <div class="space-y-2.5">
-                            <span class="font-bold text-gray-800 dark:text-gray-200 text-[11px] block flex items-center">
-                                <i class="fas fa-sliders-h text-emerald-500 mr-1.5"></i> รายละเอียดในรูปภาพ
-                            </span>
-
-                            <div class="space-y-1.5">
-                                <label class="flex items-center p-1.5 rounded-lg border border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700/40 cursor-pointer select-none">
-                                    <input type="checkbox" id="fp-export-opt-labels" class="rounded text-emerald-600 focus:ring-emerald-500 w-3.5 h-3.5 mr-2" checked>
-                                    <span class="font-medium text-[11px]">🏷️ แสดงชื่อเครื่องและ Serial Number</span>
-                                </label>
-
-                                <label class="flex items-center p-1.5 rounded-lg border border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700/40 cursor-pointer select-none">
-                                    <input type="checkbox" id="fp-export-opt-zones" class="rounded text-emerald-600 focus:ring-emerald-500 w-3.5 h-3.5 mr-2" checked>
-                                    <span class="font-medium text-[11px]">🏢 แสดงป้ายชื่ออาคาร / โซน</span>
-                                </label>
-
-                                <label class="flex items-center p-1.5 rounded-lg border border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700/40 cursor-pointer select-none">
-                                    <input type="checkbox" id="fp-export-opt-header" class="rounded text-emerald-600 focus:ring-emerald-500 w-3.5 h-3.5 mr-2" checked>
-                                    <span class="font-medium text-[11px]">📋 แสดงแถบหัวเรื่องและวันที่</span>
-                                </label>
-
-                                <label class="flex items-center p-1.5 rounded-lg border border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700/40 cursor-pointer select-none">
-                                    <input type="checkbox" id="fp-export-opt-highres" class="rounded text-emerald-600 focus:ring-emerald-500 w-3.5 h-3.5 mr-2" checked>
-                                    <span class="font-medium text-[11px]">✨ คมชัดสูง 2x (Ultra Sharp Retina)</span>
-                                </label>
-                            </div>
-
+                        <!-- Col 1: มุมมอง และ ขนาดความกว้างรูปภาพ -->
+                        <div class="space-y-3">
+                            <!-- Capture Mode -->
                             <div>
-                                <label class="block font-bold text-gray-700 dark:text-gray-300 text-[10.5px] mb-1">ชื่อไฟล์ที่จะดาวน์โหลด:</label>
-                                <div class="flex items-center space-x-1">
-                                    <input type="text" id="fp-export-filename" value="${suggestedFilename}" class="flex-1 px-2.5 py-1 text-xs bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-lg outline-none focus:ring-1 focus:ring-emerald-500 font-mono text-gray-800 dark:text-white">
-                                    <span class="text-gray-400 font-mono text-xs">.png</span>
+                                <span class="font-bold text-gray-800 dark:text-gray-200 text-[11px] block mb-1.5 flex items-center">
+                                    <i class="fas fa-crop-alt text-emerald-500 mr-1.5"></i> 1. โหมดมุมมองการจับภาพ
+                                </span>
+                                <div class="space-y-1">
+                                    <label class="flex items-center p-2 rounded-xl border cursor-pointer transition select-none ${this.exportImageOptions.mode === 'current' ? 'border-emerald-500 bg-emerald-50/50 dark:bg-emerald-950/40 text-emerald-950 dark:text-emerald-200' : 'border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700/50'}">
+                                        <input type="radio" name="fpExportMode" value="current" class="text-emerald-600 focus:ring-emerald-500 w-3.5 h-3.5 mr-2" ${this.exportImageOptions.mode === 'current' ? 'checked' : ''}>
+                                        <div>
+                                            <div class="font-bold text-[11.5px]">🎯 มุมมองปัจจุบัน (ตามหน้าจอ)</div>
+                                            <div class="text-[9.5px] text-gray-400">บันทึกภาพบริเวณและระดับซูมที่กำลังเลื่อนดูอยู่ขณะนี้</div>
+                                        </div>
+                                    </label>
+
+                                    <label class="flex items-center p-2 rounded-xl border cursor-pointer transition select-none ${this.exportImageOptions.mode === 'focus' ? 'border-emerald-500 bg-emerald-50/50 dark:bg-emerald-950/40 text-emerald-950 dark:text-emerald-200' : 'border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700/50'}">
+                                        <input type="radio" name="fpExportMode" value="focus" class="text-emerald-600 focus:ring-emerald-500 w-3.5 h-3.5 mr-2" ${this.exportImageOptions.mode === 'focus' ? 'checked' : ''}>
+                                        <div>
+                                            <div class="font-bold text-[11.5px]">🔍 โฟกัสเฉพาะเครื่องที่เลือก ${selectedCount > 0 ? `(${selectedCount} เครื่อง)` : ''}</div>
+                                            <div class="text-[9.5px] text-gray-400">ซูมและครอปพอดีกลุ่มอุปกรณ์ที่เลือกโดยอัตโนมัติ (16:9)</div>
+                                        </div>
+                                    </label>
+
+                                    <label class="flex items-center p-2 rounded-xl border cursor-pointer transition select-none ${this.exportImageOptions.mode === 'full' ? 'border-emerald-500 bg-emerald-50/50 dark:bg-emerald-950/40 text-emerald-950 dark:text-emerald-200' : 'border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700/50'}">
+                                        <input type="radio" name="fpExportMode" value="full" class="text-emerald-600 focus:ring-emerald-500 w-3.5 h-3.5 mr-2" ${this.exportImageOptions.mode === 'full' ? 'checked' : ''}>
+                                        <div>
+                                            <div class="font-bold text-[11.5px]">🌐 แผนที่เต็มใบทั้งโครงการ</div>
+                                            <div class="text-[9.5px] text-gray-400">เห็นภาพรวมทั้งผังและตำแหน่งหมุดทั้งหมด</div>
+                                        </div>
+                                    </label>
+                                </div>
+                            </div>
+
+                            <!-- Image Width Selection -->
+                            <div>
+                                <div class="flex justify-between items-center mb-1.5">
+                                    <span class="font-bold text-gray-800 dark:text-gray-200 text-[11px] flex items-center">
+                                        <i class="fas fa-arrows-alt-h text-emerald-500 mr-1.5"></i> 2. ขนาดความกว้างรูปภาพ (Image Width)
+                                    </span>
+                                    <span class="text-[9.5px] text-gray-400">(ความสูงปรับสัดส่วนให้อัตโนมัติ)</span>
+                                </div>
+
+                                <div class="grid grid-cols-2 gap-1.5 mb-2">
+                                    <label class="flex items-center p-1.5 rounded-lg border cursor-pointer text-[11px] ${this.exportImageOptions.widthPreset === '1280' ? 'border-emerald-500 bg-emerald-50/60 dark:bg-emerald-950/40 text-emerald-900 dark:text-emerald-300 font-bold' : 'border-gray-200 dark:border-gray-700 hover:bg-gray-50'}">
+                                        <input type="radio" name="fpExportWidthPreset" value="1280" class="text-emerald-600 w-3.5 h-3.5 mr-1.5">
+                                        <span>📱 1280 px (กะทัดรัด)</span>
+                                    </label>
+
+                                    <label class="flex items-center p-1.5 rounded-lg border cursor-pointer text-[11px] ${this.exportImageOptions.widthPreset === '1920' ? 'border-emerald-500 bg-emerald-50/60 dark:bg-emerald-950/40 text-emerald-900 dark:text-emerald-300 font-bold' : 'border-gray-200 dark:border-gray-700 hover:bg-gray-50'}">
+                                        <input type="radio" name="fpExportWidthPreset" value="1920" class="text-emerald-600 w-3.5 h-3.5 mr-1.5">
+                                        <span>💻 1920 px (Full HD)</span>
+                                    </label>
+
+                                    <label class="flex items-center p-1.5 rounded-lg border cursor-pointer text-[11px] ${this.exportImageOptions.widthPreset === '2560' ? 'border-emerald-500 bg-emerald-50/60 dark:bg-emerald-950/40 text-emerald-900 dark:text-emerald-300 font-bold' : 'border-gray-200 dark:border-gray-700 hover:bg-gray-50'}">
+                                        <input type="radio" name="fpExportWidthPreset" value="2560" class="text-emerald-600 w-3.5 h-3.5 mr-1.5" checked>
+                                        <span>🖥️ 2560 px (2K แนะนำ)</span>
+                                    </label>
+
+                                    <label class="flex items-center p-1.5 rounded-lg border cursor-pointer text-[11px] ${this.exportImageOptions.widthPreset === '3840' ? 'border-emerald-500 bg-emerald-50/60 dark:bg-emerald-950/40 text-emerald-900 dark:text-emerald-300 font-bold' : 'border-gray-200 dark:border-gray-700 hover:bg-gray-50'}">
+                                        <input type="radio" name="fpExportWidthPreset" value="3840" class="text-emerald-600 w-3.5 h-3.5 mr-1.5">
+                                        <span>🖨️ 3840 px (4K งานพิมพ์)</span>
+                                    </label>
+                                </div>
+
+                                <!-- Custom Width Row -->
+                                <div class="flex items-center p-1.5 rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50/50 dark:bg-gray-700/30">
+                                    <label class="flex items-center cursor-pointer text-[11px] mr-2">
+                                        <input type="radio" name="fpExportWidthPreset" value="custom" class="text-emerald-600 w-3.5 h-3.5 mr-1.5">
+                                        <span class="font-medium">⚙️ กำหนดความกว้างเอง:</span>
+                                    </label>
+                                    <div class="flex items-center flex-1 space-x-1">
+                                        <input type="number" id="fp-export-custom-width" min="600" max="7680" step="100" value="2560" class="w-24 px-2 py-0.5 text-xs bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded text-center font-mono font-bold focus:ring-1 focus:ring-emerald-500 outline-none">
+                                        <span class="text-gray-500 font-mono text-[11px]">px</span>
+                                    </div>
                                 </div>
                             </div>
                         </div>
 
+                        <!-- Col 2: การเน้นอุปกรณ์, Serial Number และ ป้ายข้อความ -->
+                        <div class="space-y-3">
+                            
+                            <!-- Emphasis Mode Selection -->
+                            <div>
+                                <span class="font-bold text-gray-800 dark:text-gray-200 text-[11px] block mb-1.5 flex items-center">
+                                    <i class="fas fa-tag text-emerald-500 mr-1.5"></i> 3. สิ่งที่ต้องการเน้นบนป้ายข้อความ
+                                </span>
+                                
+                                <div class="space-y-1">
+                                    <label class="flex items-center p-2 rounded-xl border cursor-pointer transition select-none ${this.exportImageOptions.labelEmphasis === 'name' ? 'border-indigo-500 bg-indigo-50/50 dark:bg-indigo-950/40 text-indigo-950 dark:text-indigo-200 font-bold' : 'border-gray-200 dark:border-gray-700 hover:bg-gray-50'}">
+                                        <input type="radio" name="fpExportEmphasis" value="name" class="text-indigo-600 focus:ring-indigo-500 w-3.5 h-3.5 mr-2" checked>
+                                        <div>
+                                            <div class="text-[11.5px]">🔤 เน้นชื่อเครื่อง (Device Name ตัวโตเด่นชัด)</div>
+                                            <div class="text-[9.5px] text-gray-400 font-normal">แสดงชื่อเครื่องตัวใหญ่ พร้อม Location และ SN บรรทัดรอง</div>
+                                        </div>
+                                    </label>
+
+                                    <label class="flex items-center p-2 rounded-xl border cursor-pointer transition select-none ${this.exportImageOptions.labelEmphasis === 'sn' ? 'border-amber-500 bg-amber-50/50 dark:bg-amber-950/40 text-amber-950 dark:text-amber-200 font-bold' : 'border-gray-200 dark:border-gray-700 hover:bg-gray-50'}">
+                                        <input type="radio" name="fpExportEmphasis" value="sn" class="text-amber-600 focus:ring-amber-500 w-3.5 h-3.5 mr-2">
+                                        <div>
+                                            <div class="text-[11.5px] text-amber-600 dark:text-amber-400 font-bold">🏷️ เน้นเลข Serial Number (SN ตัวใหญ่สีทอง)</div>
+                                            <div class="text-[9.5px] text-gray-400 font-normal">เหมาะสำหรับตรวจนับสต็อก / งานช่าง ตามหาเลข SN ได้ทันที</div>
+                                        </div>
+                                    </label>
+
+                                    <label class="flex items-center p-2 rounded-xl border cursor-pointer transition select-none ${this.exportImageOptions.labelEmphasis === 'both' ? 'border-indigo-500 bg-indigo-50/50 dark:bg-indigo-950/40 text-indigo-950 dark:text-indigo-200 font-bold' : 'border-gray-200 dark:border-gray-700 hover:bg-gray-50'}">
+                                        <input type="radio" name="fpExportEmphasis" value="both" class="text-indigo-600 focus:ring-indigo-500 w-3.5 h-3.5 mr-2">
+                                        <div>
+                                            <div class="text-[11.5px]">📋 เน้นทั้งชื่อเครื่องและ SN ชัดเจนคู่กัน</div>
+                                            <div class="text-[9.5px] text-gray-400 font-normal">แสดงทั้งสองข้อมูลในกล่องป้ายขนาดใหญ่ครบถ้วน</div>
+                                        </div>
+                                    </label>
+
+                                    <label class="flex items-center p-1.5 rounded-lg border cursor-pointer transition select-none border-gray-200 dark:border-gray-700 hover:bg-gray-50">
+                                        <input type="radio" name="fpExportEmphasis" value="none" class="text-gray-600 w-3.5 h-3.5 mr-2">
+                                        <span class="text-[11px] text-gray-600 dark:text-gray-300">📍 ซ่อนป้าย (แสดงเฉพาะตัวหมุดและไอคอนอุปกรณ์)</span>
+                                    </label>
+                                </div>
+                            </div>
+
+                            <!-- Pin & Text Size -->
+                            <div>
+                                <span class="font-bold text-gray-800 dark:text-gray-200 text-[11px] block mb-1 flex items-center">
+                                    <i class="fas fa-expand-alt text-emerald-500 mr-1.5"></i> 4. ขนาดหมุดและตัวหนังสือ
+                                </span>
+                                <div class="grid grid-cols-3 gap-1.5">
+                                    <label class="flex items-center justify-center p-1.5 rounded-lg border cursor-pointer text-center text-[10.5px] font-medium border-emerald-500 bg-emerald-50/50 dark:bg-emerald-950/40 text-emerald-800 dark:text-emerald-300">
+                                        <input type="radio" name="fpExportPinScale" value="1.0" class="sr-only" checked>
+                                        <span>ปกติ (1.0x)</span>
+                                    </label>
+                                    <label class="flex items-center justify-center p-1.5 rounded-lg border cursor-pointer text-center text-[10.5px] font-medium border-gray-200 dark:border-gray-700 hover:bg-gray-50">
+                                        <input type="radio" name="fpExportPinScale" value="1.3" class="sr-only">
+                                        <span>ใหญ่ (1.3x)</span>
+                                    </label>
+                                    <label class="flex items-center justify-center p-1.5 rounded-lg border cursor-pointer text-center text-[10.5px] font-medium border-gray-200 dark:border-gray-700 hover:bg-gray-50">
+                                        <input type="radio" name="fpExportPinScale" value="1.6" class="sr-only">
+                                        <span>ใหญ่พิเศษ (1.6x)</span>
+                                    </label>
+                                </div>
+                            </div>
+
+                            <!-- Spotlight / Highlight Toggle -->
+                            <div class="space-y-1.5 pt-1">
+                                <label class="flex items-center p-1.5 rounded-lg border border-amber-200/80 dark:border-amber-800/80 bg-amber-50/40 dark:bg-amber-950/20 hover:bg-amber-50 cursor-pointer select-none">
+                                    <input type="checkbox" id="fp-export-opt-spotlight" class="rounded text-amber-600 focus:ring-amber-500 w-3.5 h-3.5 mr-2" ${this.exportImageOptions.highlightSelectedOnly ? 'checked' : ''}>
+                                    <div class="flex-1">
+                                        <span class="font-bold text-[11px] text-amber-900 dark:text-amber-200">✨ เน้นเฉพาะอุปกรณ์ที่เลือกให้เด่นชัด (Spotlight)</span>
+                                        <span class="block text-[9.5px] text-amber-700 dark:text-amber-400">ดิมเครื่องอื่นรอบข้างลง และขยายเครื่องที่เลือกให้สว่างเด่น</span>
+                                    </div>
+                                </label>
+                            </div>
+
+                        </div>
+
+                    </div>
+
+                    <!-- Row 3: Additional Elements & Filename -->
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-3 pt-2 border-t border-gray-100 dark:border-gray-700">
+                        <div class="flex flex-wrap gap-2 items-center">
+                            <label class="flex items-center p-1.5 rounded-lg border border-gray-200 dark:border-gray-700 hover:bg-gray-50 cursor-pointer select-none">
+                                <input type="checkbox" id="fp-export-opt-zones" class="rounded text-emerald-600 focus:ring-emerald-500 w-3.5 h-3.5 mr-1.5" checked>
+                                <span class="font-medium text-[11px]">🏢 ป้ายชื่อโซน/อาคาร</span>
+                            </label>
+
+                            <label class="flex items-center p-1.5 rounded-lg border border-gray-200 dark:border-gray-700 hover:bg-gray-50 cursor-pointer select-none">
+                                <input type="checkbox" id="fp-export-opt-header" class="rounded text-emerald-600 focus:ring-emerald-500 w-3.5 h-3.5 mr-1.5" checked>
+                                <span class="font-medium text-[11px]">📋 แถบหัวเรื่องและวันที่พิมพ์</span>
+                            </label>
+                        </div>
+
+                        <div>
+                            <div class="flex items-center space-x-1.5">
+                                <span class="text-gray-500 text-[10.5px] shrink-0 font-bold">ชื่อไฟล์:</span>
+                                <input type="text" id="fp-export-filename" value="${suggestedFilename}" class="flex-1 px-2.5 py-1 text-xs bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-lg outline-none focus:ring-1 focus:ring-emerald-500 font-mono text-gray-800 dark:text-white">
+                                <span class="text-gray-400 font-mono text-xs">.png</span>
+                            </div>
+                        </div>
                     </div>
 
                 </div>
 
                 <!-- Footer Actions -->
-                <div class="p-3 border-t border-gray-100 dark:border-gray-700 bg-gray-50/80 dark:bg-gray-900/60 flex flex-wrap justify-between items-center gap-2 shrink-0">
+                <div class="px-4 py-3 border-t border-gray-100 dark:border-gray-700 bg-gray-50/80 dark:bg-gray-900/60 flex flex-wrap justify-between items-center gap-2 shrink-0">
                     <button type="button" id="fp-export-btn-print" class="px-3 py-1.5 text-xs text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700 font-semibold flex items-center rounded-xl transition">
                         <i class="fas fa-external-link-alt mr-1.5"></i> ดูภาพขนาดเต็ม
                     </button>
@@ -3621,7 +3844,7 @@ class FloorPlanManager {
                             ปิด
                         </button>
                         
-                        <button type="button" id="fp-export-btn-copy" class="px-3.5 py-1.5 rounded-xl bg-indigo-50 hover:bg-indigo-100 dark:bg-indigo-950/80 text-indigo-700 dark:text-indigo-300 border border-indigo-200/80 dark:border-indigo-800/80 font-bold transition flex items-center text-xs shadow-xs" title="คัดลอกรูปภาพสำหรับนำไปกดวาง Ctrl+V ในแชท">
+                        <button type="button" id="fp-export-btn-copy" class="px-3.5 py-1.5 rounded-xl bg-indigo-50 hover:bg-indigo-100 dark:bg-indigo-950/80 text-indigo-700 dark:text-indigo-300 border border-indigo-200/80 dark:border-indigo-800/80 font-bold transition flex items-center text-xs shadow-xs" title="คัดลอกรูปภาพสำหรับนำไปกดวาง Ctrl+V ในแชท LINE หรือเอกสาร">
                             <i class="fas fa-copy mr-1.5 text-indigo-500"></i> คัดลอกภาพ
                         </button>
 
@@ -3646,28 +3869,106 @@ class FloorPlanManager {
             radio.addEventListener('change', () => {
                 this.exportImageOptions.mode = radio.value;
                 modal.querySelectorAll('input[name="fpExportMode"]').forEach(r => {
-                    r.closest('label').classList.toggle('border-emerald-500', r.checked);
-                    r.closest('label').classList.toggle('bg-emerald-50/50', r.checked);
-                    r.closest('label').classList.toggle('dark:bg-emerald-950/40', r.checked);
+                    const lbl = r.closest('label');
+                    lbl.classList.toggle('border-emerald-500', r.checked);
+                    lbl.classList.toggle('bg-emerald-50/50', r.checked);
+                    lbl.classList.toggle('dark:bg-emerald-950/40', r.checked);
                 });
                 this.updateExportImagePreview();
             });
         });
 
-        // Detail checkbox changes
-        const optLabels = document.getElementById('fp-export-opt-labels');
-        const optZones = document.getElementById('fp-export-opt-zones');
-        const optHeader = document.getElementById('fp-export-opt-header');
-        const optHighRes = document.getElementById('fp-export-opt-highres');
-
-        [optLabels, optZones, optHeader, optHighRes].forEach(cb => {
-            cb?.addEventListener('change', () => {
-                this.exportImageOptions.showLabels = optLabels.checked;
-                this.exportImageOptions.showZones = optZones.checked;
-                this.exportImageOptions.showHeader = optHeader.checked;
-                this.exportImageOptions.highRes = optHighRes.checked;
+        // Width Preset radio changes
+        const customInput = document.getElementById('fp-export-custom-width');
+        modal.querySelectorAll('input[name="fpExportWidthPreset"]').forEach(radio => {
+            radio.addEventListener('change', () => {
+                this.exportImageOptions.widthPreset = radio.value;
+                modal.querySelectorAll('input[name="fpExportWidthPreset"]').forEach(r => {
+                    const lbl = r.closest('label');
+                    lbl.classList.toggle('border-emerald-500', r.checked);
+                    lbl.classList.toggle('bg-emerald-50/60', r.checked);
+                    lbl.classList.toggle('dark:bg-emerald-950/40', r.checked);
+                    lbl.classList.toggle('font-bold', r.checked);
+                });
+                if (radio.value === 'custom') {
+                    customInput?.focus();
+                    this.exportImageOptions.customWidth = parseInt(customInput?.value, 10) || 2560;
+                }
                 this.updateExportImagePreview();
             });
+        });
+
+        let widthDebounceTimer = null;
+        customInput?.addEventListener('input', () => {
+            clearTimeout(widthDebounceTimer);
+            widthDebounceTimer = setTimeout(() => {
+                const val = parseInt(customInput.value, 10);
+                if (val >= 600 && val <= 7680) {
+                    this.exportImageOptions.customWidth = val;
+                    const customRadio = modal.querySelector('input[name="fpExportWidthPreset"][value="custom"]');
+                    if (customRadio && !customRadio.checked) {
+                        customRadio.checked = true;
+                        customRadio.dispatchEvent(new Event('change'));
+                    } else {
+                        this.updateExportImagePreview();
+                    }
+                }
+            }, 300);
+        });
+
+        // Label Emphasis radio changes
+        modal.querySelectorAll('input[name="fpExportEmphasis"]').forEach(radio => {
+            radio.addEventListener('change', () => {
+                this.exportImageOptions.labelEmphasis = radio.value;
+                modal.querySelectorAll('input[name="fpExportEmphasis"]').forEach(r => {
+                    const lbl = r.closest('label');
+                    const isChecked = r.checked;
+                    if (r.value === 'sn') {
+                        lbl.classList.toggle('border-amber-500', isChecked);
+                        lbl.classList.toggle('bg-amber-50/50', isChecked);
+                        lbl.classList.toggle('dark:bg-amber-950/40', isChecked);
+                    } else if (r.value === 'name' || r.value === 'both') {
+                        lbl.classList.toggle('border-indigo-500', isChecked);
+                        lbl.classList.toggle('bg-indigo-50/50', isChecked);
+                        lbl.classList.toggle('dark:bg-indigo-950/40', isChecked);
+                    }
+                });
+                this.updateExportImagePreview();
+            });
+        });
+
+        // Pin scale radio changes
+        modal.querySelectorAll('input[name="fpExportPinScale"]').forEach(radio => {
+            radio.addEventListener('change', () => {
+                this.exportImageOptions.pinScaleMultiplier = parseFloat(radio.value) || 1.0;
+                modal.querySelectorAll('input[name="fpExportPinScale"]').forEach(r => {
+                    const lbl = r.closest('label');
+                    lbl.classList.toggle('border-emerald-500', r.checked);
+                    lbl.classList.toggle('bg-emerald-50/50', r.checked);
+                    lbl.classList.toggle('dark:bg-emerald-950/40', r.checked);
+                    lbl.classList.toggle('text-emerald-800', r.checked);
+                    lbl.classList.toggle('dark:text-emerald-300', r.checked);
+                });
+                this.updateExportImagePreview();
+            });
+        });
+
+        // Detail checkboxes
+        const optSpotlight = document.getElementById('fp-export-opt-spotlight');
+        const optZones = document.getElementById('fp-export-opt-zones');
+        const optHeader = document.getElementById('fp-export-opt-header');
+
+        optSpotlight?.addEventListener('change', () => {
+            this.exportImageOptions.highlightSelectedOnly = optSpotlight.checked;
+            this.updateExportImagePreview();
+        });
+        optZones?.addEventListener('change', () => {
+            this.exportImageOptions.showZones = optZones.checked;
+            this.updateExportImagePreview();
+        });
+        optHeader?.addEventListener('change', () => {
+            this.exportImageOptions.showHeader = optHeader.checked;
+            this.updateExportImagePreview();
         });
 
         // Actions
@@ -3701,7 +4002,13 @@ class FloorPlanManager {
             previewImg.onload = () => {
                 loadingEl.classList.add('hidden');
                 previewImg.classList.remove('hidden');
-                if (badgeEl) badgeEl.innerText = `${canvas.width} × ${canvas.height} px (PNG)`;
+                if (badgeEl) {
+                    let desc = '2K';
+                    if (canvas.width <= 1400) desc = 'HD';
+                    else if (canvas.width <= 2100) desc = 'FHD';
+                    else if (canvas.width >= 3500) desc = '4K';
+                    badgeEl.innerText = `${canvas.width} × ${canvas.height} px (${desc} PNG)`;
+                }
             };
         } catch (err) {
             console.error("Preview render failed:", err);
@@ -3723,7 +4030,7 @@ class FloorPlanManager {
             a.click();
             document.body.removeChild(a);
 
-            this.showToastNotification(`💾 บันทึกรูปภาพ "${filename}" เรียบร้อยแล้ว`, "success");
+            this.showToastNotification(`💾 บันทึกรูปภาพ "${filename}" เรียบร้อยแล้ว (${canvas.width}×${canvas.height} px)`, "success");
         } catch (e) {
             console.error("Download Error:", e);
             this.showToastNotification("เกิดข้อผิดพลาดในการดาวน์โหลดรูปภาพ: " + e.message, "warning");
